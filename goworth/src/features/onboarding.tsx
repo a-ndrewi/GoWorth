@@ -1,6 +1,5 @@
 import Slider from "@react-native-community/slider";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import * as Linking from "expo-linking";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -10,7 +9,6 @@ import {
   Easing,
   Platform,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
@@ -41,142 +39,83 @@ export function SplashScreen() {
   const { hold } = useLocalSearchParams<{ hold?: string }>();
   const { user, ready } = useAuth();
   const { cloudReady, hasPreferences } = useTravel();
-  const [reveal] = useState(() => new Animated.Value(0));
-  const [exit] = useState(() => new Animated.Value(1));
+  const [actionReveal] = useState(() => new Animated.Value(0));
+  const [actionsEnabled, setActionsEnabled] = useState(false);
   const [introDone, setIntroDone] = useState(false);
 
   useEffect(() => {
-    const animation = Animated.sequence([
-      Animated.timing(reveal, {
-        toValue: 1,
-        duration: 850,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.delay(650),
-    ]);
-    animation.start(({ finished }) => { if (finished) setIntroDone(true); });
-    return () => animation.stop();
-  }, [reveal]);
+    const timer = setTimeout(() => setIntroDone(true), 1100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
-    if (hold || !introDone || !ready || (user && !cloudReady)) return;
-    const animation = Animated.timing(exit, {
-      toValue: 0,
-      duration: 360,
-      easing: Easing.inOut(Easing.quad),
-      useNativeDriver: true,
+    if (hold || !introDone || !ready || (user && !cloudReady) || actionsEnabled) return;
+    if (user) {
+      router.replace((hasPreferences ? "/home" : "/preferences") as Href);
+      return;
+    }
+    const animation = Animated.timing(actionReveal, {
+      toValue: 1,
+      duration: 650,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: Platform.OS !== "web",
     });
     animation.start(({ finished }) => {
-      if (finished) router.replace((user ? hasPreferences ? "/home" : "/preferences" : "/welcome") as Href);
+      if (finished) setActionsEnabled(true);
     });
     return () => animation.stop();
-  }, [hold, introDone, ready, user, cloudReady, hasPreferences, exit]);
+  }, [hold, introDone, ready, user, cloudReady, hasPreferences, actionsEnabled, actionReveal]);
 
+  return <WelcomeContent actionReveal={actionReveal} actionsEnabled={actionsEnabled} />;
+}
+
+function WelcomeContent({ actionReveal, actionsEnabled = true }: { actionReveal?: Animated.Value; actionsEnabled?: boolean }) {
   return (
-    <Animated.View
-      style={{
-        flex: 1,
-        backgroundColor: p.white,
-        alignItems: "center",
-        justifyContent: "center",
-        opacity: exit,
-      }}
-    >
+    <View style={{ flex: 1, backgroundColor: p.white }}>
       <StatusBar style="dark" />
-      <Animated.View
-        style={{
-          alignItems: "center",
-          gap: 15,
-          opacity: reveal,
-          transform: [{ scale: reveal.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }) }],
-        }}
-      >
-        <Image
-          source={photos.brandMark}
-          style={{ width: 132, height: 104 }}
-          contentFit="contain"
-          accessibilityLabel="GoWorth logo"
-        />
-        <Image source={photos.brandName} style={{ width: 218, height: 54 }} contentFit="contain" />
-      </Animated.View>
-    </Animated.View>
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={{ flex: 1, paddingHorizontal: 24 }}>
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 15 }}>
+            <Image
+              source={photos.brandMark}
+              style={{ width: 132, height: 104 }}
+              contentFit="contain"
+              accessibilityLabel="GoWorth logo"
+            />
+            <Image
+              source={photos.brandName}
+              style={{ width: 218, height: 54 }}
+              contentFit="contain"
+              accessibilityLabel="GoWorth"
+            />
+          </View>
+          <Animated.View
+            pointerEvents={actionsEnabled ? "auto" : "none"}
+            accessibilityElementsHidden={!actionsEnabled}
+            importantForAccessibility={actionsEnabled ? "auto" : "no-hide-descendants"}
+            style={[
+              { gap: 12, paddingBottom: 24 },
+              actionReveal && {
+                opacity: actionReveal,
+                transform: [{ translateY: actionReveal.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
+              },
+            ]}
+          >
+            <Button disabled={!actionsEnabled} onPress={() => router.push({ pathname: "/auth", params: { mode: "signup" } } as Href)}>
+              Create an account
+            </Button>
+            <Button secondary disabled={!actionsEnabled} onPress={() => router.push("/auth" as Href)}>
+              Sign in
+            </Button>
+          </Animated.View>
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
 
 export function WelcomeScreen() {
-  return (
-    <View style={{ flex: 1, backgroundColor: p.ink }}>
-      <StatusBar style="light" />
-      <Image
-        source={photos.welcome}
-        contentFit="cover"
-        contentPosition="right center"
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "100%",
-        }}
-      />
-      <LinearGradient
-        colors={["rgba(5,22,35,.2)", "rgba(5,22,35,.4)", "rgba(5,22,35,.76)"]}
-        locations={[0, 0.5, 1]}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "100%",
-        }}
-      />
-      <SafeAreaView style={{ flex: 1 }}>
-        <ScrollView
-          contentContainerStyle={{
-            flexGrow: 1,
-            justifyContent: "flex-end",
-            padding: 24,
-            paddingTop: 260,
-            gap: 12,
-          }}
-        >
-          <View style={{ paddingBottom: 15 }}>
-            <Text
-              style={{
-                fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
-                color: "white",
-                fontSize: 39,
-                lineHeight: 43,
-                fontWeight: "700",
-                letterSpacing: 0,
-                textShadowColor: "rgba(0,0,0,.15)",
-                textShadowRadius: 10,
-              }}
-            >
-              Every{"\n"}destination{"\n"}is a worthy one
-            </Text>
-            <Copy
-              style={{
-                color: "white",
-                marginTop: 12,
-                fontSize: 16,
-                lineHeight: 23,
-              }}
-            >
-              Extraordinary places.{"\n"}A more fulfilled you.
-            </Copy>
-          </View>
-          <Button onPress={() => router.push({ pathname: "/auth", params: { mode: "signup" } } as Href)}>
-            Create an account
-          </Button>
-          <Button secondary onPress={() => router.push("/auth" as Href)}>
-            Sign in
-          </Button>
-        </ScrollView>
-      </SafeAreaView>
-    </View>
-  );
+  return <WelcomeContent />;
 }
 
 export function AuthScreen() {
@@ -249,10 +188,13 @@ export function AuthScreen() {
       }
     } catch (caught) {
       const code = typeof caught === "object" && caught !== null && "code" in caught ? String(caught.code) : "";
+      const status = typeof caught === "object" && caught !== null && "status" in caught ? Number(caught.status) : 0;
       if (code === "email_not_confirmed") setConfirmationEmail(address);
-      setError(code === "over_email_send_rate_limit"
-        ? "Too many emails have been sent. Wait a while before trying again."
-        : caught instanceof Error ? caught.message : "Authentication failed. Try again.");
+      setError(status === 504 || code === "request_timeout"
+        ? "Account creation is temporarily unavailable because the confirmation email could not be sent. Please try again later."
+        : code === "over_email_send_rate_limit"
+          ? "Too many emails have been sent. Wait a while before trying again."
+          : caught instanceof Error ? caught.message : "Authentication failed. Try again.");
     } finally {
       setBusy(false);
     }
@@ -350,7 +292,7 @@ export function AuthScreen() {
           <Button secondary busy={busy} icon="mail" onPress={resendConfirmation}>Resend confirmation</Button>
         )}
         <Button onPress={submit} busy={busy}>
-          {passwordRecovery ? "Save new password" : resetMode ? "Send reset link" : signUp ? "Create Account" : "Sign In"}
+          {busy && signUp ? "Creating account..." : passwordRecovery ? "Save new password" : resetMode ? "Send reset link" : signUp ? "Create Account" : "Sign In"}
         </Button>
       </View>
       {!passwordRecovery && <Pressable

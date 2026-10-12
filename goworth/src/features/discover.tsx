@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
-import { Linking, Pressable, Share, StyleSheet, TextInput, View } from "react-native";
+import { Pressable, Share, StyleSheet, TextInput, View } from "react-native";
 import {
   Brand, Button, Chip, Copy, DestinationCard, DestinationPhoto, EmptyState,
   Header, Heading, Icon, IconButton, Row, Screen, SectionTitle, Sheet, s,
@@ -9,7 +9,7 @@ import {
 } from "@/components/goworth/ui";
 import { palette as p } from "@/constants/design";
 import {
-  destinations, findDestination, placeMapUrl, placesForDestination, tripDays,
+  destinations, findDestination, placesForDestination, tripDays,
   type Place, type PlaceCategory,
 } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
@@ -90,6 +90,7 @@ export function HomeScreen() {
           style={{ flex: 1, minWidth: 0, fontSize: 14, color: p.ink, height: 44 }}
         />
       </Row>
+      {!!query.trim() && <Button secondary icon="map" onPress={() => router.push({ pathname: "/map", params: { q: query.trim() } } as Href)}>Search the world map</Button>}
       <View style={[s.grid, { gap: 7 }]}>
         {categories.map((item) => (
           <Chip
@@ -155,13 +156,7 @@ export function TripDetailsScreen() {
   }
   const isSaved = saved.includes(destination.id);
   const nearby = placesForDestination(destination.id);
-  const openMap = async () => {
-    try {
-      await Linking.openURL(`https://www.openstreetmap.org/search?query=${encodeURIComponent(`${destination.name}, ${destination.country}`)}`);
-    } catch {
-      setNotice("Could not open the map on this device.");
-    }
-  };
+  const openMap = () => router.push({ pathname: "/map", params: { destination: destination.id } } as Href);
   const plan = () => router.push({ pathname: "/planner", params: { destination: destination.id } } as Href);
   return (
     <Screen style={{ padding: 0, gap: 0 }} footer={<Row>
@@ -228,9 +223,9 @@ export function ExploreScreen() {
     `${place.name} ${place.detail} ${place.category}`.toLowerCase().includes(query.trim().toLowerCase()),
   );
   const canAdd = !!trip && trip.destinationId === destination.id;
-  const openMap = async (place: Place) => {
-    try { await Linking.openURL(placeMapUrl(place)); }
-    catch { setNotice("Could not open the map on this device."); }
+  const openMap = (place: Place) => {
+    setSelected(null);
+    router.push({ pathname: "/map", params: { destination: destination.id, place: place.id } } as Href);
   };
   return (
     <Screen active="home" style={{ gap: 17 }}>

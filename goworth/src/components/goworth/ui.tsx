@@ -321,6 +321,7 @@ export function Header({
 export function BottomNav({ active }: { active: string }) {
   const items = [
     ["home", "Explore", "home", "/home"],
+    ["map", "Map", "map", "/map"],
     ["planner", "Plan", "sparkle", "/planner"],
     ["saved", "Saved", "heart", "/saved"],
     ["profile", "Profile", "person", "/profile"],

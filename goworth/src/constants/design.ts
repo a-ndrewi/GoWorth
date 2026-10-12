@@ -19,7 +19,6 @@ export const palette = {
 export const photos = {
   brandMark: require("@/assets/images/goworth/brand-mark.png"),
   brandName: require("@/assets/images/goworth/brand-name.png"),
-  welcome: require("@/assets/images/destinations/bali.jpg"),
   positano: require("@/assets/images/destinations/positano.jpg"),
   santorini: require("@/assets/images/destinations/santorini.jpg"),
   bali: require("@/assets/images/destinations/bali.jpg"),

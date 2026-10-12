@@ -61,6 +61,7 @@ function AppNavigator() {
             </Stack.Protected>
             <Stack.Protected guard={!!user}>
               <Stack.Screen name="home" />
+              <Stack.Screen name="map" />
               <Stack.Screen name="trip" />
               <Stack.Screen name="explore" />
               <Stack.Screen name="planner" />

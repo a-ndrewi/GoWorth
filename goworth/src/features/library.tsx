@@ -1,12 +1,12 @@
 import { router, type Href } from "expo-router";
 import { useState } from "react";
-import { Linking, Pressable, Share, View } from "react-native";
+import { Pressable, Share, View } from "react-native";
 import {
   Button, Chip, Copy, DestinationCard, EmptyState, Field, Header, Heading,
   Icon, IconButton, Row, Screen, Sheet, s,
 } from "@/components/goworth/ui";
 import { palette as p } from "@/constants/design";
-import { dateLabel, destinations, findDestination, placeMapUrl, places } from "@/data/travel";
+import { dateLabel, destinations, findDestination, places } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
 import { useAuth } from "@/state/auth-context";
 
@@ -51,13 +51,10 @@ export function MemoriesScreen() {
 export function SavedScreen() {
   const { saved, savedPlaces, togglePlace, trip } = useTravel();
   const [tab, setTab] = useState("Destinations");
-  const [error, setError] = useState("");
   const savedDestinations = destinations.filter((destination) => saved.includes(destination.id));
   const savedPlaceRecords = places.filter((place) => savedPlaces.includes(place.id));
-  const openMap = async (place: (typeof places)[number]) => {
-    try { await Linking.openURL(placeMapUrl(place)); }
-    catch { setError("Could not open the map on this device."); }
-  };
+  const openMap = (place: (typeof places)[number]) =>
+    router.push({ pathname: "/map", params: { destination: place.destinationId, place: place.id } } as Href);
   return (
     <Screen active="saved" style={{ gap: 18 }}>
       <Header title="Saved" back={false} right={<IconButton name="plus" label="Plan a trip" color={p.blue} onPress={() => router.push("/planner" as Href)} />} />
@@ -75,7 +72,7 @@ export function SavedScreen() {
             <Copy style={{ fontWeight: "600" }}>{place.name}</Copy>
             <Copy muted style={{ fontSize: 12 }}>{findDestination(place.destinationId).name} · {place.category}</Copy>
           </Pressable>
-          <IconButton name="map" label={`Map for ${place.name}`} onPress={() => void openMap(place)} />
+          <IconButton name="map" label={`Map for ${place.name}`} onPress={() => openMap(place)} />
           <IconButton name="heartFill" label={`Unsave ${place.name}`} color={p.pink} onPress={() => togglePlace(place.id)} />
         </Row>)}
         {!savedPlaceRecords.length && <EmptyState title="No places saved" detail="Save a landmark, trail, or market to find it here." action="Explore places" onPress={() => router.push("/explore" as Href)} />}
@@ -85,7 +82,6 @@ export function SavedScreen() {
         <Copy muted>{dateLabel(trip.start)} - {dateLabel(trip.end)}</Copy>
         <Button onPress={() => router.push("/itinerary" as Href)}>Open itinerary</Button>
       </> : <EmptyState title="No trip planned" detail="Choose a destination and dates to start your trip." action="Plan a trip" onPress={() => router.push("/planner" as Href)} />)}
-      {!!error && <Copy style={s.error}>{error}</Copy>}
     </Screen>
   );
 }

@@ -14,10 +14,22 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+function hasPasswordRecoveryLink() {
+  if (Platform.OS !== "web" || typeof window === "undefined") return false;
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const query = new URLSearchParams(window.location.search);
+  return hash.get("type") === "recovery" || query.get("type") === "recovery";
+}
+
+function clearPasswordRecoveryLink() {
+  if (Platform.OS !== "web" || typeof window === "undefined" || !window.history.replaceState) return;
+  window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(!supabase);
-  const [passwordRecovery, setPasswordRecovery] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(hasPasswordRecoveryLink);
 
   useEffect(() => {
     const db = supabase;
@@ -70,7 +82,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext value={{ user, ready, passwordRecovery, finishPasswordRecovery: () => setPasswordRecovery(false), signOut }}>{children}</AuthContext>
+    <AuthContext
+      value={{
+        user,
+        ready,
+        passwordRecovery,
+        finishPasswordRecovery: () => {
+          clearPasswordRecoveryLink();
+          setPasswordRecovery(false);
+        },
+        signOut,
+      }}
+    >
+      {children}
+    </AuthContext>
   );
 }
 
