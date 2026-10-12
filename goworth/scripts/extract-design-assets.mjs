@@ -1,0 +1,69 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { resolve } from "node:path";
+
+const require = createRequire(import.meta.url);
+const sharp = require(process.env.SHARP_MODULE || "sharp");
+const source = process.argv[2];
+if (!source) throw new Error("Provide the original GoWorth design board path.");
+const directory = resolve("assets/images/goworth");
+await mkdir(directory, { recursive: true });
+
+// Coordinates refer to the original 941 x 1672 board, not the earlier upscaled crops.
+const crops = {
+  logo: [35, 204, 55, 49],
+  coast: [595, 1, 345, 165],
+  welcome: [201, 418, 152, 124],
+  positano: [204, 872, 153, 83],
+  santorini: [818, 205, 92, 77],
+  bali: [769, 674, 56, 43],
+  kyoto: [853, 674, 60, 43],
+  europe: [580, 625, 49, 44],
+  asia: [636, 625, 44, 44],
+  americas: [688, 625, 38, 44],
+  restaurant: [584, 945, 49, 49],
+  beach: [584, 1008, 49, 50],
+  hiking: [584, 1075, 49, 50],
+  hotel: [584, 1140, 49, 48],
+  japan: [222, 1331, 90, 58],
+  iceland: [326, 1331, 87, 58],
+  alps: [326, 1443, 87, 58],
+  savedCoast: [222, 1443, 90, 58],
+  avatar: [511, 1291, 50, 50],
+  memory1: [27, 1325, 47, 49],
+  memory2: [81, 1325, 47, 49],
+  memory3: [136, 1325, 46, 49],
+  memory4: [27, 1383, 47, 49],
+  memory5: [81, 1383, 47, 49],
+  memory6: [136, 1383, 46, 49],
+  memory7: [27, 1440, 47, 49],
+  memory8: [81, 1440, 47, 49],
+  memory9: [136, 1440, 46, 49],
+  map: [210, 1139, 141, 39],
+  outro: [657, 1415, 271, 159],
+};
+
+for (const [name, [left, top, width, height]] of Object.entries(crops)) {
+  await sharp(source)
+    .extract({ left, top, width, height })
+    .resize({ width: width * 3, kernel: "lanczos3" })
+    .png()
+    .toFile(resolve(directory, `${name}.png`));
+}
+await writeFile(
+  resolve(directory, "provenance.json"),
+  JSON.stringify(
+    {
+      source: "User-supplied GoWorth design board",
+      originalSize: [941, 1672],
+      method:
+        "Measured crops; 3x Lanczos resampling. No AI detail reconstruction.",
+      crops,
+    },
+    null,
+    2,
+  ) + "\n",
+);
+console.log(
+  `Extracted ${Object.keys(crops).length} source assets to ${directory}`,
+);

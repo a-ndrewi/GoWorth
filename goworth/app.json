@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "GoWorth",
+    "slug": "goworth",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/goworth/app-icon.png",
+    "scheme": "goworth",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/images/goworth/app-icon.png",
+      "bundleIdentifier": "com.andrewi.goworth",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/goworth/android-foreground.png",
+        "monochromeImage": "./assets/images/goworth/android-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.andrewi.goworth"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/images/goworth/brand-mark.png",
+          "imageWidth": 130
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2b91c2cf-8f40-4d81-bda9-0c0838d1960b"
+      }
+    },
+    "owner": "a-ndrewi"
+  }
+}
