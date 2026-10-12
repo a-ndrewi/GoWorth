@@ -195,7 +195,7 @@ export function TripDetailsScreen() {
         </>}
         {tab === "Places" && <>
           <Heading style={{ fontSize: 20 }}>{nearby.length} places to explore</Heading>
-          {nearby.slice(0, 4).map((place) => <PlaceRow key={place.id} place={place} saved={savedPlaces.includes(place.id)} onSave={() => togglePlace(place.id)} onPress={() => router.push({ pathname: "/explore", params: { id: destination.id } } as Href)} />)}
+          {nearby.slice(0, 4).map((place) => <PlaceRow key={place.id} place={place} saved={savedPlaces.includes(place.id)} onSave={() => togglePlace(place.id)} onPress={() => router.push({ pathname: "/explore", params: { id: destination.id, place: place.id } } as Href)} />)}
           <Button secondary onPress={() => router.push({ pathname: "/explore", params: { id: destination.id } } as Href)}>View all places</Button>
         </>}
         {tab === "Tips" && <Copy muted>Check opening hours, local access rules, transport schedules, and prices with each venue before visiting.</Copy>}
@@ -206,15 +206,18 @@ export function TripDetailsScreen() {
 }
 
 export function ExploreScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, place: placeId } = useLocalSearchParams<{ id?: string; place?: string }>();
   const { trip, savedPlaces, togglePlace, addActivity } = useTravel();
   const [chosenDestinationId, setChosenDestinationId] = useState<string | null>(null);
   const [choosingDestination, setChoosingDestination] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("All");
-  const [selected, setSelected] = useState<Place | null>(null);
+  const [selected, setSelected] = useState<Place | null>(() =>
+    placesForDestination(id || trip?.destinationId || destinations[0].id)
+      .find((item) => item.id === placeId) || null,
+  );
   const [selectedDay, setSelectedDay] = useState(1);
-  const [added, setAdded] = useState(false);
+  const [addedDays, setAddedDays] = useState<number[]>([]);
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState("");
   const destination = findDestination(chosenDestinationId || id || trip?.destinationId);
@@ -241,7 +244,7 @@ export function ExploreScreen() {
         {filters.map((item) => <Chip key={item} selected={filter === item} onPress={() => setFilter(item)}>{item}</Chip>)}
       </View>
       <View>
-        {filtered.map((place) => <PlaceRow key={place.id} place={place} saved={savedPlaces.includes(place.id)} onSave={() => togglePlace(place.id)} onPress={() => { setSelected(place); setSelectedDay(1); setAdded(false); setNotice(""); }} />)}
+        {filtered.map((place) => <PlaceRow key={place.id} place={place} saved={savedPlaces.includes(place.id)} onSave={() => togglePlace(place.id)} onPress={() => { setSelected(place); setSelectedDay(1); setAddedDays([]); setNotice(""); }} />)}
       </View>
       {!filtered.length && <EmptyState title="No places found" detail="Try another name or category." action="Reset search" onPress={() => { setQuery(""); setFilter("All"); }} />}
       <Sheet visible={choosingDestination} title="Choose a destination" onClose={() => setChoosingDestination(false)}>
@@ -259,19 +262,19 @@ export function ExploreScreen() {
           {canAdd ? <>
             <Copy style={s.label}>Add to day</Copy>
             <View style={s.grid}>{Array.from({ length: tripDays(trip.start, trip.end) }, (_, index) => <Chip key={index} selected={selectedDay === index + 1} onPress={() => setSelectedDay(index + 1)}>Day {index + 1}</Chip>)}</View>
-            <Button disabled={added} busy={adding} icon={added ? "check" : "plus"} onPress={async () => {
+            <Button disabled={addedDays.includes(selectedDay)} busy={adding} icon={addedDays.includes(selectedDay) ? "check" : "plus"} onPress={async () => {
               setAdding(true);
               setNotice("");
               try {
                 await addActivity({ day: selectedDay, period: "Afternoon", time: "13:00", name: selected.name, note: selected.detail });
-                setAdded(true);
+                setAddedDays((days) => [...days, selectedDay]);
               } catch (caught) {
                 setNotice(caught instanceof Error ? caught.message : "Could not add this place.");
               } finally {
                 setAdding(false);
               }
-            }}>{added ? `Added to Day ${selectedDay}` : "Add to itinerary"}</Button>
-            {added && <Button secondary onPress={() => { setSelected(null); router.push("/itinerary" as Href); }}>View itinerary</Button>}
+            }}>{addedDays.includes(selectedDay) ? `Added to Day ${selectedDay}` : "Add to itinerary"}</Button>
+            {addedDays.length > 0 && <Button secondary onPress={() => { setSelected(null); router.push("/itinerary" as Href); }}>View itinerary</Button>}
           </> : <Button onPress={() => { setSelected(null); router.push({ pathname: "/planner", params: { destination: destination.id } } as Href); }}>Plan a trip here</Button>}
           {!!notice && <Copy style={{ color: p.danger }}>{notice}</Copy>}
         </>}

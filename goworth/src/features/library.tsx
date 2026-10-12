@@ -71,7 +71,7 @@ export function SavedScreen() {
       {tab === "Places" && <>
         {savedPlaceRecords.map((place) => <Row key={place.id} style={{ paddingVertical: 10, gap: 12, borderBottomWidth: 1, borderColor: p.line }}>
           <View style={{ width: 46, height: 46, borderRadius: 6, backgroundColor: p.greenSoft, justifyContent: "center", alignItems: "center" }}><Icon name="pin" color={p.green} /></View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`View ${place.name}`} onPress={() => router.push({ pathname: "/explore", params: { id: place.destinationId } } as Href)} style={{ flex: 1 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View ${place.name}`} onPress={() => router.push({ pathname: "/explore", params: { id: place.destinationId, place: place.id } } as Href)} style={{ flex: 1 }}>
             <Copy style={{ fontWeight: "600" }}>{place.name}</Copy>
             <Copy muted style={{ fontSize: 12 }}>{findDestination(place.destinationId).name} · {place.category}</Copy>
           </Pressable>
@@ -143,7 +143,7 @@ export function ProfileScreen() {
       {tab === "Saved" && (saved.length || savedPlaces.length ? <>
         {!!saved.length && <View style={s.grid}>{destinations.filter((destination) => saved.includes(destination.id)).slice(0, 4).map((destination) => <DestinationCard key={destination.id} destination={destination} />)}</View>}
         {places.filter((place) => savedPlaces.includes(place.id)).slice(0, 4).map((place) => (
-          <Pressable key={place.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/explore", params: { id: place.destinationId } } as Href)} style={[s.row, { paddingVertical: 9 }]}>
+          <Pressable key={place.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/explore", params: { id: place.destinationId, place: place.id } } as Href)} style={[s.row, { paddingVertical: 9 }]}>
             <Icon name="pin" color={p.green} />
             <View style={{ flex: 1 }}>
               <Copy style={{ fontWeight: "600" }}>{place.name}</Copy>
