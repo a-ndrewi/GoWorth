@@ -18,9 +18,9 @@ The [initial migration](supabase/migrations/20261012120000_initial_schema.sql) h
 
 Configure email confirmation and a custom SMTP provider in Supabase Authentication. Add the web app's `/auth` URL to the Auth redirect allowlist, including each local development port in use (for example `http://localhost:8082/auth`) and the production domain. For native builds, allow the `goworth://auth` redirect. Users must confirm their email when confirmation is enabled; password-reset links return to the same route.
 
-The app does not contain a database owner password, so a publishable key alone cannot apply this migration. Photo upload, live maps, push notifications, payments, and reservations are not connected. The catalog contains 12 curated destinations and 72 named real places; it is bundled with the app, while account data is stored in Supabase. External place links open OpenStreetMap search results, so current opening hours and prices should be confirmed with the venue.
+The app does not contain a database owner password, so a publishable key alone cannot apply this migration. Photo upload, live maps, push notifications, payments, and reservations are not connected. The catalog contains 24 curated destinations and 144 named real places across six regions; it is bundled with the app, while account data is stored in Supabase. External place links open OpenStreetMap search results, so current opening hours and prices should be confirmed with the venue.
 
-Destination photos are loaded from Wikimedia Commons file pages listed in `src/constants/design.ts`; a labeled fallback appears if an image cannot load. Check each file page's current license and attribution requirements before distributing a production build.
+Destination photographs are bundled in `assets/images/destinations` to avoid network failures during browsing. Their Wikimedia Commons source pages, creators, and CC0 licenses are recorded in `assets/images/destinations/provenance.json`. Run `node scripts/download-destination-photos.mjs` to refresh them; the script rejects images without CC0 metadata.
 
 ## Checks
 

@@ -2,6 +2,9 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Activity, Expense, Trip } from "@/data/travel";
 import { useAuth } from "@/state/auth-context";
 import {
+  deleteActivity,
+  deleteExpense,
+  deleteTrip,
   loadTravelData,
   replaceTrip,
   saveActivity,
@@ -118,6 +121,16 @@ function useTravelState() {
     setSyncError("");
   };
 
+  const clearTrip = async () => {
+    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    await writeQueue.current;
+    await deleteTrip(user.id);
+    setTrip(null);
+    setActivities([]);
+    setExpenses([]);
+    setSyncError("");
+  };
+
   const addActivity = async (activity: Omit<Activity, "id">) => {
     if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
     const next = { ...activity, id: `activity-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
@@ -133,11 +146,31 @@ function useTravelState() {
     setActivities((current) => current.map((item) => item.id === activity.id ? activity : item));
   };
 
+  const removeActivity = async (id: string) => {
+    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    await persist(() => deleteActivity(user.id, id));
+    setActivities((current) => current.filter((item) => item.id !== id));
+  };
+
   const addExpense = async (expense: Omit<Expense, "id">) => {
     if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
     const next = { ...expense, id: `expense-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
     await persist(() => saveExpense(user.id, next, expenses.length));
     setExpenses((current) => [...current, next]);
+  };
+
+  const updateExpense = async (expense: Expense) => {
+    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    const position = expenses.findIndex((item) => item.id === expense.id);
+    if (position < 0) throw new Error("Expense not found. Reload your budget.");
+    await persist(() => saveExpense(user.id, expense, position));
+    setExpenses((current) => current.map((item) => item.id === expense.id ? expense : item));
+  };
+
+  const removeExpense = async (id: string) => {
+    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    await persist(() => deleteExpense(user.id, id));
+    setExpenses((current) => current.filter((item) => item.id !== id));
   };
 
   const setPreferences = (next: TravelPreferences) => setPreferencesState(next);
@@ -168,9 +201,9 @@ function useTravelState() {
 
   return {
     saved, toggleSaved, savedPlaces, togglePlace,
-    trip, hasTrip: !!trip, generateTrip,
-    activities, addActivity, updateActivity,
-    expenses, addExpense,
+    trip, hasTrip: !!trip, generateTrip, clearTrip,
+    activities, addActivity, updateActivity, removeActivity,
+    expenses, addExpense, updateExpense, removeExpense,
     preferences, setPreferences, hasPreferences, completePreferences,
     profile, setProfile, journal, setJournal,
     notifications, setNotifications: updateNotifications,

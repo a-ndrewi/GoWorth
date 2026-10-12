@@ -1,4 +1,4 @@
-import { DefaultTheme, Stack, ThemeProvider } from "expo-router";
+import { DefaultTheme, Stack, ThemeProvider, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -9,9 +9,11 @@ import { Button, Copy } from "@/components/goworth/ui";
 import "@/global.css";
 
 function AppNavigator() {
+  const pathname = usePathname();
+  const isSplash = pathname === "/" || pathname === "/splash";
   const { user, ready, signOut } = useAuth();
   const { cloudReady, loadError, retryLoad } = useTravel();
-  if (!ready) {
+  if (!ready && !isSplash) {
     return <View style={{ flex: 1, justifyContent: "center" }}><ActivityIndicator color={palette.blue} /></View>;
   }
   return (
@@ -32,15 +34,17 @@ function AppNavigator() {
             backgroundColor: palette.white,
           }}
         >
-          {!!user && !cloudReady ? (
+          {!!user && loadError ? (
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-              {loadError ? (
-                <View style={{ padding: 28, width: "100%", gap: 16 }}>
-                  <Copy style={{ textAlign: "center" }}>{loadError}</Copy>
-                  <Button onPress={retryLoad}>Try again</Button>
-                  <Button secondary onPress={() => void signOut()}>Sign out</Button>
-                </View>
-              ) : <ActivityIndicator color={palette.blue} accessibilityLabel="Loading account" />}
+              <View style={{ padding: 28, width: "100%", gap: 16 }}>
+                <Copy style={{ textAlign: "center" }}>{loadError}</Copy>
+                <Button onPress={retryLoad}>Try again</Button>
+                <Button secondary onPress={() => void signOut()}>Sign out</Button>
+              </View>
+            </View>
+          ) : !!user && !cloudReady && !isSplash ? (
+            <View style={{ flex: 1, justifyContent: "center" }}>
+              <ActivityIndicator color={palette.blue} accessibilityLabel="Loading account" />
             </View>
           ) : <Stack
             screenOptions={{

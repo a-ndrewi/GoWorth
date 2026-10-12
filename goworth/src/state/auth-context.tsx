@@ -31,16 +31,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (event === "SIGNED_OUT") setPasswordRecovery(false);
       }
     });
-    db.auth.getSession()
-      .then(({ data }) => {
-        if (mounted) {
-          setUser(data.session?.user ?? null);
-          setReady(true);
-        }
-      })
-      .catch(() => {
-        if (mounted) setReady(true);
-      });
     const appState =
       Platform.OS === "web"
         ? null

@@ -92,7 +92,7 @@ export function SavedScreen() {
 
 export function ProfileScreen() {
   const { user, signOut } = useAuth();
-  const { profile, setProfile, saved, savedPlaces, trip, journal } = useTravel();
+  const { profile, setProfile, saved, savedPlaces, trip, clearTrip, journal } = useTravel();
   const [tab, setTab] = useState("Trips");
   const [dialog, setDialog] = useState("");
   const [name, setName] = useState(profile.name);
@@ -140,8 +140,18 @@ export function ProfileScreen() {
         <DestinationCard destination={findDestination(trip.destinationId)} />
         <Button secondary onPress={() => router.push("/itinerary" as Href)}>Open itinerary</Button>
       </> : <EmptyState title="No trip yet" detail="Your first trip will appear here after you plan it." action="Plan a trip" onPress={() => router.push("/planner" as Href)} />)}
-      {tab === "Saved" && (saved.length ? <>
-        <View style={s.grid}>{destinations.filter((destination) => saved.includes(destination.id)).slice(0, 4).map((destination) => <DestinationCard key={destination.id} destination={destination} />)}</View>
+      {tab === "Saved" && (saved.length || savedPlaces.length ? <>
+        {!!saved.length && <View style={s.grid}>{destinations.filter((destination) => saved.includes(destination.id)).slice(0, 4).map((destination) => <DestinationCard key={destination.id} destination={destination} />)}</View>}
+        {places.filter((place) => savedPlaces.includes(place.id)).slice(0, 4).map((place) => (
+          <Pressable key={place.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/explore", params: { id: place.destinationId } } as Href)} style={[s.row, { paddingVertical: 9 }]}>
+            <Icon name="pin" color={p.green} />
+            <View style={{ flex: 1 }}>
+              <Copy style={{ fontWeight: "600" }}>{place.name}</Copy>
+              <Copy muted style={{ fontSize: 12 }}>{findDestination(place.destinationId).name}</Copy>
+            </View>
+            <Icon name="right" color={p.muted} />
+          </Pressable>
+        ))}
         <Button secondary onPress={() => router.push("/saved" as Href)}>View all saved</Button>
       </> : <EmptyState title="Nothing saved yet" detail="Save destinations or places to keep them close." action="Explore destinations" onPress={() => router.push("/home" as Href)} />)}
       {tab === "Journal" && <>
@@ -163,6 +173,19 @@ export function ProfileScreen() {
           <Copy>{profile.name}</Copy>
           <Copy muted>{user?.email}</Copy>
           <Button secondary onPress={edit}>Edit profile</Button>
+          {!!trip && <Button secondary onPress={() => { setError(""); setDialog("Delete trip"); }}>Delete current trip</Button>}
+        </>}
+        {dialog === "Delete trip" && <>
+          <Copy muted>Your itinerary and expenses will be deleted. Saved places and your journal will remain.</Copy>
+          {!!error && <Copy style={s.error}>{error}</Copy>}
+          <Button busy={busy} onPress={async () => {
+            setBusy(true);
+            setError("");
+            try { await clearTrip(); setDialog(""); }
+            catch (caught) { setError(caught instanceof Error ? caught.message : "Could not delete the trip."); }
+            finally { setBusy(false); }
+          }}>Delete trip</Button>
+          <Button secondary onPress={() => setDialog("Account settings")}>Cancel</Button>
         </>}
         {dialog === "Log out" && <>
           <Copy muted>Sign out of your account?</Copy>

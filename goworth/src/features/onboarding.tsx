@@ -6,10 +6,11 @@ import { router, useLocalSearchParams, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import {
+  Animated,
+  Easing,
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -33,65 +34,79 @@ import { useTravel } from "@/state/travel-context";
 import { useAuth } from "@/state/auth-context";
 import { supabase } from "@/lib/supabase";
 
+const authRedirectUrl = () =>
+  Platform.OS === "web" ? `${window.location.origin}/auth` : Linking.createURL("auth");
+
 export function SplashScreen() {
   const { hold } = useLocalSearchParams<{ hold?: string }>();
   const { user, ready } = useAuth();
   const { cloudReady, hasPreferences } = useTravel();
+  const [reveal] = useState(() => new Animated.Value(0));
+  const [exit] = useState(() => new Animated.Value(1));
+  const [introDone, setIntroDone] = useState(false);
+
   useEffect(() => {
-    if (hold || !ready || (user && !cloudReady)) return;
-    const timer = setTimeout(
-      () => router.replace((user ? hasPreferences ? "/home" : "/preferences" : "/welcome") as Href),
-      300,
-    );
-    return () => clearTimeout(timer);
-  }, [hold, ready, user, cloudReady, hasPreferences]);
+    const animation = Animated.sequence([
+      Animated.timing(reveal, {
+        toValue: 1,
+        duration: 850,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.delay(650),
+    ]);
+    animation.start(({ finished }) => { if (finished) setIntroDone(true); });
+    return () => animation.stop();
+  }, [reveal]);
+
+  useEffect(() => {
+    if (hold || !introDone || !ready || (user && !cloudReady)) return;
+    const animation = Animated.timing(exit, {
+      toValue: 0,
+      duration: 360,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: true,
+    });
+    animation.start(({ finished }) => {
+      if (finished) router.replace((user ? hasPreferences ? "/home" : "/preferences" : "/welcome") as Href);
+    });
+    return () => animation.stop();
+  }, [hold, introDone, ready, user, cloudReady, hasPreferences, exit]);
+
   return (
-    <Pressable
-      style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-      accessibilityRole="button"
-      accessibilityLabel="Continue to GoWorth"
-      onPress={() => router.replace((user ? hasPreferences ? "/home" : "/preferences" : "/welcome") as Href)}
+    <Animated.View
+      style={{
+        flex: 1,
+        backgroundColor: p.white,
+        alignItems: "center",
+        justifyContent: "center",
+        opacity: exit,
+      }}
     >
-      <StatusBar style="light" />
-      <Image
-        source={photos.coast}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-        blurRadius={9}
-      />
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor: "rgba(7,65,106,.27)" },
-        ]}
-      />
-      <View style={{ alignItems: "center", gap: 18 }}>
+      <StatusBar style="dark" />
+      <Animated.View
+        style={{
+          alignItems: "center",
+          gap: 15,
+          opacity: reveal,
+          transform: [{ scale: reveal.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }) }],
+        }}
+      >
         <Image
           source={photos.brandMark}
-          style={{ width: 98, height: 86 }}
+          style={{ width: 132, height: 104 }}
           contentFit="contain"
+          accessibilityLabel="GoWorth logo"
         />
-        <Heading style={{ color: p.white, fontSize: 46, lineHeight: 54 }}>
-          GoWorth
-        </Heading>
-        <Copy
-          style={{
-            color: p.white,
-            textAlign: "center",
-            fontSize: 22,
-            lineHeight: 29,
-          }}
-        >
-          Your next{"\n"}adventure is{"\n"}worth it.
-        </Copy>
-      </View>
-    </Pressable>
+        <Image source={photos.brandName} style={{ width: 218, height: 54 }} contentFit="contain" />
+      </Animated.View>
+    </Animated.View>
   );
 }
 
 export function WelcomeScreen() {
   return (
-    <View style={{ flex: 1, backgroundColor: "white" }}>
+    <View style={{ flex: 1, backgroundColor: p.ink }}>
       <StatusBar style="light" />
       <Image
         source={photos.welcome}
@@ -102,23 +117,18 @@ export function WelcomeScreen() {
           top: 0,
           left: 0,
           right: 0,
-          height: "82%",
+          height: "100%",
         }}
       />
       <LinearGradient
-        colors={[
-          "transparent",
-          "rgba(17,30,39,.35)",
-          "rgba(255,255,255,.6)",
-          "#FFFFFF",
-        ]}
-        locations={[0, 0.64, 0.86, 1]}
+        colors={["rgba(5,22,35,.2)", "rgba(5,22,35,.4)", "rgba(5,22,35,.76)"]}
+        locations={[0, 0.5, 1]}
         style={{
           position: "absolute",
           top: 0,
           left: 0,
           right: 0,
-          height: "82%",
+          height: "100%",
         }}
       />
       <SafeAreaView style={{ flex: 1 }}>
@@ -217,7 +227,7 @@ export function AuthScreen() {
       }
       if (resetMode) {
         const result = await supabase.auth.resetPasswordForEmail(address, {
-          redirectTo: Linking.createURL("auth"),
+          redirectTo: authRedirectUrl(),
         });
         if (result.error) throw result.error;
         setNotice("If this email has an account, a password reset link is on its way.");
@@ -227,7 +237,7 @@ export function AuthScreen() {
         ? await supabase.auth.signUp({
             email: address,
             password,
-            options: { emailRedirectTo: Linking.createURL("auth") },
+            options: { emailRedirectTo: authRedirectUrl() },
           })
         : await supabase.auth.signInWithPassword({ email: address, password });
       if (result.error) throw result.error;
@@ -256,7 +266,7 @@ export function AuthScreen() {
       const result = await supabase.auth.resend({
         type: "signup",
         email: confirmationEmail,
-        options: { emailRedirectTo: Linking.createURL("auth") },
+        options: { emailRedirectTo: authRedirectUrl() },
       });
       if (result.error) throw result.error;
       setNotice("A new confirmation link is on its way. Check your inbox and spam folder.");
@@ -417,37 +427,18 @@ export function PreferencesScreen() {
       </View>
       <View style={{ gap: 12 }}>
         <Copy style={s.label}>Preferred destinations</Copy>
-        <Chip selected={preferences.region === "Worldwide"} onPress={() => setPreferences({ ...preferences, region: "Worldwide" })}>Worldwide</Chip>
-        <Row style={{ gap: 10 }}>
-          {(["Europe", "Asia", "Americas"] as const).map((region) => (
-            <Pressable
+        <View style={[s.grid, { gap: 8 }]}>
+          {(["Worldwide", "Europe", "Asia", "Americas", "Africa", "Oceania"] as const).map((region) => (
+            <Chip
               key={region}
-              accessibilityRole="button"
-              accessibilityLabel={region}
-              accessibilityState={{ selected: preferences.region === region }}
+              selected={preferences.region === region}
               onPress={() => setPreferences({ ...preferences, region })}
-              style={{ flex: 1, gap: 7 }}
+              style={{ minWidth: 94 }}
             >
-              <Image
-                source={
-                  photos[region.toLowerCase() as "europe" | "asia" | "americas"]
-                }
-                style={{
-                  width: "100%",
-                  height: 92,
-                  borderRadius: 12,
-                  borderWidth: preferences.region === region ? 2 : 0,
-                  borderColor: p.blue,
-                }}
-              />
-              <Copy
-                style={{ fontSize: 12, textAlign: "center", fontWeight: "500" }}
-              >
-                {region}
-              </Copy>
-            </Pressable>
+              {region}
+            </Chip>
           ))}
-        </Row>
+        </View>
       </View>
       <View style={{ gap: 9 }}>
         <Row style={{ justifyContent: "space-between" }}>

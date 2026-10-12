@@ -31,6 +31,7 @@ import {
   tripDays,
   validateTrip,
   type Activity,
+  type Expense,
   type ExpenseCategory,
   type Trip,
 } from "@/data/travel";
@@ -53,6 +54,7 @@ export function PlannerScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState(false);
+  const [confirmReplace, setConfirmReplace] = useState(false);
   const patch = (next: Partial<Trip>) =>
     setDraft((old) => ({ ...old, ...next }));
   const generate = async () => {
@@ -62,6 +64,13 @@ export function PlannerScreen() {
       return;
     }
     setError("");
+    if (trip) {
+      setConfirmReplace(true);
+      return;
+    }
+    await saveTrip();
+  };
+  const saveTrip = async () => {
     setBusy(true);
     try {
       await generateTrip(draft);
@@ -240,12 +249,22 @@ export function PlannerScreen() {
           View current itinerary
         </Button>}
       </Sheet>
+      <Sheet
+        visible={confirmReplace}
+        title="Replace current trip?"
+        onClose={() => setConfirmReplace(false)}
+      >
+        <Copy muted>Your current itinerary and expenses will be deleted. Saved destinations, places, and your journal will stay in your account.</Copy>
+        {!!error && <Copy style={s.error}>{error}</Copy>}
+        <Button busy={busy} onPress={() => void saveTrip()}>Replace trip</Button>
+        <Button secondary onPress={() => setConfirmReplace(false)}>Keep current trip</Button>
+      </Sheet>
     </Screen>
   );
 }
 
 export function ItineraryScreen() {
-  const { trip, activities, addActivity, updateActivity } = useTravel();
+  const { trip, activities, addActivity, updateActivity, removeActivity } = useTravel();
   const [selectedDay, setDay] = useState(1);
   const [editing, setEditing] = useState<Activity | null>(null);
   const [showEditor, setShowEditor] = useState(false);
@@ -255,6 +274,7 @@ export function ItineraryScreen() {
   const [period, setPeriod] = useState<Activity["period"]>("Afternoon");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   if (!trip) {
     return (
       <Screen style={{ gap: 22 }}>
@@ -273,6 +293,7 @@ export function ItineraryScreen() {
     setTime(activity?.time || "16:00");
     setPeriod(activity?.period || "Afternoon");
     setError("");
+    setConfirmDelete(false);
     setShowEditor(true);
   };
   const save = async () => {
@@ -299,6 +320,19 @@ export function ItineraryScreen() {
       setShowEditor(false);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save the activity.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const remove = async () => {
+    if (!editing) return;
+    setSaving(true);
+    setError("");
+    try {
+      await removeActivity(editing.id);
+      setShowEditor(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not delete the activity.");
     } finally {
       setSaving(false);
     }
@@ -480,6 +514,9 @@ export function ItineraryScreen() {
         />
         {!!error && <Copy style={s.error}>{error}</Copy>}
         <Button busy={saving} onPress={save}>Save Activity</Button>
+        {editing && (confirmDelete
+          ? <Button secondary busy={saving} onPress={() => void remove()}>Confirm delete activity</Button>
+          : <Button secondary onPress={() => setConfirmDelete(true)}>Delete activity</Button>)}
       </Sheet>
     </Screen>
   );
@@ -495,16 +532,28 @@ const expenseIcons: Record<ExpenseCategory, IconName> = {
 const expenseColors = [p.purple, p.orange, p.blue, p.pink, p.blue];
 
 export function BudgetScreen() {
-  const { trip, expenses, addExpense } = useTravel();
+  const { trip, expenses, addExpense, updateExpense, removeExpense } = useTravel();
   const [editor, setEditor] = useState(false);
+  const [editing, setEditing] = useState<Expense | null>(null);
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState<ExpenseCategory>("Food & Drinks");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState<ExpenseCategory | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const openEditor = (expense?: Expense) => {
+    setEditing(expense || null);
+    setLabel(expense?.label || "");
+    setAmount(expense ? String(expense.amount) : "");
+    setCategory(expense?.category || "Food & Drinks");
+    setError("");
+    setConfirmDelete(false);
+    setDetail(null);
+    setEditor(true);
+  };
   const save = async () => {
-    const value = Number(amount);
+    const value = Number(amount.replace(",", "."));
     if (!label.trim()) {
       setError("Give this expense a name.");
       return;
@@ -516,16 +565,29 @@ export function BudgetScreen() {
     setSaving(true);
     setError("");
     try {
-      await addExpense({
+      const expense = {
         label: label.trim(),
         category,
         amount: Math.round(value * 100) / 100,
-      });
+      };
+      if (editing) await updateExpense({ ...expense, id: editing.id });
+      else await addExpense(expense);
       setEditor(false);
-      setLabel("");
-      setAmount("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save the expense.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const remove = async () => {
+    if (!editing) return;
+    setSaving(true);
+    setError("");
+    try {
+      await removeExpense(editing.id);
+      setEditor(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not delete the expense.");
     } finally {
       setSaving(false);
     }
@@ -550,7 +612,7 @@ export function BudgetScreen() {
     <Screen
       style={{ gap: 22 }}
       footer={
-        <Button icon="plus" onPress={() => setEditor(true)}>
+        <Button icon="plus" onPress={() => openEditor()}>
           Add Expense
         </Button>
       }
@@ -685,7 +747,7 @@ export function BudgetScreen() {
       </Row>
       <Sheet
         visible={editor}
-        title="Add an expense"
+        title={editing ? "Edit expense" : "Add an expense"}
         onClose={() => setEditor(false)}
       >
         <Field
@@ -715,6 +777,9 @@ export function BudgetScreen() {
         </View>
         {!!error && <Copy style={s.error}>{error}</Copy>}
         <Button busy={saving} onPress={save}>Save Expense</Button>
+        {editing && (confirmDelete
+          ? <Button secondary busy={saving} onPress={() => void remove()}>Confirm delete expense</Button>
+          : <Button secondary onPress={() => setConfirmDelete(true)}>Delete expense</Button>)}
       </Sheet>
       <Sheet
         visible={!!detail}
@@ -724,10 +789,11 @@ export function BudgetScreen() {
         {expenses
           .filter((e) => e.category === detail)
           .map((e) => (
-            <Row key={e.id} style={{ justifyContent: "space-between" }}>
+            <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={`Edit ${e.label}`} onPress={() => openEditor(e)} style={[s.row, { justifyContent: "space-between", paddingVertical: 9 }]}>
               <Copy style={{ flex: 1 }}>{e.label}</Copy>
               <Copy style={{ fontWeight: "600" }}>{money(e.amount)}</Copy>
-            </Row>
+              <Icon name="right" size={17} color={p.muted} />
+            </Pressable>
           ))}
         {!expenses.some((e) => e.category === detail) && (
           <EmptyState

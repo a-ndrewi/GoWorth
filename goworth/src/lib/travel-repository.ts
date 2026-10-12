@@ -102,6 +102,10 @@ export async function replaceTrip(userId: string, trip: Trip, activities: Activi
   }));
 }
 
+export async function deleteTrip(userId: string) {
+  requireData(await client().from("trips").delete().eq("user_id", userId));
+}
+
 export async function saveActivity(userId: string, activity: Activity, position: number) {
   requireData(await client().from("trip_activities").upsert({
     user_id: userId,
@@ -115,12 +119,20 @@ export async function saveActivity(userId: string, activity: Activity, position:
   }));
 }
 
+export async function deleteActivity(userId: string, id: string) {
+  requireData(await client().from("trip_activities").delete().eq("user_id", userId).eq("id", id));
+}
+
 export async function saveExpense(userId: string, expense: Expense, position: number) {
   requireData(await client().from("trip_expenses").upsert({
     user_id: userId,
     ...expense,
     position,
   }));
+}
+
+export async function deleteExpense(userId: string, id: string) {
+  requireData(await client().from("trip_expenses").delete().eq("user_id", userId).eq("id", id));
 }
 
 export async function setSavedItem(

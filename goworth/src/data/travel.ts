@@ -17,6 +17,18 @@ const destinationPhotos = {
   lisbon: photos.lisbon,
   "new-york": photos.newYork,
   barcelona: photos.barcelona,
+  london: photos.london,
+  amsterdam: photos.amsterdam,
+  istanbul: photos.istanbul,
+  dubai: photos.dubai,
+  singapore: photos.singapore,
+  bangkok: photos.bangkok,
+  seoul: photos.seoul,
+  sydney: photos.sydney,
+  rio: photos.rio,
+  "cape-town": photos.capeTown,
+  marrakech: photos.marrakech,
+  "mexico-city": photos.mexicoCity,
 };
 
 export const destinations = destinationCatalog.map((destination) => ({
@@ -33,7 +45,10 @@ export const interests = [
 ];
 
 export const money = (value: number) =>
-  `$${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  `$${value.toLocaleString("en-US", {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 export const dateLabel = (iso: string) =>
   new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", {
