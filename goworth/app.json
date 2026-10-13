@@ -37,7 +37,8 @@
           "imageWidth": 130
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      ["expo-location", { "locationWhenInUsePermission": "Allow GoWorth to find destinations and places near you." }]
     ],
     "experiments": {
       "typedRoutes": true,

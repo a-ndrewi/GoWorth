@@ -190,5 +190,245 @@
     "license": "CC0",
     "width": 960,
     "height": 640
+  },
+  "berlin": {
+    "title": "Berlin TV tower city skyline (41610209475).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Berlin_TV_tower_city_skyline_(41610209475).jpg",
+    "creator": "<a rel=\"nofollow\" class=\"external text\" href=\"https://www.flickr.com/people/125167502@N02\">Markus Spiske</a> from Forchheim, Bavaria Upper Franconia",
+    "license": "CC0",
+    "width": 960,
+    "height": 640
+  },
+  "vienna": {
+    "title": "Vienna, Austria (Unsplash R2JCl9zI7og).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Vienna,_Austria_(Unsplash_R2JCl9zI7og).jpg",
+    "creator": "Norbert Levajsics <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@levajsics\">levajsics</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 638
+  },
+  "prague": {
+    "title": "Prague Height Cityscape (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Prague_Height_Cityscape_(Unsplash).jpg",
+    "creator": "Fabrizio Verrecchia <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@fabryv\">fabryv</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 638
+  },
+  "delhi": {
+    "title": "New Delhi, India (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:New_Delhi,_India_(Unsplash).jpg",
+    "creator": "Hans Vivek <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@rickyzden\">rickyzden</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 638
+  },
+  "hanoi": {
+    "title": "Hàng Bông, Hanoi, Vietnam (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:H%C3%A0ng_B%C3%B4ng,_Hanoi,_Vietnam_(Unsplash).jpg",
+    "creator": "Đức Mạnh <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@duzmanh26\">duzmanh26</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 640
+  },
+  "kuala-lumpur": {
+    "title": "Menara Berkembar Petronas, Kuala Lumpur, Malaysia (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Menara_Berkembar_Petronas,_Kuala_Lumpur,_Malaysia_(Unsplash).jpg",
+    "creator": "Vlad Shapochnikov <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@vladshap\">vladshap</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 640
+  },
+  "auckland": {
+    "title": "Auckland seen from a hill (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Auckland_seen_from_a_hill_(Unsplash).jpg",
+    "creator": "Mathew Waters <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@mathewwaters\">mathewwaters</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 540
+  },
+  "toronto": {
+    "title": "CN Tower, Toronto, Canada (Unsplash DJ kOgH5u0o).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:CN_Tower,_Toronto,_Canada_(Unsplash_DJ_kOgH5u0o).jpg",
+    "creator": "Scott Webb <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@scottwebb\">scottwebb</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 640
+  },
+  "buenos-aires": {
+    "title": "Buenos Aires, Argentina (Unsplash YMOHw3F1Hdk).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Buenos_Aires,_Argentina_(Unsplash_YMOHw3F1Hdk).jpg",
+    "creator": "Nik Lanús <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@niklanus\">niklanus</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 640
+  },
+  "lima": {
+    "title": "Lima, Peru (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Lima,_Peru_(Unsplash).jpg",
+    "creator": "Blake Richard Verdoorn <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@blakeverdoorn\">blakeverdoorn</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 640
+  },
+  "cairo": {
+    "title": "Pyramids in Giza - Egypt.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Pyramids_in_Giza_-_Egypt.jpg",
+    "creator": "Walkerssk",
+    "license": "CC0",
+    "width": 960,
+    "height": 459
+  },
+  "nairobi": {
+    "title": "Aerial view of Nairobi.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Aerial_view_of_Nairobi.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/wiki/User:Stuart_Njagi\" title=\"User:Stuart Njagi\">Stuart Njagi</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 1280
+  },
+  "dublin": {
+    "title": "Wandering in Dublin (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Wandering_in_Dublin_(Unsplash).jpg",
+    "creator": "Hugues Adamo <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@hugueshh\">hugueshh</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 640
+  },
+  "edinburgh": {
+    "title": "Skyline of Quartermile, Edinburgh, in June 2024.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Skyline_of_Quartermile,_Edinburgh,_in_June_2024.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:McPhail&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:McPhail (page does not exist)\">McPhail</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 383
+  },
+  "copenhagen": {
+    "title": "Urban Nightscape Copenhagen (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Urban_Nightscape_Copenhagen_(Unsplash).jpg",
+    "creator": "Kate Chenkova <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@chenkova\">chenkova</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 621
+  },
+  "stockholm": {
+    "title": "Stockholm (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Stockholm_(Unsplash).jpg",
+    "creator": "Jon Flobrant <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@jonflobrant\">jonflobrant</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 640
+  },
+  "oslo": {
+    "title": "Oslo sunset (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Oslo_sunset_(Unsplash).jpg",
+    "creator": "Kristofer Selbekk <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@selbekk\">selbekk</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 719
+  },
+  "helsinki": {
+    "title": "Helsinki Rooftops (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Helsinki_Rooftops_(Unsplash).jpg",
+    "creator": "Rucksack Magazine <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@rucksackmag\">rucksackmag</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 529
+  },
+  "tallinn": {
+    "title": "Backpacker over Tallinn's Old Town (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Backpacker_over_Tallinn%27s_Old_Town_(Unsplash).jpg",
+    "creator": "Ilya Orehov <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@iliched\">iliched</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 641
+  },
+  "riga": {
+    "title": "Riga center 2020-03.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Riga_center_2020-03.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/wiki/User:Svetlov_Artem\" title=\"User:Svetlov Artem\">Svetlov Artem</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 466
+  },
+  "vilnius": {
+    "title": "Gediminas Tower Vilnius Lithuania 2025.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Gediminas_Tower_Vilnius_Lithuania_2025.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/wiki/User:Mojmir_Churavy\" title=\"User:Mojmir Churavy\">Mojmir Churavy</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 1280
+  },
+  "warsaw": {
+    "title": "Palace of Culture and Science in Warsaw, Poland.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Palace_of_Culture_and_Science_in_Warsaw,_Poland.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Frunze103&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Frunze103 (page does not exist)\">Frunze103</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 1280
+  },
+  "budapest": {
+    "title": "Hungarian Parliament Building (Unsplash C 4sByaxyn4).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Hungarian_Parliament_Building_(Unsplash_C_4sByaxyn4).jpg",
+    "creator": "Daniel Olah",
+    "license": "CC0",
+    "width": 960,
+    "height": 641
+  },
+  "athens": {
+    "title": "From Temple of Olympian Zeus to Lycabetus Athens Greece.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:From_Temple_of_Olympian_Zeus_to_Lycabetus_Athens_Greece.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/wiki/User:Jebulon\" title=\"User:Jebulon\">Jebulon</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 702
+  },
+  "zagreb": {
+    "title": "Zg 0146 Zagreb-Cathedral with flowers.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Zg_0146_Zagreb-Cathedral_with_flowers.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/wiki/User:Stebunik\" title=\"User:Stebunik\">Stebunik</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 1280
+  },
+  "ljubljana": {
+    "title": "Ljubljana, Slovenia 2016.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Ljubljana,_Slovenia_2016.jpg",
+    "creator": "<a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@matejay\">Matej Kokalj</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 639
+  },
+  "bucharest": {
+    "title": "Bucharest city.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Bucharest_city.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/wiki/User:Sido_uku\" title=\"User:Sido uku\">Sido uku</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 540
+  },
+  "sofia": {
+    "title": "Sofia, Bulgaria (Unsplash BniZvM UKq8).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Sofia,_Bulgaria_(Unsplash_BniZvM_UKq8).jpg",
+    "creator": "Georgi Kalaydzhiev <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@jorok\">jorok</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 469
+  },
+  "belgrade": {
+    "title": "Beograd na vodi2.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Beograd_na_vodi2.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Ilijabgc&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Ilijabgc (page does not exist)\">Ilijabgc</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 542
+  },
+  "brussels": {
+    "title": "Brussels, Belgium (Unsplash TK0toNy9H2c).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Brussels,_Belgium_(Unsplash_TK0toNy9H2c).jpg",
+    "creator": "Renee Van Wesep <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@reneevanwesep\">reneevanwesep</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 654
   }
 }

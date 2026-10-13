@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
-import { Button, Chip, Copy, Header, Icon, Row, Screen } from "@/components/goworth/ui";
+import { Button, Chip, Copy, DestinationPhoto, Header, Icon, Row, Screen, Sheet } from "@/components/goworth/ui";
+import { PlacePreviewPhoto } from "@/components/goworth/place-preview";
 import { MapSurface } from "@/components/goworth/map-surface";
 import { palette as p } from "@/constants/design";
 import { destinations, places } from "@/data/travel";
@@ -17,6 +18,7 @@ export function MapScreen() {
   const [region, setRegion] = useState("Worldwide");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState<MapPin | undefined>(() => destinationPins.find((pin) => pin.id === destination));
+  const [preview, setPreview] = useState<SearchResult | (typeof destinations)[number] | null>(null);
   const [busy, setBusy] = useState(!!place || !!q);
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
@@ -74,7 +76,7 @@ export function MapScreen() {
     {searched && !busy && !error && !results.length && <Copy muted>No locations found. Try a more specific search.</Copy>}
     {!!results.length && <View style={{ gap: 3 }}>
       <Copy style={{ fontSize: 17, fontWeight: "700" }}>Search results</Copy>
-      {results.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Show ${item.detail} on map`} onPress={() => setSelected(item)} style={{ paddingVertical: 9, borderBottomWidth: 1, borderColor: p.line }}>
+      {results.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Preview ${item.detail}`} onPress={() => { setSelected(item); setPreview(item); }} style={{ paddingVertical: 9, borderBottomWidth: 1, borderColor: p.line }}>
         <Copy style={{ fontWeight: "600" }}>{item.name}</Copy>
         <Copy muted style={{ fontSize: 12 }}>{item.detail}</Copy>
       </Pressable>)}
@@ -85,11 +87,27 @@ export function MapScreen() {
     </ScrollView>
     <View style={{ gap: 3 }}>
       {visibleDestinations.map((item) => <Row key={item.id} style={{ borderBottomWidth: 1, borderColor: p.line }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Show ${item.name} on map`} onPress={() => setSelected(destinationPins.find((pin) => pin.id === item.id))} style={{ flex: 1, paddingVertical: 12 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Preview ${item.name}`} onPress={() => { setSelected(destinationPins.find((pin) => pin.id === item.id)); setPreview(item); }} style={{ flex: 1, paddingVertical: 12 }}>
           <Copy style={{ fontWeight: "600" }}>{item.name}</Copy><Copy muted style={{ fontSize: 12 }}>{item.country}</Copy>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`Explore ${item.name}`} onPress={() => router.push({ pathname: "/trip", params: { id: item.id } } as Href)} style={{ padding: 12 }}><Icon name="right" color={p.blue} /></Pressable>
       </Row>)}
     </View>
+    <Sheet visible={!!preview} title={preview?.name || ""} onClose={() => setPreview(null)}>
+      {preview && ("country" in preview ? <>
+        <DestinationPhoto destination={preview} style={{ width: "100%", height: 215, borderRadius: 6 }} />
+        <Copy muted>{preview.country} · {preview.region}</Copy>
+        <Copy>{preview.description}</Copy>
+        <Button secondary icon="map" onPress={() => setPreview(null)}>View on map</Button>
+        <Button onPress={() => { setPreview(null); router.push({ pathname: "/trip", params: { id: preview.id } } as Href); }}>Explore destination</Button>
+      </> : <>
+        <PlacePreviewPhoto name={preview.name} location={preview.detail.split(",").slice(1).join(",").trim()} />
+        <View style={{ gap: 5 }}>
+          <Copy muted>{preview.kind}</Copy>
+          <Copy>{preview.detail}</Copy>
+        </View>
+        <Button secondary icon="map" onPress={() => setPreview(null)}>View on map</Button>
+      </>)}
+    </Sheet>
   </Screen>;
 }

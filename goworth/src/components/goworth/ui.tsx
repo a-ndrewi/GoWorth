@@ -69,6 +69,7 @@ const symbols = {
   logout: ["rectangle.portrait.and.arrow.right", "logout"],
   edit: ["pencil", "edit"],
   more: ["ellipsis", "more_horiz"],
+  refresh: ["arrow.clockwise", "refresh"],
   apple: ["apple.logo", "phone_iphone"],
   google: ["globe", "public"],
   globe: ["globe", "public"],

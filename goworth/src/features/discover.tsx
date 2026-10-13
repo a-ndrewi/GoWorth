@@ -7,6 +7,8 @@ import {
   Header, Heading, Icon, IconButton, Row, Screen, SectionTitle, Sheet, s,
   type IconName,
 } from "@/components/goworth/ui";
+import { PlacePreviewPhoto } from "@/components/goworth/place-preview";
+import { DiscoverySwiper } from "@/components/goworth/discovery-swiper";
 import { palette as p } from "@/constants/design";
 import {
   destinations, findDestination, placesForDestination, tripDays,
@@ -104,6 +106,7 @@ export function HomeScreen() {
       </View>
       {!query && !category && (
         <>
+          <DiscoverySwiper />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Explore ${featured.name}`}
@@ -172,9 +175,9 @@ export function TripDetailsScreen() {
           <Heading style={{ fontSize: 30 }}>{destination.name}</Heading>
           <Copy muted>{destination.country} · {destination.region}</Copy>
         </View>
-        <Row style={{ borderBottomWidth: 1, borderColor: p.line, justifyContent: "space-between" }}>
+        <Row style={{ borderBottomWidth: 1, borderColor: p.line, justifyContent: "center", gap: 8 }}>
           {["Overview", "Places", "Tips"].map((item) => (
-            <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} onPress={() => setTab(item)} style={{ paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: tab === item ? p.blue : "transparent" }}>
+            <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} onPress={() => setTab(item)} style={{ flex: 1, maxWidth: 110, alignItems: "center", paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: tab === item ? p.blue : "transparent" }}>
               <Copy style={{ color: tab === item ? p.blue : p.muted }}>{item}</Copy>
             </Pressable>
           ))}
@@ -251,7 +254,11 @@ export function ExploreScreen() {
       </Sheet>
       <Sheet visible={!!selected} title={selected?.name || ""} onClose={() => setSelected(null)}>
         {selected && <>
-          <Copy muted>{selected.category} · {selected.detail}</Copy>
+          <PlacePreviewPhoto name={selected.name} location={`${destination.name}, ${destination.country}`} />
+          <View style={{ gap: 5 }}>
+            <Copy muted>{selected.category} · {destination.name}, {destination.country}</Copy>
+            <Copy>{selected.detail}</Copy>
+          </View>
           <Button secondary icon="map" onPress={() => openMap(selected)}>View on map</Button>
           <Button secondary icon={savedPlaces.includes(selected.id) ? "heartFill" : "heart"} onPress={() => togglePlace(selected.id)}>{savedPlaces.includes(selected.id) ? "Saved" : "Save place"}</Button>
           {canAdd ? <>

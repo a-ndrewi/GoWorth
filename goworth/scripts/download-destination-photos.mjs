@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
@@ -27,6 +27,36 @@ const files = {
   "cape-town": "Cape Town, assorted - CapeTown4035.jpg",
   marrakech: "Marrakesh, Morocco (Unsplash bnXUaEq9xYQ).jpg",
   "mexico-city": "La Madero (Unsplash).jpg",
+  berlin: "Berlin TV tower city skyline (41610209475).jpg",
+  vienna: "Vienna, Austria (Unsplash R2JCl9zI7og).jpg",
+  prague: "Prague Height Cityscape (Unsplash).jpg",
+  delhi: "New Delhi, India (Unsplash).jpg",
+  hanoi: "Hàng Bông, Hanoi, Vietnam (Unsplash).jpg",
+  "kuala-lumpur": "Menara Berkembar Petronas, Kuala Lumpur, Malaysia (Unsplash).jpg",
+  auckland: "Auckland seen from a hill (Unsplash).jpg",
+  toronto: "CN Tower, Toronto, Canada (Unsplash DJ kOgH5u0o).jpg",
+  "buenos-aires": "Buenos Aires, Argentina (Unsplash YMOHw3F1Hdk).jpg",
+  lima: "Lima, Peru (Unsplash).jpg",
+  cairo: "Pyramids in Giza - Egypt.jpg",
+  nairobi: "Aerial view of Nairobi.jpg",
+  dublin: "Wandering in Dublin (Unsplash).jpg",
+  edinburgh: "Skyline of Quartermile, Edinburgh, in June 2024.jpg",
+  copenhagen: "Urban Nightscape Copenhagen (Unsplash).jpg",
+  stockholm: "Stockholm (Unsplash).jpg",
+  oslo: "Oslo sunset (Unsplash).jpg",
+  helsinki: "Helsinki Rooftops (Unsplash).jpg",
+  tallinn: "Backpacker over Tallinn's Old Town (Unsplash).jpg",
+  riga: "Riga center 2020-03.jpg",
+  vilnius: "Gediminas Tower Vilnius Lithuania 2025.jpg",
+  warsaw: "Palace of Culture and Science in Warsaw, Poland.jpg",
+  budapest: "Hungarian Parliament Building (Unsplash C 4sByaxyn4).jpg",
+  athens: "From Temple of Olympian Zeus to Lycabetus Athens Greece.jpg",
+  zagreb: "Zg 0146 Zagreb-Cathedral with flowers.jpg",
+  ljubljana: "Ljubljana, Slovenia 2016.jpg",
+  bucharest: "Bucharest city.jpg",
+  sofia: "Sofia, Bulgaria (Unsplash BniZvM UKq8).jpg",
+  belgrade: "Beograd na vodi2.jpg",
+  brussels: "Brussels, Belgium (Unsplash TK0toNy9H2c).jpg",
 };
 
 const userAgent = "GoWorth/1.0 (https://github.com/a-ndrewi/GoWorth)";
@@ -44,19 +74,24 @@ async function get(url) {
   throw new Error(`Could not fetch ${url}`);
 }
 
-const titles = Object.values(files).map((name) => `File:${name}`).join("|");
-const api = new URL("https://commons.wikimedia.org/w/api.php");
-for (const [key, value] of Object.entries({
-  action: "query", format: "json", titles, prop: "imageinfo",
-  iiprop: "url|mime|size|extmetadata", iiurlwidth: "960",
-})) api.searchParams.set(key, value);
-
-const result = await (await get(api)).json();
-const pages = new Map(Object.values(result.query.pages).map((page) => [page.title, page]));
-const provenance = {};
 await mkdir(directory, { recursive: true });
+const provenancePath = path.join(directory, "provenance.json");
+const provenance = JSON.parse(await readFile(provenancePath, "utf8").catch(() => "{}"));
+const refresh = new Set((process.env.REFRESH_PHOTOS || "").split(",").filter(Boolean));
+const pending = Object.entries(files).filter(([id]) => !provenance[id] || refresh.has(id));
+const pages = new Map();
+for (let index = 0; index < pending.length; index += 25) {
+  const titles = pending.slice(index, index + 25).map(([, name]) => `File:${name}`).join("|");
+  const api = new URL("https://commons.wikimedia.org/w/api.php");
+  for (const [key, value] of Object.entries({
+    action: "query", format: "json", titles, prop: "imageinfo",
+    iiprop: "url|mime|size|extmetadata", iiurlwidth: "960",
+  })) api.searchParams.set(key, value);
+  const result = await (await get(api)).json();
+  for (const page of Object.values(result.query.pages)) pages.set(page.title, page);
+}
 
-for (const [id, filename] of Object.entries(files)) {
+for (const [id, filename] of pending) {
   const page = pages.get(`File:${filename}`);
   const info = page?.imageinfo?.[0];
   if (!info?.thumburl || info.extmetadata?.LicenseShortName?.value !== "CC0") {
@@ -81,4 +116,4 @@ for (const [id, filename] of Object.entries(files)) {
   };
   process.stdout.write(`${id}: ${metadata.width}x${metadata.height}\n`);
 }
-await writeFile(path.join(directory, "provenance.json"), `${JSON.stringify(provenance, null, 2)}\n`);
+await writeFile(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);

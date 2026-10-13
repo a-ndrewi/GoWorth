@@ -24,10 +24,11 @@ import {
   IconButton,
   Row,
   Screen,
+  Sheet,
   s,
 } from "@/components/goworth/ui";
 import { palette as p, photos } from "@/constants/design";
-import { interests, money } from "@/data/travel";
+import { destinations, interests, money } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
 import { useAuth } from "@/state/auth-context";
 import { supabase } from "@/lib/supabase";
@@ -318,9 +319,12 @@ export function AuthScreen() {
 }
 
 export function PreferencesScreen() {
-  const { preferences, setPreferences, completePreferences } = useTravel();
+  const { preferences, setPreferences, completePreferences, discoverySettings, setDiscoverySettings } = useTravel();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [choosingCenter, setChoosingCenter] = useState(false);
+  const [cityQuery, setCityQuery] = useState("");
+  const center = destinations.find((item) => item.id === discoverySettings.centerId);
   const toggle = (interest: string) =>
     setPreferences({
       ...preferences,
@@ -424,7 +428,34 @@ export function PreferencesScreen() {
           ))}
         </Row>
       </View>
+      <View style={{ gap: 12, borderTopWidth: 1, borderColor: p.line, paddingTop: 20 }}>
+        <Heading style={{ fontSize: 20 }}>Nearby discovery</Heading>
+        <Copy style={s.label}>Search from</Copy>
+        <Button secondary icon="pin" onPress={() => setChoosingCenter(true)}>{center ? `${center.name}, ${center.country}` : "My current location"}</Button>
+        <Copy style={s.label}>Search radius</Copy>
+        <View style={[s.grid, { gap: 8 }]}>
+          {[25, 100, 500, 2000, 20000].map((radiusKm) => (
+            <Chip key={radiusKm} selected={discoverySettings.radiusKm === radiusKm} onPress={() => setDiscoverySettings({ ...discoverySettings, radiusKm })}>
+              {radiusKm === 20000 ? "Worldwide" : `${radiusKm.toLocaleString("en-US")} km`}
+            </Chip>
+          ))}
+        </View>
+        <Copy muted style={{ fontSize: 12 }}>Distance is measured to each city center.</Copy>
+      </View>
       {!!error && <Copy style={s.error}>{error}</Copy>}
+      <Sheet visible={choosingCenter} title="Search from" onClose={() => setChoosingCenter(false)}>
+        <TextInput accessibilityLabel="Search cities" placeholder="Find a city" placeholderTextColor={p.muted} value={cityQuery} onChangeText={setCityQuery} style={[s.input, { flex: 0 }]} />
+        <Pressable accessibilityRole="button" onPress={() => { setDiscoverySettings({ ...discoverySettings, centerId: null }); setChoosingCenter(false); }} style={[s.row, { paddingVertical: 10, gap: 10 }]}>
+          <Copy style={{ flex: 1, fontWeight: "600" }}>My current location</Copy>
+          {!center && <Copy style={{ color: p.blue }}>Selected</Copy>}
+        </Pressable>
+        {destinations.filter((item) => `${item.name} ${item.country}`.toLowerCase().includes(cityQuery.trim().toLowerCase())).map((item) => (
+          <Pressable key={item.id} accessibilityRole="button" onPress={() => { setDiscoverySettings({ ...discoverySettings, centerId: item.id }); setChoosingCenter(false); setCityQuery(""); }} style={[s.row, { paddingVertical: 10, gap: 10, borderTopWidth: 1, borderColor: p.line }]}>
+            <Copy style={{ flex: 1 }}>{item.name}, {item.country}</Copy>
+            {center?.id === item.id && <Copy style={{ color: p.blue }}>Selected</Copy>}
+          </Pressable>
+        ))}
+      </Sheet>
     </Screen>
   );
 }

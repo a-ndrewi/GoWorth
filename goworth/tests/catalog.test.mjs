@@ -6,9 +6,9 @@ import { destinationCatalog, places, placesForDestination, placeMapUrl } from ".
 
 test("every destination has a unique ID and six unique places", () => {
   const ids = destinationCatalog.map((destination) => destination.id);
-  assert.equal(ids.length, 24);
+  assert.equal(ids.length, 54);
   assert.equal(new Set(ids).size, ids.length);
-  assert.equal(places.length, 144);
+  assert.equal(places.length, 324);
   assert.equal(new Set(places.map((place) => place.id)).size, places.length);
   for (const id of ids) {
     assert.equal(placesForDestination(id).length, 6, `${id} should have six places`);

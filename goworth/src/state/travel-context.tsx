@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Activity, Expense, Trip } from "@/data/travel";
 import { useAuth } from "@/state/auth-context";
 import {
@@ -7,6 +8,7 @@ import {
   deleteTrip,
   loadTravelData,
   replaceTrip,
+  recordDiscoveryFavorite,
   saveActivity,
   saveExpense,
   saveJournal,
@@ -23,6 +25,8 @@ export type TravelPreferences = {
 };
 
 export type TravelProfile = { name: string; username: string };
+export type DiscoverySettings = { radiusKm: number; centerId: string | null };
+const defaultDiscoverySettings: DiscoverySettings = { radiusKm: 500, centerId: null };
 
 const blankPreferences: TravelPreferences = {
   interests: [],
@@ -41,6 +45,7 @@ function useTravelState() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [preferences, setPreferencesState] = useState<TravelPreferences>(blankPreferences);
+  const [discoverySettings, setDiscoverySettingsState] = useState<DiscoverySettings>(defaultDiscoverySettings);
   const [hasPreferences, setHasPreferences] = useState(false);
   const [profile, setProfileState] = useState<TravelProfile>({ name: fallbackName, username: "" });
   const [journal, setJournalState] = useState("");
@@ -50,6 +55,17 @@ function useTravelState() {
   const [syncError, setSyncError] = useState("");
   const [reload, setReload] = useState(0);
   const writeQueue = useRef<Promise<void>>(Promise.resolve());
+
+  useEffect(() => {
+    if (!userId) return;
+    let current = true;
+    AsyncStorage.getItem(`discovery-settings:${userId}`).then((value) => {
+      if (!current || !value) return;
+      const parsed: DiscoverySettings = JSON.parse(value);
+      if ([25, 100, 500, 2000, 20000].includes(parsed.radiusKm)) setDiscoverySettingsState(parsed);
+    }).catch(() => undefined);
+    return () => { current = false; };
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -109,6 +125,21 @@ function useTravelState() {
     void persist(() => setSavedItem(user.id, "place", id, enabled))
       .then(() => setSavedPlaces((current) => enabled ? [...new Set([...current, id])] : current.filter((item) => item !== id)))
       .catch(() => undefined);
+  };
+
+  const favoriteDiscoveryItem = (kind: "destination" | "place", id: string) => {
+    if (!user || !cloudReady) return;
+    if (kind === "destination" ? saved.includes(id) : savedPlaces.includes(id)) return;
+    void persist(() => setSavedItem(user.id, kind, id, true)).then(() => {
+      if (kind === "destination") setSaved((current) => [...new Set([...current, id])]);
+      else setSavedPlaces((current) => [...new Set([...current, id])]);
+      void recordDiscoveryFavorite(user.id, kind, id).catch(() => undefined);
+    }).catch(() => undefined);
+  };
+
+  const setDiscoverySettings = (next: DiscoverySettings) => {
+    setDiscoverySettingsState(next);
+    if (userId) void AsyncStorage.setItem(`discovery-settings:${userId}`, JSON.stringify(next)).catch(() => undefined);
   };
 
   const generateTrip = async (next: Trip) => {
@@ -200,11 +231,12 @@ function useTravelState() {
   };
 
   return {
-    saved, toggleSaved, savedPlaces, togglePlace,
+    saved, toggleSaved, savedPlaces, togglePlace, favoriteDiscoveryItem,
     trip, hasTrip: !!trip, generateTrip, clearTrip,
     activities, addActivity, updateActivity, removeActivity,
     expenses, addExpense, updateExpense, removeExpense,
     preferences, setPreferences, hasPreferences, completePreferences,
+    discoverySettings, setDiscoverySettings,
     profile, setProfile, journal, setJournal,
     notifications, setNotifications: updateNotifications,
     cloudReady, loadError, retryLoad: () => {

@@ -148,6 +148,22 @@ export async function setSavedItem(
   requireData(result);
 }
 
+export type RecentDiscovery = { kind: "destination" | "place"; item_id: string; created_at: string };
+
+export async function loadRecentDiscoveries(): Promise<RecentDiscovery[]> {
+  const result = await client().rpc("recent_discoveries");
+  if (result.error) return [];
+  return (result.data ?? []) as RecentDiscovery[];
+}
+
+export async function recordDiscoveryFavorite(
+  userId: string,
+  kind: "destination" | "place",
+  itemId: string,
+) {
+  requireData(await client().from("discovery_activity").insert({ user_id: userId, kind, item_id: itemId }));
+}
+
 export async function saveJournal(userId: string, journal: string) {
   requireData(await client().from("travel_memories").upsert({
     user_id: userId,

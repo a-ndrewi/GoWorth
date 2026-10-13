@@ -27,6 +27,36 @@ const coordinates: Record<(typeof destinationCatalog)[number]["id"], [number, nu
   "cape-town": [-33.9249, 18.4241],
   marrakech: [31.6295, -7.9811],
   "mexico-city": [19.4326, -99.1332],
+  berlin: [52.52, 13.405],
+  vienna: [48.2082, 16.3738],
+  prague: [50.0755, 14.4378],
+  delhi: [28.6139, 77.209],
+  hanoi: [21.0285, 105.8542],
+  "kuala-lumpur": [3.139, 101.6869],
+  auckland: [-36.8509, 174.7645],
+  toronto: [43.6532, -79.3832],
+  "buenos-aires": [-34.6037, -58.3816],
+  lima: [-12.0464, -77.0428],
+  cairo: [30.0444, 31.2357],
+  nairobi: [-1.2921, 36.8219],
+  dublin: [53.3498, -6.2603],
+  edinburgh: [55.9533, -3.1883],
+  copenhagen: [55.6761, 12.5683],
+  stockholm: [59.3293, 18.0686],
+  oslo: [59.9139, 10.7522],
+  helsinki: [60.1699, 24.9384],
+  tallinn: [59.437, 24.7536],
+  riga: [56.9496, 24.1052],
+  vilnius: [54.6872, 25.2797],
+  warsaw: [52.2297, 21.0122],
+  budapest: [47.4979, 19.0402],
+  athens: [37.9838, 23.7275],
+  zagreb: [45.815, 15.9819],
+  ljubljana: [46.0569, 14.5058],
+  bucharest: [44.4268, 26.1025],
+  sofia: [42.6977, 23.3219],
+  belgrade: [44.8125, 20.4612],
+  brussels: [50.8503, 4.3517],
 };
 
 export const destinationPins: MapPin[] = destinationCatalog.map((destination) => ({
@@ -36,7 +66,7 @@ export const destinationPins: MapPin[] = destinationCatalog.map((destination) =>
   longitude: coordinates[destination.id][1],
 }));
 
-export type SearchResult = MapPin & { detail: string };
+export type SearchResult = MapPin & { detail: string; kind: string };
 const cache = new Map<string, SearchResult[]>();
 let nextRequestAt = 0;
 
@@ -57,11 +87,12 @@ export async function searchMap(query: string): Promise<SearchResult[]> {
       signal: controller.signal,
     });
     if (!response.ok) throw new Error("Map search is unavailable right now. Please try again later.");
-    const data: { place_id: number; display_name: string; lat: string; lon: string }[] = await response.json();
+    const data: { place_id: number; display_name: string; lat: string; lon: string; type?: string }[] = await response.json();
     const results = data.map((item) => ({
       id: String(item.place_id),
       name: item.display_name.split(",")[0],
       detail: item.display_name,
+      kind: item.type ? item.type.replace(/_/g, " ") : "Location",
       latitude: Number(item.lat),
       longitude: Number(item.lon),
     }));

@@ -2,6 +2,7 @@ import { DefaultTheme, Stack, ThemeProvider, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { TravelProvider, useTravel } from "@/state/travel-context";
 import { AuthProvider, useAuth } from "@/state/auth-context";
 import { palette } from "@/constants/design";
@@ -82,9 +83,11 @@ function AppNavigator() {
 function AppContent() {
   const { user } = useAuth();
   return (
-    <TravelProvider key={user?.id ?? "anonymous"}>
-      <AppNavigator />
-    </TravelProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <TravelProvider key={user?.id ?? "anonymous"}>
+        <AppNavigator />
+      </TravelProvider>
+    </GestureHandlerRootView>
   );
 }
 

@@ -10,17 +10,21 @@ cp .env.example .env.local
 npm run dev
 ```
 
+For Expo Go on a phone on the same Wi-Fi network, run `npm run dev:phone` and scan its QR code. This starts a separate LAN server on port 8082, so the web preview on port 8081 can stay open.
+
 Set `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` to the publishable key from the `jmguyniibuifqnegdiso` Supabase project. The project URL is already in `.env.example`. Never put a service-role or secret key in an `EXPO_PUBLIC_` variable.
 
 ## Enable the backend
 
 The [initial migration](supabase/migrations/20261012120000_initial_schema.sql) has been applied to project `jmguyniibuifqnegdiso`. It creates the account-owned tables, row-level security policies, an atomic trip replacement function, and a private `travel-memories` photo bucket. Apply it to any new Supabase project before using account data.
 
+Apply [the discovery activity migration](supabase/migrations/20261013120000_discovery_activity.sql) to show recent places saved by other travelers beneath the Home swiper. Until it is applied, that section shows its empty state; the swiper and favorites still work. Discovery radius and search city are stored per account on the current device.
+
 Configure email confirmation and a custom SMTP provider in Supabase Authentication. Add the web app's `/auth` URL to the Auth redirect allowlist, including each local development port in use (for example `http://localhost:8082/auth`) and the production domain. For native builds, allow the `goworth://auth` redirect. Users must confirm their email when confirmation is enabled; password-reset links return to the same route.
 
-The app does not contain a database owner password, so a publishable key alone cannot apply this migration. Photo upload, live maps, push notifications, payments, and reservations are not connected. The catalog contains 24 curated destinations and 144 named real places across six regions; it is bundled with the app, while account data is stored in Supabase. External place links open OpenStreetMap search results, so current opening hours and prices should be confirmed with the venue.
+The app does not contain a database owner password, so a publishable key alone cannot apply this migration. Photo upload, push notifications, payments, and reservations are not connected. The catalog contains 54 curated destinations and 324 named real places across six regions; it is bundled with the app, while account data is stored in Supabase. The world map can search other locations through OpenStreetMap. Place previews search Wikimedia Commons for a location-specific photo with source and license information. Current opening hours and prices should be confirmed with the venue.
 
-Destination photographs are bundled in `assets/images/destinations` to avoid network failures during browsing. Their Wikimedia Commons source pages, creators, and CC0 licenses are recorded in `assets/images/destinations/provenance.json`. Run `node scripts/download-destination-photos.mjs` to refresh them; the script rejects images without CC0 metadata.
+Destination photographs are bundled in `assets/images/destinations` to avoid network failures during browsing. Their Wikimedia Commons source pages, creators, and CC0 licenses are recorded in `assets/images/destinations/provenance.json`. Run `node scripts/download-destination-photos.mjs` to download missing photos; set `REFRESH_PHOTOS` to comma-separated destination IDs to update existing ones. The script rejects images without CC0 metadata.
 
 ## Checks
 
