@@ -38,6 +38,7 @@ const symbols = {
   settings: ["gearshape", "settings"],
   plus: ["plus", "add"],
   close: ["xmark", "close"],
+  trash: ["trash", "delete"],
   check: ["checkmark", "check"],
   star: ["star.fill", "star"],
   sparkle: ["sparkles", "auto_awesome"],
@@ -321,9 +322,9 @@ export function Header({
 }
 export function BottomNav({ active }: { active: string }) {
   const items = [
-    ["home", "Explore", "home", "/home"],
+    ["home", "Explore", "compass", "/home"],
     ["map", "Map", "map", "/map"],
-    ["planner", "Plan", "sparkle", "/planner"],
+    ["planner", "Plan", "calendar", "/planner"],
     ["saved", "Saved", "heart", "/saved"],
     ["profile", "Profile", "person", "/profile"],
   ] as const;
@@ -336,21 +337,11 @@ export function BottomNav({ active }: { active: string }) {
           accessibilityRole="button"
           accessibilityLabel={label}
           accessibilityState={{ selected: active === id }}
-          style={s.navItem}
+          style={({ pressed }) => [s.navItem, pressed && { opacity: 0.65 }]}
         >
-          <Icon
-            name={icon}
-            size={22}
-            color={active === id ? p.blue : p.muted}
-          />
-          <Text
-            style={[
-              s.navLabel,
-              active === id && { color: p.blue, fontWeight: "600" },
-            ]}
-          >
-            {label}
-          </Text>
+          <View style={[s.navIcon, active === id && s.navIconActive]}>
+            <Icon name={active === "saved" && id === "saved" ? "heartFill" : icon} size={25} color={active === id ? p.blue : p.muted} />
+          </View>
         </Pressable>
       ))}
     </View>
@@ -371,7 +362,7 @@ export function Screen({
 }) {
   const { syncError } = useTravel();
   return (
-    <SafeAreaView style={s.screen} edges={["top", "bottom"]}>
+    <SafeAreaView style={s.screen} edges={active ? ["top"] : ["top", "bottom"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
@@ -380,7 +371,7 @@ export function Screen({
           <ScrollView
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[s.content, style]}
+            contentContainerStyle={[s.content, style, active ? { paddingBottom: 90 } : null, footer ? { paddingBottom: 112 } : null]}
           >
             {!!syncError && (
               <View style={{ backgroundColor: "#FFF1F2", borderRadius: 6, padding: 10 }}>
@@ -396,7 +387,6 @@ export function Screen({
           </View>
         )}
         {footer && <View style={s.footer}>{footer}</View>}
-        {active && <BottomNav active={active} />}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -662,17 +652,24 @@ export const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: p.line,
     backgroundColor: p.white,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === "web" ? 18 : 5,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "web" ? 14 : 4,
+    paddingHorizontal: 10,
   },
   navItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
-    minHeight: 44,
+    minHeight: 50,
   },
-  navLabel: { fontSize: 10, lineHeight: 15, color: p.muted, letterSpacing: 0 },
+  navIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navIconActive: { backgroundColor: p.blueSoft },
   destinationCard: {
     width: "47.5%",
     borderRadius: 16,

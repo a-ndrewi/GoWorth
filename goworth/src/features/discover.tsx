@@ -1,4 +1,3 @@
-import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
 import { Pressable, Share, StyleSheet, TextInput, View } from "react-native";
@@ -8,8 +7,9 @@ import {
   type IconName,
 } from "@/components/goworth/ui";
 import { PlacePreviewPhoto } from "@/components/goworth/place-preview";
-import { DiscoverySwiper } from "@/components/goworth/discovery-swiper";
+import { DiscoveryCommunity, DiscoverySwiper } from "@/components/goworth/discovery-swiper";
 import { palette as p } from "@/constants/design";
+import { tipsForDestination, type DestinationTip } from "@/data/tips";
 import {
   destinations, findDestination, placesForDestination, tripDays,
   type Place, type PlaceCategory,
@@ -62,6 +62,7 @@ export function HomeScreen() {
   const { trip, preferences } = useTravel();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
+  const [visibleCount, setVisibleCount] = useState(10);
   const filtered = destinations.filter((destination) =>
     `${destination.name} ${destination.country}`.toLowerCase().includes(query.trim().toLowerCase()) &&
     (!category || destination.tags.some((tag) => tag === category)),
@@ -69,7 +70,7 @@ export function HomeScreen() {
   const recommendations = destinations.filter((destination) =>
     preferences.region === "Worldwide" || destination.region === preferences.region,
   ).slice(0, 4);
-  const featured = recommendations[0] || destinations[0];
+  const moreDestinations = destinations.filter((destination) => !recommendations.includes(destination));
 
   return (
     <Screen active="home" style={{ gap: 18 }}>
@@ -81,58 +82,47 @@ export function HomeScreen() {
           onPress={() => router.push((trip ? "/itinerary" : "/planner") as Href)}
         />
       </Row>
-      <Row style={styles.search}>
-        <Icon name="search" color={p.muted} size={19} />
-        <TextInput
-          accessibilityLabel="Search destinations"
-          placeholder="Where do you want to go?"
-          placeholderTextColor={p.muted}
-          value={query}
-          onChangeText={setQuery}
-          style={{ flex: 1, minWidth: 0, fontSize: 14, color: p.ink, height: 44 }}
-        />
-      </Row>
-      {!!query.trim() && <Button secondary icon="map" onPress={() => router.push({ pathname: "/map", params: { q: query.trim() } } as Href)}>Search the world map</Button>}
-      <View style={[s.grid, { gap: 7 }]}>
-        {categories.map((item) => (
-          <Chip
-            key={item}
-            selected={category === item}
-            onPress={() => setCategory(category === item ? "" : item)}
-          >
-            {item}
-          </Chip>
-        ))}
+      <Heading style={{ fontSize: 24, lineHeight: 30 }}>Explore destinations</Heading>
+      <View style={styles.homeBrowse}>
+        <Row style={styles.search}>
+          <Icon name="search" color={p.muted} size={19} />
+          <TextInput
+            accessibilityLabel="Search destinations"
+            placeholder="Where do you want to go?"
+            placeholderTextColor={p.muted}
+            value={query}
+            onChangeText={setQuery}
+            style={{ flex: 1, minWidth: 0, fontSize: 14, color: p.ink, height: 44 }}
+          />
+        </Row>
+        {!!query.trim() && <Button secondary icon="map" onPress={() => router.push({ pathname: "/map", params: { q: query.trim() } } as Href)}>Search the world map</Button>}
+        <View style={[s.grid, { gap: 7 }]}>
+          {categories.map((item) => (
+            <Chip
+              key={item}
+              selected={category === item}
+              onPress={() => setCategory(category === item ? "" : item)}
+            >
+              {item}
+            </Chip>
+          ))}
+        </View>
       </View>
+      {!query && !category && <DiscoverySwiper />}
       {!query && !category && (
         <>
-          <DiscoverySwiper />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Explore ${featured.name}`}
-            onPress={() => router.push({ pathname: "/trip", params: { id: featured.id } } as Href)}
-            style={{ height: 215, borderRadius: 6, overflow: "hidden" }}
-          >
-            <DestinationPhoto destination={featured} style={StyleSheet.absoluteFill} />
-            <LinearGradient colors={["rgba(0,0,0,.4)", "transparent", "rgba(0,0,0,.45)"]} style={StyleSheet.absoluteFill} />
-            <View style={{ flex: 1, padding: 20, justifyContent: "space-between" }}>
-              <View>
-                <Heading style={{ color: p.white, fontSize: 29 }}>{featured.name}</Heading>
-                <Copy style={{ color: p.white }}>{featured.country}</Copy>
-              </View>
-              <Copy style={{ color: p.white, fontWeight: "600" }}>Explore destination</Copy>
-            </View>
-          </Pressable>
+          <DiscoveryCommunity />
           <SectionTitle title={preferences.region === "Worldwide" ? "Popular destinations" : `Explore ${preferences.region}`} />
           <View style={s.grid}>
             {recommendations.map((destination) => <DestinationCard key={destination.id} destination={destination} />)}
           </View>
-          <SectionTitle title="All destinations" action="Browse places" onPress={() => router.push("/explore" as Href)} />
+          <SectionTitle title="More destinations" action="View map" onPress={() => router.push("/map" as Href)} />
           <View style={s.grid}>
-            {destinations.filter((destination) => !recommendations.includes(destination)).map((destination) => (
+            {moreDestinations.slice(0, visibleCount).map((destination) => (
               <DestinationCard key={destination.id} destination={destination} />
             ))}
           </View>
+          {visibleCount < moreDestinations.length && <Button secondary icon="plus" onPress={() => setVisibleCount((count) => count + 10)}>Show more destinations</Button>}
         </>
       )}
       {(!!query || !!category) && (
@@ -154,11 +144,14 @@ export function TripDetailsScreen() {
   const { saved, savedPlaces, toggleSaved, togglePlace } = useTravel();
   const [tab, setTab] = useState("Overview");
   const [notice, setNotice] = useState("");
+  const [checkedTips, setCheckedTips] = useState<string[]>([]);
   if (!destination) {
     return <Screen><Header title="Destination" /><EmptyState title="Destination not found" detail="This destination is no longer in the catalog." action="Explore destinations" onPress={() => router.replace("/home" as Href)} /></Screen>;
   }
   const isSaved = saved.includes(destination.id);
   const nearby = placesForDestination(destination.id);
+  const tips = tipsForDestination(destination);
+  const checkedTipCount = checkedTips.filter((id) => tips.some((tip) => tip.id === id)).length;
   const openMap = () => router.push({ pathname: "/map", params: { destination: destination.id } } as Href);
   const plan = () => router.push({ pathname: "/planner", params: { destination: destination.id } } as Href);
   return (
@@ -196,11 +189,69 @@ export function TripDetailsScreen() {
           {nearby.slice(0, 4).map((place) => <PlaceRow key={place.id} place={place} saved={savedPlaces.includes(place.id)} onSave={() => togglePlace(place.id)} onPress={() => router.push({ pathname: "/explore", params: { id: destination.id, place: place.id } } as Href)} />)}
           <Button secondary onPress={() => router.push({ pathname: "/explore", params: { id: destination.id } } as Href)}>View all places</Button>
         </>}
-        {tab === "Tips" && <Copy muted>Check opening hours, local access rules, transport schedules, and prices with each venue before visiting.</Copy>}
+        {tab === "Tips" && <TipsPanel
+          destination={destination}
+          tips={tips}
+          checkedTips={checkedTips}
+          checkedTipCount={checkedTipCount}
+          onToggle={(id) => setCheckedTips((current) => current.includes(id) ? current.filter((tipId) => tipId !== id) : [...current, id])}
+          onShare={async () => {
+            try { await Share.share({ message: `${destination.name} quick tips\n\n${tips.map((tip) => `• ${tip.title}: ${tip.detail}`).join("\n")}` }); }
+            catch { setNotice("Sharing is unavailable on this device."); }
+          }}
+          onMap={openMap}
+          onPlan={plan}
+        />}
         {!!notice && <Copy style={{ color: p.danger }}>{notice}</Copy>}
       </View>
     </Screen>
   );
+}
+
+function TipsPanel({
+  destination,
+  tips,
+  checkedTips,
+  checkedTipCount,
+  onToggle,
+  onShare,
+  onMap,
+  onPlan,
+}: {
+  destination: (typeof destinations)[number];
+  tips: DestinationTip[];
+  checkedTips: string[];
+  checkedTipCount: number;
+  onToggle: (id: string) => void;
+  onShare: () => void;
+  onMap: () => void;
+  onPlan: () => void;
+}) {
+  return <View style={{ gap: 15 }}>
+    <View style={{ gap: 5 }}>
+      <Heading style={{ fontSize: 20 }}>Your {destination.name} field guide</Heading>
+      <Copy muted style={{ lineHeight: 20 }}>Small decisions before you go make the places you saved easier to enjoy.</Copy>
+    </View>
+    <Row style={{ justifyContent: "space-between", alignItems: "center" }}>
+      <Copy style={{ fontWeight: "700", color: checkedTipCount === tips.length ? p.green : p.ink }}>{checkedTipCount}/{tips.length} tips checked</Copy>
+      <Pressable accessibilityRole="button" onPress={onShare} style={{ paddingVertical: 8, paddingLeft: 10 }}><Copy style={{ color: p.blue, fontWeight: "700", fontSize: 13 }}>Share guide</Copy></Pressable>
+    </Row>
+    {(["Before you go", "While you're there"] as const).map((stage) => <View key={stage} style={{ gap: 8 }}>
+      <Copy style={{ color: p.muted, fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>{stage}</Copy>
+      {tips.filter((tip) => tip.stage === stage).map((tip) => {
+        const checked = checkedTips.includes(tip.id);
+        return <Pressable key={tip.id} accessibilityRole="checkbox" accessibilityState={{ checked }} onPress={() => onToggle(tip.id)} style={[styles.tipCard, checked && styles.tipCardChecked]}>
+          <View style={[styles.tipIcon, { backgroundColor: checked ? p.greenSoft : p.blueSoft }]}><Icon name={tip.icon} color={checked ? p.green : p.blue} size={18} /></View>
+          <View style={{ flex: 1, minWidth: 0, gap: 3 }}><Copy style={{ fontWeight: "700" }}>{tip.title}</Copy><Copy muted style={{ fontSize: 12, lineHeight: 18 }}>{tip.detail}</Copy></View>
+          <Icon name={checked ? "check" : "plus"} color={checked ? p.green : p.muted} size={18} />
+        </Pressable>;
+      })}
+    </View>)}
+    <View style={{ gap: 8, paddingTop: 2 }}>
+      <Button secondary icon="map" onPress={onMap}>Open places on map</Button>
+      <Button icon="calendar" onPress={onPlan}>Use tips while planning</Button>
+    </View>
+  </View>;
 }
 
 export function ExploreScreen() {
@@ -286,5 +337,9 @@ export function ExploreScreen() {
 }
 
 const styles = StyleSheet.create({
+  homeBrowse: { gap: 12 },
   search: { borderWidth: 1, borderColor: p.line, borderRadius: 6, paddingLeft: 14, paddingRight: 8, backgroundColor: p.white, gap: 8 },
+  tipCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, borderWidth: 1, borderColor: p.line, borderRadius: 7, backgroundColor: p.white },
+  tipCardChecked: { borderColor: p.green, backgroundColor: "#F2FBF7" },
+  tipIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
 });

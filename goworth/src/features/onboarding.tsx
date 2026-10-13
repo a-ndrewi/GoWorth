@@ -295,6 +295,13 @@ export function AuthScreen() {
         <Button onPress={submit} busy={busy}>
           {busy && signUp ? "Creating account..." : passwordRecovery ? "Save new password" : resetMode ? "Send reset link" : signUp ? "Create Account" : "Sign In"}
         </Button>
+        {signUp && !resetMode && !passwordRecovery && <View style={{ gap: 4 }}>
+          <Copy muted style={{ textAlign: "center", fontSize: 12 }}>By creating an account, you agree to the Terms of use and acknowledge the Privacy notice.</Copy>
+          <Row style={{ justifyContent: "center", gap: 18 }}>
+            <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: "/legal-document", params: { type: "terms" } } as Href)}><Copy style={{ color: p.blue, fontSize: 12 }}>Terms of use</Copy></Pressable>
+            <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: "/legal-document", params: { type: "privacy" } } as Href)}><Copy style={{ color: p.blue, fontSize: 12 }}>Privacy notice</Copy></Pressable>
+          </Row>
+        </View>}
       </View>
       {!passwordRecovery && <Pressable
         accessibilityRole="button"

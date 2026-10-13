@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import sharp from "sharp";
 import { destinationCatalog, places, placesForDestination, placeMapUrl } from "../src/data/catalog.ts";
+import { tipsForDestination } from "../src/data/tips.ts";
 
 test("every destination has a unique ID and six unique places", () => {
   const ids = destinationCatalog.map((destination) => destination.id);
@@ -18,15 +20,18 @@ test("every destination has a unique ID and six unique places", () => {
 test("every destination has a bundled, decodable CC0 photograph with provenance", async () => {
   const provenance = JSON.parse(await readFile(new URL("../assets/images/destinations/provenance.json", import.meta.url), "utf8"));
   assert.deepEqual(Object.keys(provenance).sort(), destinationCatalog.map((destination) => destination.id).sort());
+  const hashes = [];
   for (const destination of destinationCatalog) {
     const photo = provenance[destination.id];
     assert.equal(photo.license, "CC0");
     assert.match(photo.source, /^https:\/\/commons\.wikimedia\.org\/wiki\/File:/);
     const image = await readFile(new URL(`../assets/images/destinations/${destination.id}.jpg`, import.meta.url));
+    hashes.push(createHash("sha256").update(image).digest("hex"));
     const metadata = await sharp(image).metadata();
     assert.equal(metadata.format, "jpeg");
     assert.ok(metadata.width >= 600 && metadata.height >= 350);
   }
+  assert.equal(new Set(hashes).size, hashes.length, "destination photos should not reuse the same bundled file");
 });
 
 test("place map searches include the venue and its destination", () => {
@@ -40,5 +45,15 @@ test("place map searches include the venue and its destination", () => {
     const query = url.searchParams.get("query");
     assert.ok(query.includes(place.name));
     assert.ok(query.includes(destination.name));
+  }
+});
+
+test("every destination has a practical four-tip field guide", () => {
+  for (const destination of destinationCatalog) {
+    const tips = tipsForDestination(destination);
+    assert.equal(tips.length, 4, `${destination.id} should have four tips`);
+    assert.equal(new Set(tips.map((tip) => tip.id)).size, tips.length);
+    assert.ok(tips.some((tip) => tip.stage === "Before you go"));
+    assert.ok(tips.some((tip) => tip.stage === "While you're there"));
   }
 });

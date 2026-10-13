@@ -36,10 +36,18 @@ export function discoveryDeck(center: Coordinates | null, radiusKm: number, regi
     if (current.length < 2) localPlaces.set(place.destinationId, [...current, place]);
   }
 
-  return eligible.flatMap(({ destination, distanceKm: distance }) => [
-    { key: `destination:${destination.id}`, kind: "destination" as const, destination, distanceKm: distance },
-    ...(localPlaces.get(destination.id) ?? []).map((place) => ({
-      key: `place:${place.id}`, kind: "place" as const, destination, place, distanceKm: distance,
-    })),
-  ]);
+  const deck: DiscoveryItem[] = [];
+  for (let offset = 0; offset < eligible.length; offset += 3) {
+    const group = eligible.slice(offset, offset + 3);
+    for (const { destination, distanceKm: distance } of group) {
+      deck.push({ key: `destination:${destination.id}`, kind: "destination", destination, distanceKm: distance });
+    }
+    for (let placeIndex = 0; placeIndex < 2; placeIndex++) {
+      for (const { destination, distanceKm: distance } of group) {
+        const place = localPlaces.get(destination.id)?.[placeIndex];
+        if (place) deck.push({ key: `place:${place.id}`, kind: "place", destination, place, distanceKm: distance });
+      }
+    }
+  }
+  return deck;
 }

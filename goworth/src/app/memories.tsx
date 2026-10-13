@@ -1,1 +1,1 @@
-export { MemoriesScreen as default } from "@/features/library";
+export { MemoriesScreen as default } from "@/features/journal";

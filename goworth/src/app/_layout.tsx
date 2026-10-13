@@ -1,16 +1,27 @@
 import { DefaultTheme, Stack, ThemeProvider, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, Platform, View } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { TravelProvider, useTravel } from "@/state/travel-context";
 import { AuthProvider, useAuth } from "@/state/auth-context";
 import { palette } from "@/constants/design";
-import { Button, Copy } from "@/components/goworth/ui";
+import { BottomNav, Button, Copy } from "@/components/goworth/ui";
 import "@/global.css";
+
+const tabByPath: Record<string, string> = {
+  "/home": "home",
+  "/explore": "home",
+  "/map": "map",
+  "/planner": "planner",
+  "/saved": "saved",
+  "/profile": "profile",
+  "/memories": "profile",
+};
 
 function AppNavigator() {
   const pathname = usePathname();
+  const activeTab = tabByPath[pathname];
   const isSplash = pathname === "/" || pathname === "/splash";
   const { user, ready, signOut } = useAuth();
   const { cloudReady, loadError, retryLoad } = useTravel();
@@ -47,7 +58,7 @@ function AppNavigator() {
             <View style={{ flex: 1, justifyContent: "center" }}>
               <ActivityIndicator color={palette.blue} accessibilityLabel="Loading account" />
             </View>
-          ) : <Stack
+          ) : <><Stack
             screenOptions={{
               headerShown: false,
               contentStyle: { backgroundColor: palette.white },
@@ -57,6 +68,8 @@ function AppNavigator() {
             <Stack.Screen name="index" />
             <Stack.Screen name="splash" />
             <Stack.Screen name="auth" />
+            <Stack.Screen name="legal" />
+            <Stack.Screen name="legal-document" />
             <Stack.Protected guard={!user}>
               <Stack.Screen name="welcome" />
             </Stack.Protected>
@@ -70,10 +83,13 @@ function AppNavigator() {
               <Stack.Screen name="budget" />
               <Stack.Screen name="saved" />
               <Stack.Screen name="memories" />
+              <Stack.Screen name="journal-trip" />
               <Stack.Screen name="profile" />
               <Stack.Screen name="preferences" />
             </Stack.Protected>
-          </Stack>}
+          </Stack>
+          {!!user && activeTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.white }}><BottomNav active={activeTab} /></SafeAreaView>}
+          </>}
         </View>
       </View>
     </>

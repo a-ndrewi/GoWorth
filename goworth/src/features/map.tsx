@@ -1,43 +1,44 @@
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, TextInput, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, TextInput, View, useWindowDimensions } from "react-native";
 import { Button, Chip, Copy, DestinationPhoto, Header, Icon, Row, Screen, Sheet } from "@/components/goworth/ui";
 import { PlacePreviewPhoto } from "@/components/goworth/place-preview";
 import { MapSurface } from "@/components/goworth/map-surface";
 import { palette as p } from "@/constants/design";
 import { destinations, places } from "@/data/travel";
-import { destinationPins, searchMap, type MapPin, type SearchResult } from "@/data/map";
+import { destinationPins, searchCatalogPlace, searchMap, type MapPin, type SearchResult } from "@/data/map";
 
 const regions = ["Worldwide", "Europe", "Asia", "Americas", "Africa", "Oceania"];
 
 export function MapScreen() {
+  const { width } = useWindowDimensions();
   const { destination, place, q } = useLocalSearchParams<{ destination?: string; place?: string; q?: string }>();
   const initialPlace = places.find((item) => item.id === place);
   const initialDestination = destinations.find((item) => item.id === initialPlace?.destinationId);
   const [query, setQuery] = useState(initialPlace && initialDestination ? `${initialPlace.name}, ${initialDestination.name}, ${initialDestination.country}` : q || "");
   const [region, setRegion] = useState("Worldwide");
   const [results, setResults] = useState<SearchResult[]>([]);
-  const [selected, setSelected] = useState<MapPin | undefined>(() => destinationPins.find((pin) => pin.id === destination));
+  const [selected, setSelected] = useState<MapPin | undefined>(() => place ? undefined : destinationPins.find((pin) => pin.id === destination));
   const [preview, setPreview] = useState<SearchResult | (typeof destinations)[number] | null>(null);
   const [busy, setBusy] = useState(!!place || !!q);
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
   const visibleDestinations = destinations.filter((item) => region === "Worldwide" || item.region === region);
-  const pins = destinationPins.filter((pin) => visibleDestinations.some((item) => item.id === pin.id));
+  const pins = [...destinationPins.filter((pin) => visibleDestinations.some((item) => item.id === pin.id)), ...results];
 
   useEffect(() => {
     const record = places.find((item) => item.id === place);
     const parent = destinations.find((item) => item.id === record?.destinationId);
-    const search = record && parent ? `${record.name}, ${parent.name}, ${parent.country}` : q;
+    const search = record && parent ? record.name : q;
     if (!search) return;
     let cancelled = false;
-    searchMap(search).then((matches) => {
+    (record && parent ? searchCatalogPlace(record) : searchMap(search)).then((matches) => {
       if (cancelled) return;
-      setQuery(search);
+      setQuery(record && parent ? `${record.name}, ${parent.name}, ${parent.country}` : search);
       setResults(matches);
       setSelected(matches[0]);
       setSearched(true);
-      if (!matches.length) setError("This place could not be located on the map.");
+      if (!matches.length) setError(record ? "The exact location of this place could not be verified on the map." : "No locations found. Try a more specific search.");
     }).catch(() => { if (!cancelled) setError("This place could not be located on the map right now."); })
       .finally(() => { if (!cancelled) setBusy(false); });
     return () => { cancelled = true; };
@@ -59,6 +60,17 @@ export function MapScreen() {
     }
   };
 
+  const openDirections = async (pin: MapPin) => {
+    const coordinates = `${pin.latitude},${pin.longitude}`;
+    const url = Platform.OS === "ios"
+      ? `https://maps.apple.com/?daddr=${encodeURIComponent(coordinates)}`
+      : Platform.OS === "android"
+        ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(coordinates)}`
+        : `https://www.openstreetmap.org/directions?to=${encodeURIComponent(coordinates)}`;
+    try { await Linking.openURL(url); }
+    catch { setError("Could not open directions on this device."); }
+  };
+
   return <Screen active="map" style={{ gap: 16 }}>
     <Header title="Map" back={false} />
     <Row style={{ gap: 8 }}>
@@ -68,10 +80,14 @@ export function MapScreen() {
       </Row>
       <Button onPress={() => void search()} disabled={!query.trim()} busy={busy} style={{ minWidth: 76 }}>Search</Button>
     </Row>
-    <View style={{ height: 360, borderRadius: 6, overflow: "hidden", borderWidth: 1, borderColor: p.line }}>
-      <MapSurface pins={pins} selected={selected} />
+    <View style={{ height: Math.min(390, Math.max(280, width * 0.72)), borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: p.line, backgroundColor: p.greenSoft }}>
+      <MapSurface pins={pins} selected={selected} onSelect={(pin) => setSelected(pin)} />
     </View>
-    <Copy muted style={{ fontSize: 11 }}>Map and search data © OpenStreetMap contributors</Copy>
+    <Copy muted style={{ fontSize: 11 }}>Map data © OpenStreetMap contributors · Tiles © OpenFreeMap</Copy>
+    {selected && <Row style={{ gap: 11, justifyContent: "space-between" }}>
+      <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "700" }}>{selected.name}</Copy><Copy muted style={{ fontSize: 11 }}>{selected.kind === "place" ? "Place" : selected.kind === "destination" ? "Destination" : "Search result"}</Copy></View>
+      <Button secondary icon="map" onPress={() => void openDirections(selected)} style={{ minWidth: 115 }}>Directions</Button>
+    </Row>}
     {!!error && <Copy style={{ color: p.danger }}>{error}</Copy>}
     {searched && !busy && !error && !results.length && <Copy muted>No locations found. Try a more specific search.</Copy>}
     {!!results.length && <View style={{ gap: 3 }}>
@@ -103,7 +119,7 @@ export function MapScreen() {
       </> : <>
         <PlacePreviewPhoto name={preview.name} location={preview.detail.split(",").slice(1).join(",").trim()} />
         <View style={{ gap: 5 }}>
-          <Copy muted>{preview.kind}</Copy>
+          <Copy muted>{preview.category}</Copy>
           <Copy>{preview.detail}</Copy>
         </View>
         <Button secondary icon="map" onPress={() => setPreview(null)}>View on map</Button>

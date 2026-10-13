@@ -113,3 +113,14 @@ export type Trip = {
   companions: string;
   interests: string[];
 };
+
+export type TripJournalEntry = {
+  id: string;
+  trip: Trip;
+  activities: Activity[];
+  expenses: Expense[];
+  savedPlaceIds: string[];
+  reflection: string;
+  status: "completed" | "replaced";
+  archivedAt: string;
+};

@@ -1,4 +1,4 @@
-import type { Activity, Expense, Trip } from "@/data/travel";
+import type { Activity, Expense, Trip, TripJournalEntry } from "@/data/travel";
 import { supabase } from "@/lib/supabase";
 
 function client() {
@@ -13,7 +13,7 @@ function requireData<T>(result: { data: T; error: { message: string } | null }) 
 
 export async function loadTravelData(userId: string) {
   const db = client();
-  const [profile, preferences, trip, activities, expenses, saved, memory] =
+  const [profile, preferences, trip, activities, expenses, saved, memory, journalEntries] =
     await Promise.all([
       db.from("profiles").select("display_name,username,notifications_enabled").eq("user_id", userId).maybeSingle(),
       db.from("travel_preferences").select("interests,region,budget,pace").eq("user_id", userId).maybeSingle(),
@@ -22,6 +22,7 @@ export async function loadTravelData(userId: string) {
       db.from("trip_expenses").select("id,label,category,amount").eq("user_id", userId).order("position"),
       db.from("saved_items").select("kind,item_id").eq("user_id", userId),
       db.from("travel_memories").select("journal").eq("user_id", userId).maybeSingle(),
+      db.from("trip_journal_entries").select("id,destination_id,start_date,end_date,budget,companions,interests,activities,expenses,saved_place_ids,reflection,status,archived_at").eq("user_id", userId).order("archived_at", { ascending: false }),
     ]);
 
   const loadedTrip = requireData(trip);
@@ -54,7 +55,66 @@ export async function loadTravelData(userId: string) {
     })) as Expense[],
     saved: requireData(saved) ?? [],
     journal: requireData(memory)?.journal ?? "",
+    journalAvailable: !journalEntries.error,
+    journalEntries: journalEntries.error ? [] : mapJournalEntries(journalEntries.data ?? []),
   };
+}
+
+type JournalRow = {
+  id: string;
+  destination_id: string;
+  start_date: string;
+  end_date: string;
+  budget: number;
+  companions: string;
+  interests: string[];
+  activities: Activity[];
+  expenses: Expense[];
+  saved_place_ids: string[];
+  reflection: string;
+  status: "completed" | "replaced";
+  archived_at: string;
+};
+
+function mapJournalEntries(rows: JournalRow[]): TripJournalEntry[] {
+  return rows.map((row) => ({
+    id: row.id,
+    trip: {
+      destinationId: row.destination_id as Trip["destinationId"],
+      start: row.start_date,
+      end: row.end_date,
+      budget: Number(row.budget),
+      companions: row.companions,
+      interests: row.interests,
+    },
+    activities: row.activities,
+    expenses: row.expenses.map((expense) => ({ ...expense, amount: Number(expense.amount) })),
+    savedPlaceIds: row.saved_place_ids,
+    reflection: row.reflection,
+    status: row.status,
+    archivedAt: row.archived_at,
+  }));
+}
+
+export async function loadTripJournal(userId: string): Promise<TripJournalEntry[]> {
+  const result = await client().from("trip_journal_entries")
+    .select("id,destination_id,start_date,end_date,budget,companions,interests,activities,expenses,saved_place_ids,reflection,status,archived_at")
+    .eq("user_id", userId).order("archived_at", { ascending: false });
+  return mapJournalEntries(requireData(result) ?? []);
+}
+
+export async function archiveCurrentTrip() {
+  return requireData(await client().rpc("archive_trip", { p_status: "completed" }));
+}
+
+export async function saveTripReflection(userId: string, entryId: string, reflection: string) {
+  requireData(await client().from("trip_journal_entries").update({ reflection })
+    .eq("user_id", userId).eq("id", entryId));
+}
+
+export async function deleteTripJournalEntry(userId: string, entryId: string) {
+  requireData(await client().from("trip_journal_entries").delete()
+    .eq("user_id", userId).eq("id", entryId));
 }
 
 export async function saveProfile(

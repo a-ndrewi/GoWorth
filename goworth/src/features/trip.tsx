@@ -254,7 +254,7 @@ export function PlannerScreen() {
         title="Replace current trip?"
         onClose={() => setConfirmReplace(false)}
       >
-        <Copy muted>Your current itinerary and expenses will be deleted. Saved destinations, places, and your journal will stay in your account.</Copy>
+        <Copy muted>Your current trip will move into your journal with its itinerary, expenses, saved places, and note. You can still review it there.</Copy>
         {!!error && <Copy style={s.error}>{error}</Copy>}
         <Button busy={busy} onPress={() => void saveTrip()}>Replace trip</Button>
         <Button secondary onPress={() => setConfirmReplace(false)}>Keep current trip</Button>

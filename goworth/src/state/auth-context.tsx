@@ -10,6 +10,7 @@ type AuthState = {
   passwordRecovery: boolean;
   finishPasswordRecovery: () => void;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -81,6 +82,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   };
 
+  const deleteAccount = async () => {
+    if (!supabase || !user) throw new Error("Sign in to delete your account.");
+    const { error } = await supabase.rpc("delete_my_account");
+    if (error) throw error;
+    await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+    setUser(null);
+  };
+
   return (
     <AuthContext
       value={{
@@ -92,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setPasswordRecovery(false);
         },
         signOut,
+        deleteAccount,
       }}
     >
       {children}

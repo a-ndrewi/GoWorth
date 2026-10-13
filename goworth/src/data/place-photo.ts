@@ -20,6 +20,7 @@ type CommonsPage = {
 };
 
 const cache = new Map<string, Promise<PlacePhoto | null>>();
+const photoOwners = new Map<string, string>();
 const stopWords = new Set(["the", "of", "de", "do", "da", "del", "di", "la", "le", "and", "at"]);
 const verifiedFiles: Record<string, string> = {
   "palace of the parliament|bucharest, romania": "File:Palace of the Parliament.jpg",
@@ -91,36 +92,36 @@ async function queryCommons(params: URLSearchParams): Promise<CommonsPage[]> {
   }
 }
 
-async function searchCommons(query: string, name: string, location: string): Promise<PlacePhoto | null> {
-    const params = new URLSearchParams({
-      action: "query",
-      generator: "search",
-      gsrsearch: query,
-      gsrnamespace: "6",
-      gsrlimit: "15",
-      prop: "imageinfo",
-      iiprop: "url|mime|extmetadata",
-      iiurlwidth: "900",
-      format: "json",
-      origin: "*",
-    });
-    const pages = await queryCommons(params);
-    const locationWords = tokens(location);
-    const candidates = pages.flatMap((page) => {
-      const photo = photoFromPage(page, name, location);
-      if (!photo) return [];
-      const title = normalize(page.title || "");
-      const fileTitle = normalize((page.title || "").replace(/^File:/, ""));
-      const info = page.imageinfo?.[0];
-      const score = locationWords.reduce((total, word) => total + (title.includes(word) ? 4 : 0), 0)
-        + (fileTitle.startsWith(normalize(name)) ? 10 : 0)
-        + (info?.thumbwidth && info?.thumbheight && info.thumbwidth > info.thumbheight ? 2 : 0)
-        - (/(?:detail|close up|quadriga|statue|sculpture|painting|model|souvenir|interior|inside|view from|from the)/.test(title) ? 12 : 0)
-        - (page.index || 0) / 20;
-      return [{ photo, score }];
-    });
-    candidates.sort((a, b) => b.score - a.score);
-    return candidates[0]?.photo || null;
+async function searchCommons(query: string, name: string, location: string): Promise<PlacePhoto[]> {
+  const params = new URLSearchParams({
+    action: "query",
+    generator: "search",
+    gsrsearch: query,
+    gsrnamespace: "6",
+    gsrlimit: "15",
+    prop: "imageinfo",
+    iiprop: "url|mime|extmetadata",
+    iiurlwidth: "900",
+    format: "json",
+    origin: "*",
+  });
+  const pages = await queryCommons(params);
+  const locationWords = tokens(location);
+  const candidates = pages.flatMap((page) => {
+    const photo = photoFromPage(page, name, location);
+    if (!photo) return [];
+    const title = normalize(page.title || "");
+    const fileTitle = normalize((page.title || "").replace(/^File:/, ""));
+    const info = page.imageinfo?.[0];
+    const score = locationWords.reduce((total, word) => total + (title.includes(word) ? 4 : 0), 0)
+      + (fileTitle.startsWith(normalize(name)) ? 10 : 0)
+      + (info?.thumbwidth && info?.thumbheight && info.thumbwidth > info.thumbheight ? 2 : 0)
+      - (/(?:detail|close up|quadriga|statue|sculpture|painting|model|souvenir|interior|inside|view from|from the)/.test(title) ? 12 : 0)
+      - (page.index || 0) / 20;
+    return [{ photo, score }];
+  });
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.map(({ photo }) => photo);
 }
 
 async function verifiedPhoto(title: string, name: string, location: string) {
@@ -132,6 +133,15 @@ async function verifiedPhoto(title: string, name: string, location: string) {
   return pages.length ? photoFromPage(pages[0], name, location) : null;
 }
 
+function claimPhoto(key: string, candidates: PlacePhoto[]) {
+  const photo = candidates.find((candidate) => {
+    const owner = photoOwners.get(candidate.url);
+    return !owner || owner === key;
+  });
+  if (photo) photoOwners.set(photo.url, key);
+  return photo || null;
+}
+
 export function findPlacePhoto(name: string, location: string): Promise<PlacePhoto | null> {
   const key = `${name}|${location}`.toLowerCase();
   if (!cache.has(key)) {
@@ -139,10 +149,14 @@ export function findPlacePhoto(name: string, location: string): Promise<PlacePho
       const verified = verifiedFiles[key];
       if (verified) {
         const photo = await verifiedPhoto(verified, name, location);
-        if (photo) return photo;
+        const claimed = photo ? claimPhoto(key, [photo]) : null;
+        if (claimed) return claimed;
       }
-      return await searchCommons(`${name} ${location}`, name, location) ||
-        await searchCommons(name, name, location);
+      const specific = await searchCommons(`${name} ${location}`, name, location);
+      const claimedSpecific = claimPhoto(key, specific);
+      if (claimedSpecific) return claimedSpecific;
+      const broad = await searchCommons(name, name, location);
+      return claimPhoto(key, broad);
     })().catch((error) => {
       cache.delete(key);
       throw error;

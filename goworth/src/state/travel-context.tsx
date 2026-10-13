@@ -1,17 +1,21 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { Activity, Expense, Trip } from "@/data/travel";
+import type { Activity, Expense, Trip, TripJournalEntry } from "@/data/travel";
 import { useAuth } from "@/state/auth-context";
 import {
+  archiveCurrentTrip,
   deleteActivity,
   deleteExpense,
   deleteTrip,
+  deleteTripJournalEntry,
   loadTravelData,
+  loadTripJournal,
   replaceTrip,
   recordDiscoveryFavorite,
   saveActivity,
   saveExpense,
   saveJournal,
+  saveTripReflection,
   savePreferences,
   saveProfile,
   setSavedItem,
@@ -49,6 +53,8 @@ function useTravelState() {
   const [hasPreferences, setHasPreferences] = useState(false);
   const [profile, setProfileState] = useState<TravelProfile>({ name: fallbackName, username: "" });
   const [journal, setJournalState] = useState("");
+  const [journalEntries, setJournalEntries] = useState<TripJournalEntry[]>([]);
+  const [journalAvailable, setJournalAvailable] = useState(false);
   const [notifications, setNotifications] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -91,6 +97,8 @@ function useTravelState() {
         setSaved(data.saved.filter((item) => item.kind === "destination").map((item) => item.item_id));
         setSavedPlaces(data.saved.filter((item) => item.kind === "place").map((item) => item.item_id));
         setJournalState(data.journal);
+        setJournalEntries(data.journalEntries);
+        setJournalAvailable(data.journalAvailable);
         setSyncError("");
         setCloudReady(true);
       })
@@ -144,8 +152,13 @@ function useTravelState() {
 
   const generateTrip = async (next: Trip) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    if (trip && !journalAvailable) throw new Error("Update the trip journal database before replacing this trip.");
     await writeQueue.current;
     await replaceTrip(user.id, next, []);
+    if (trip) {
+      setJournalEntries(await loadTripJournal(user.id));
+      setJournalState("");
+    }
     setTrip(next);
     setActivities([]);
     setExpenses([]);
@@ -159,6 +172,19 @@ function useTravelState() {
     setTrip(null);
     setActivities([]);
     setExpenses([]);
+    setSyncError("");
+  };
+
+  const finishTrip = async () => {
+    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    if (!journalAvailable) throw new Error("Update the trip journal database before finishing this trip.");
+    await writeQueue.current;
+    await archiveCurrentTrip();
+    setJournalEntries(await loadTripJournal(user.id));
+    setTrip(null);
+    setActivities([]);
+    setExpenses([]);
+    setJournalState("");
     setSyncError("");
   };
 
@@ -223,6 +249,18 @@ function useTravelState() {
     setJournalState(next);
     setSyncError("");
   };
+  const setArchivedReflection = async (entryId: string, next: string) => {
+    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    await saveTripReflection(user.id, entryId, next);
+    setJournalEntries((current) => current.map((entry) => entry.id === entryId ? { ...entry, reflection: next } : entry));
+    setSyncError("");
+  };
+  const deleteJournalEntry = async (entryId: string) => {
+    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    await persist(() => deleteTripJournalEntry(user.id, entryId));
+    setJournalEntries((current) => current.filter((entry) => entry.id !== entryId));
+    setSyncError("");
+  };
   const updateNotifications = (next: boolean) => {
     if (!user || !cloudReady) return;
     void persist(() => saveProfile(user.id, profile, next))
@@ -232,12 +270,12 @@ function useTravelState() {
 
   return {
     saved, toggleSaved, savedPlaces, togglePlace, favoriteDiscoveryItem,
-    trip, hasTrip: !!trip, generateTrip, clearTrip,
+    trip, hasTrip: !!trip, generateTrip, clearTrip, finishTrip,
     activities, addActivity, updateActivity, removeActivity,
     expenses, addExpense, updateExpense, removeExpense,
     preferences, setPreferences, hasPreferences, completePreferences,
     discoverySettings, setDiscoverySettings,
-    profile, setProfile, journal, setJournal,
+    profile, setProfile, journal, setJournal, journalEntries, journalAvailable, setArchivedReflection, deleteJournalEntry,
     notifications, setNotifications: updateNotifications,
     cloudReady, loadError, retryLoad: () => {
       setCloudReady(false);

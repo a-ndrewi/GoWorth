@@ -1,6 +1,7 @@
 import { destinationCatalog } from "@/data/catalog";
+import type { Place } from "@/data/travel";
 
-export type MapPin = { id: string; name: string; latitude: number; longitude: number };
+export type MapPin = { id: string; name: string; latitude: number; longitude: number; kind?: "destination" | "place" | "search" };
 
 const coordinates: Record<(typeof destinationCatalog)[number]["id"], [number, number]> = {
   positano: [40.6281, 14.4845],
@@ -64,14 +65,25 @@ export const destinationPins: MapPin[] = destinationCatalog.map((destination) =>
   name: `${destination.name}, ${destination.country}`,
   latitude: coordinates[destination.id][0],
   longitude: coordinates[destination.id][1],
+  kind: "destination",
 }));
 
-export type SearchResult = MapPin & { detail: string; kind: string };
+export type SearchResult = MapPin & { detail: string; category: string; kind: "place" | "search" };
 const cache = new Map<string, SearchResult[]>();
 let nextRequestAt = 0;
 
-export async function searchMap(query: string): Promise<SearchResult[]> {
-  const key = query.trim().toLowerCase();
+type SearchArea = { center: MapPin; radiusKm: number };
+
+function distanceKm(a: MapPin, b: MapPin) {
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const deltaLat = radians(b.latitude - a.latitude);
+  const deltaLon = radians(b.longitude - a.longitude);
+  const value = Math.sin(deltaLat / 2) ** 2 + Math.cos(radians(a.latitude)) * Math.cos(radians(b.latitude)) * Math.sin(deltaLon / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(value));
+}
+
+export async function searchMap(query: string, area?: SearchArea): Promise<SearchResult[]> {
+  const key = `${query.trim().toLowerCase()}|${area?.center.id ?? "world"}|${area?.radiusKm ?? 0}`;
   if (cache.has(key)) return cache.get(key)!;
 
   const wait = Math.max(0, nextRequestAt - Date.now());
@@ -82,8 +94,17 @@ export async function searchMap(query: string): Promise<SearchResult[]> {
   const timeout = setTimeout(() => controller.abort(), 10000);
   try {
     const params = new URLSearchParams({ q: query.trim(), format: "jsonv2", limit: "5", addressdetails: "1" });
+    if (area) {
+      const latDelta = area.radiusKm / 111;
+      const lonDelta = area.radiusKm / (111 * Math.max(0.2, Math.cos(area.center.latitude * Math.PI / 180)));
+      params.set("viewbox", [
+        area.center.longitude - lonDelta, area.center.latitude + latDelta,
+        area.center.longitude + lonDelta, area.center.latitude - latDelta,
+      ].join(","));
+      params.set("bounded", "1");
+    }
     const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-      headers: { Accept: "application/json", "User-Agent": "GoWorth/1.0" },
+      headers: { Accept: "application/json" },
       signal: controller.signal,
     });
     if (!response.ok) throw new Error("Map search is unavailable right now. Please try again later.");
@@ -92,13 +113,31 @@ export async function searchMap(query: string): Promise<SearchResult[]> {
       id: String(item.place_id),
       name: item.display_name.split(",")[0],
       detail: item.display_name,
-      kind: item.type ? item.type.replace(/_/g, " ") : "Location",
+      category: item.type ? item.type.replace(/_/g, " ") : "Location",
+      kind: "search" as const,
       latitude: Number(item.lat),
       longitude: Number(item.lon),
-    }));
+    })).filter((item) => !area || distanceKm(area.center, item) <= area.radiusKm * 1.45);
     cache.set(key, results);
     return results;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+const wideDestinations: Record<string, number> = {
+  iceland: 350, alps: 220, bali: 150, "new-york": 85,
+};
+
+export async function searchCatalogPlace(place: Place): Promise<SearchResult[]> {
+  const parent = destinationCatalog.find((destination) => destination.id === place.destinationId);
+  const center = destinationPins.find((pin) => pin.id === place.destinationId);
+  if (!parent || !center) return [];
+  const radiusKm = wideDestinations[parent.id] ?? 55;
+  const matches = await searchMap(place.name, { center, radiusKm });
+  const placeWords = place.name.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((word) => word.length > 2);
+  return matches.filter((match) => {
+    const name = match.name.toLowerCase();
+    return placeWords.length > 0 && placeWords.every((word) => name.includes(word));
+  }).map((match) => ({ ...match, name: place.name, kind: "place" }));
 }
