@@ -1,3 +1,6 @@
+import { getLanguage } from "./formatting.ts";
+import { romanianTips } from "./tips-ro.ts";
+
 export type TipStage = "Before you go" | "While you're there";
 export type TipIcon = "calendar" | "bus" | "wallet" | "book" | "sun" | "map" | "food" | "mountain" | "beach" | "city" | "check";
 
@@ -51,6 +54,17 @@ const overrides: Record<string, DestinationTip[]> = {
 };
 
 function generatedTips(destination: DestinationContext): DestinationTip[] {
+  if (getLanguage() === "ro") {
+    const isNature = destination.tags.includes("Nature") || destination.tags.includes("Mountains") || destination.tags.includes("Beach");
+    const isCity = destination.tags.includes("City");
+    const isCulture = destination.tags.includes("Culture");
+    return [
+      { id: `${destination.id}-book-ahead`, stage: "Before you go", title: "Salvează locurile importante", detail: `Începe cu o listă scurtă de locuri din ${destination.name}, apoi verifică programul oficial și condițiile de rezervare înainte să-ți planifici zilele.`, icon: "calendar" },
+      { id: `${destination.id}-move-smart`, stage: "While you're there", title: isCity ? "Descoperă pe cartiere" : "Lasă timp între opriri", detail: isCity ? `Grupează locurile din ${destination.name} pe cartiere ca să petreci mai mult timp explorând și mai puțin pe drum.` : `Verifică distanțele dintre locurile din ${destination.name} înainte să umpli ziua. Drumurile pitorești durează adesea mai mult decât par pe hartă.`, icon: isCity ? "city" : "map" },
+      { id: `${destination.id}-local-rules`, stage: "Before you go", title: "Verifică regulile de acces", detail: isCulture ? `Verifică regulile de acces, vestimentația și indicațiile privind fotografiatul înainte de a vizita locurile culturale din ${destination.name}.` : `Lasă loc pentru ritmul local din ${destination.name}: programul, vremea și accesul sezonier pot schimba ordinea potrivită a zilei.`, icon: isCulture ? "book" : "check" },
+      { id: `${destination.id}-comfort`, stage: "While you're there", title: "Pregătește-te pentru ziua planificată", detail: isNature ? `Ia apă, protecție solară și încălțăminte potrivită pentru teren denivelat când explorezi locurile în aer liber din ${destination.name}.` : `Lasă o rezervă de timp pentru transport, mese și o oprire neplanificată. Cele mai frumoase locuri din ${destination.name} s-ar putea să nu fie pe lista inițială.`, icon: isNature ? "sun" : "wallet" },
+    ];
+  }
   const isNature = destination.tags.includes("Nature") || destination.tags.includes("Mountains") || destination.tags.includes("Beach");
   const isCity = destination.tags.includes("City");
   const isCulture = destination.tags.includes("Culture");
@@ -72,5 +86,6 @@ function generatedTips(destination: DestinationContext): DestinationTip[] {
 }
 
 export function tipsForDestination(destination: DestinationContext): DestinationTip[] {
-  return overrides[destination.id] || generatedTips(destination);
+  const tips = overrides[destination.id];
+  return tips ? getLanguage() === "ro" ? tips.map((tip) => ({ ...tip, ...romanianTips[tip.id] })) : tips : generatedTips(destination);
 }

@@ -13,6 +13,8 @@ import { destinationPins } from "@/data/map";
 import { findPlacePhoto, type PlacePhoto } from "@/data/place-photo";
 import { loadRecentDiscoveries, type RecentDiscovery } from "@/lib/travel-repository";
 import { useTravel } from "@/state/travel-context";
+import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
+import { useAppLanguage } from "@/data/formatting";
 
 const BATCH_SIZE = 6;
 
@@ -42,6 +44,7 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
   onChoice: (choice: "skip" | "favorite") => void;
   onRefresh: () => void;
 }) {
+  const language = useAppLanguage();
   const { height: windowHeight } = useWindowDimensions();
   const cardHeight = Math.max(305, Math.min(380, Math.round(windowHeight * 0.44)));
   const [position] = useState(() => new Animated.ValueXY());
@@ -86,19 +89,19 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
       <GestureDetector gesture={gesture}>
         <Animated.View style={[styles.card, { height: cardHeight, transform: [...position.getTranslateTransform(), { rotate: rotation }] }]}>
           <DestinationPhoto destination={item.destination} style={StyleSheet.absoluteFill} />
-          {placePhoto && !imageFailed && <Image source={{ uri: placePhoto.url }} contentFit="cover" transition={250} accessibilityLabel={`Photo of ${placeName}`} onError={() => setImageFailed(true)} style={StyleSheet.absoluteFill} />}
+          {placePhoto && !imageFailed && <Image source={{ uri: placePhoto.url }} contentFit="cover" transition={250} accessibilityLabel={translateAccessibility(`Photo of ${placeName}`, language)} onError={() => setImageFailed(true)} style={StyleSheet.absoluteFill} />}
           <LinearGradient colors={["rgba(0,0,0,0.14)", "rgba(0,0,0,0.06)", "rgba(0,0,0,0.82)"]} style={StyleSheet.absoluteFill} />
           <View style={styles.cardContent}>
             <View style={{ alignSelf: "flex-start", gap: 7 }}>
               <View style={styles.typeBadge}><Icon name={item.kind === "place" ? "pin" : "city"} size={15} color={p.white} /><Copy style={styles.typeText}>{item.kind === "place" ? "PLACE" : "CITY"}</Copy></View>
-              {placePhoto && !imageFailed && <Pressable accessibilityRole="link" accessibilityLabel={`Photo source and license for ${placeName}`} onPress={() => void Linking.openURL(placePhoto.pageUrl)} style={styles.photoCredit}>
-                <Text numberOfLines={2} style={styles.photoCreditText}>Photo: {placePhoto.artist} · {placePhoto.license}</Text>
+              {placePhoto && !imageFailed && <Pressable accessibilityRole="link" accessibilityLabel={translateAccessibility(`Photo source and license for ${placeName}`, language)} onPress={() => void Linking.openURL(placePhoto.pageUrl)} style={styles.photoCredit}>
+                <Text numberOfLines={2} style={styles.photoCreditText}>{translate("Photo: ", language)}{placePhoto.artist} · {placePhoto.license}</Text>
               </Pressable>}
             </View>
             <IconButton name="right" label={`Explore ${item.place?.name ?? item.destination.name}`} onPress={open} filled style={{ position: "absolute", right: 12, top: 12, width: 38, height: 38, minWidth: 38, minHeight: 38 }} />
             <View style={{ gap: 7 }}>
               <Heading style={styles.cardTitle}>{item.place?.name ?? item.destination.name}</Heading>
-              <Copy style={styles.cardMeta}>{item.place ? `${item.destination.name}, ${item.destination.country}` : item.destination.country}{item.distanceKm !== undefined ? `  ·  ~${Math.round(item.distanceKm)} km away` : ""}</Copy>
+              <Copy style={styles.cardMeta}>{item.place ? `${item.destination.name}, ${translate(item.destination.country, language)}` : translate(item.destination.country, language)}{item.distanceKm !== undefined ? formatMessage("  ·  ~{distance} km away", { distance: Math.round(item.distanceKm) }, language) : ""}</Copy>
               <Copy style={styles.cardDetail}>{item.place?.detail ?? item.destination.description}</Copy>
             </View>
           </View>
@@ -108,12 +111,13 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
     <Row style={{ justifyContent: "center", gap: 24 }}>
       <View style={styles.actionGroup}><IconButton name="close" label="Skip this suggestion" onPress={() => swipe("skip")} style={styles.actionButton} /><Copy muted style={styles.actionLabel}>Pass</Copy></View>
       <View style={styles.actionGroup}><IconButton name="refresh" label="Refresh suggestions" onPress={onRefresh} color={p.blue} style={[styles.actionButton, styles.refreshButton]} /><Copy muted style={styles.actionLabel}>Refresh</Copy></View>
-      <View style={styles.actionGroup}><IconButton name="heart" label={`Add ${item.place?.name ?? item.destination.name} to favorites`} onPress={() => swipe("favorite")} color={p.pink} style={styles.actionButton} /><Copy muted style={styles.actionLabel}>Save</Copy></View>
+      <View style={styles.actionGroup}><IconButton name="heart" label={translateAccessibility(`Add ${item.place?.name ?? item.destination.name} to favorites`, language)} onPress={() => swipe("favorite")} color={p.pink} style={styles.actionButton} /><Copy muted style={styles.actionLabel}>Save</Copy></View>
     </Row>
   </View>;
 }
 
 export function DiscoverySwiper() {
+  const language = useAppLanguage();
   const { trip, preferences, discoverySettings, saved, savedPlaces, favoriteDiscoveryItem } = useTravel();
   const [location, setLocation] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState<"checking" | "ready" | "unavailable">("checking");
@@ -123,8 +127,8 @@ export function DiscoverySwiper() {
   const manualPin = destinationPins.find((pin) => pin.id === discoverySettings.centerId);
   const tripPin = destinationPins.find((pin) => pin.id === trip?.destinationId);
   const center = manualPin ?? (discoverySettings.centerId ? null : location ?? tripPin ?? null);
-  const centerLabel = manualPin ? manualPin.name.split(",")[0] : location ? "near you" : tripPin ? `near ${tripPin.name.split(",")[0]}` : "around the world";
-  const radiusLabel = center ? discoverySettings.radiusKm === 20000 ? "Worldwide" : `${discoverySettings.radiusKm.toLocaleString("en-US")} km radius` : "Explore worldwide";
+  const centerLabel = manualPin ? manualPin.name.split(",")[0] : location ? translate("near you", language) : tripPin ? formatMessage("near {city}", { city: tripPin.name.split(",")[0] }, language) : translate("around the world", language);
+  const radiusLabel = center ? discoverySettings.radiusKm === 20000 ? translate("Worldwide", language) : formatMessage("{distance} km radius", { distance: discoverySettings.radiusKm.toLocaleString(language === "ro" ? "ro-RO" : "en-US") }, language) : translate("Explore worldwide", language);
 
   useEffect(() => {
     if (discoverySettings.centerId) return;
@@ -162,7 +166,7 @@ export function DiscoverySwiper() {
   const item = unseen[0];
   const nextItem = unseen[1];
   const exhausted = !item && !loading;
-  return <View style={{ gap: 15 }}>
+  return <View style={{ width: "100%", maxWidth: 560, alignSelf: "center", gap: 15 }}>
     <Row style={{ justifyContent: "space-between", alignItems: "center", gap: 12 }}>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Copy style={styles.eyebrow}>YOUR DISCOVERY DECK</Copy>
@@ -177,6 +181,7 @@ export function DiscoverySwiper() {
 }
 
 export function DiscoveryCommunity() {
+  const language = useAppLanguage();
   const { trip, preferences, discoverySettings } = useTravel();
   const [activity, setActivity] = useState<RecentDiscovery[]>([]);
   const [showAll, setShowAll] = useState(false);
@@ -202,7 +207,7 @@ export function DiscoveryCommunity() {
         <Icon name="heartFill" size={17} color={p.pink} />
       </Pressable>;
     }) : <Row style={{ gap: 10 }}>{ideas.map((destination) =>
-      <Pressable key={destination.id} accessibilityRole="button" accessibilityLabel={`Explore ${destination.name}`} onPress={() => router.push({ pathname: "/trip", params: { id: destination.id } } as Href)} style={styles.ideaCard}>
+      <Pressable key={destination.id} accessibilityRole="button" accessibilityLabel={translateAccessibility(`Explore ${destination.name}`, language)} onPress={() => router.push({ pathname: "/trip", params: { id: destination.id } } as Href)} style={styles.ideaCard}>
         <DestinationPhoto destination={destination} style={StyleSheet.absoluteFill} />
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.7)"]} style={StyleSheet.absoluteFill} />
         <View style={styles.ideaContent}><Copy style={{ color: p.white, fontWeight: "700" }}>{destination.name}</Copy><Copy style={{ color: p.white, fontSize: 11 }}>{destination.country}</Copy></View>

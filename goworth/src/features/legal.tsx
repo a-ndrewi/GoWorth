@@ -4,6 +4,9 @@ import { Platform, Pressable, Share, View } from "react-native";
 import { Button, Copy, Field, Header, Heading, Icon, Screen, Sheet, s, type IconName } from "@/components/goworth/ui";
 import { palette as p } from "@/constants/design";
 import { legalDocuments, legalIdentity, type LegalDocumentId } from "@/data/legal";
+import { legalDocumentsRo } from "@/data/legal-ro";
+import { useAppLanguage } from "@/data/formatting";
+import { translate } from "@/data/i18n";
 import { useAuth } from "@/state/auth-context";
 import { useTravel } from "@/state/travel-context";
 
@@ -15,6 +18,8 @@ const documents: { id: LegalDocumentId; icon: IconName }[] = [
 ];
 
 export function LegalScreen() {
+  const language = useAppLanguage();
+  const localizedDocuments = language === "ro" ? legalDocumentsRo : legalDocuments;
   const { user, deleteAccount } = useAuth();
   const {
     profile, preferences, saved, savedPlaces, externalPlaces, trip, activities, expenses,
@@ -74,7 +79,7 @@ export function LegalScreen() {
         style={[s.row, { minHeight: 56, gap: 13, borderBottomWidth: 1, borderColor: p.line }]}
       >
         <Icon name={icon} color={p.blue} size={20} />
-        <Copy style={{ flex: 1, fontWeight: "600" }}>{legalDocuments[id].title}</Copy>
+        <Copy style={{ flex: 1, fontWeight: "600" }}>{localizedDocuments[id].title}</Copy>
         <Icon name="right" color={p.muted} size={18} />
       </Pressable>)}
     </View>
@@ -87,8 +92,8 @@ export function LegalScreen() {
       {!!error && !confirming && <Copy style={s.error}>{error}</Copy>}
     </View>
     <View style={{ gap: 4, borderTopWidth: 1, borderColor: p.line, paddingTop: 18 }}>
-      <Copy muted style={{ fontSize: 12 }}>Operator: {legalIdentity.operator}</Copy>
-      <Copy muted style={{ fontSize: 12 }}>Contact: {legalIdentity.contact}</Copy>
+      <Copy muted style={{ fontSize: 12 }}>Operator: {translate(legalIdentity.operator, language)}</Copy>
+      <Copy muted style={{ fontSize: 12 }}>Contact: {translate(legalIdentity.contact, language)}</Copy>
     </View>
     <Sheet visible={confirming} title="Delete your account?" onClose={() => setConfirming(false)}>
       <Copy>All account data, including saved items and trip history, will be permanently deleted. This cannot be undone.</Copy>
@@ -101,9 +106,10 @@ export function LegalScreen() {
 }
 
 export function LegalDocumentScreen() {
+  const language = useAppLanguage();
   const { type } = useLocalSearchParams<{ type?: string }>();
   const id = type && Object.prototype.hasOwnProperty.call(legalDocuments, type) ? type as LegalDocumentId : "privacy";
-  const document = legalDocuments[id];
+  const document = (language === "ro" ? legalDocumentsRo : legalDocuments)[id];
   return <Screen style={{ gap: 20 }}>
     <Header title={document.title} />
     <Copy style={{ color: p.danger, fontSize: 12, fontWeight: "600" }}>{document.updated} · Operator details pending</Copy>

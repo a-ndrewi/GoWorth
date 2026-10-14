@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { router, type Href } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useState, type ReactNode } from "react";
+import { Children, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,6 +13,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
   type StyleProp,
   type ImageStyle,
   type TextInputProps,
@@ -23,6 +24,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { palette as p, photos } from "@/constants/design";
 import { placesForDestination, type Destination } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
+import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
+import { useAppLanguage } from "@/data/formatting";
+
+function translateText(children: ReactNode, language: ReturnType<typeof useAppLanguage>) {
+  return Children.map(children, (child) => typeof child === "string" ? translate(child, language) : child);
+}
 
 const symbols = {
   back: ["chevron.left", "chevron_left"],
@@ -121,7 +128,8 @@ export function Copy({
   style?: StyleProp<TextStyle>;
   muted?: boolean;
 }) {
-  return <Text style={[s.text, muted && s.muted, style]}>{children}</Text>;
+  const language = useAppLanguage();
+  return <Text style={[s.text, muted && s.muted, style]}>{translateText(children, language)}</Text>;
 }
 export function Heading({
   children,
@@ -130,9 +138,10 @@ export function Heading({
   children: ReactNode;
   style?: StyleProp<TextStyle>;
 }) {
+  const language = useAppLanguage();
   return (
     <Text accessibilityRole="header" style={[s.heading, style]}>
-      {children}
+      {translateText(children, language)}
     </Text>
   );
 }
@@ -182,6 +191,7 @@ export function Button({
   icon?: IconName;
   style?: StyleProp<ViewStyle>;
 }) {
+  const language = useAppLanguage();
   const color = secondary ? p.ink : p.white;
   return (
     <Pressable
@@ -202,7 +212,7 @@ export function Button({
       ) : icon ? (
         <Icon name={icon} color={color} size={19} />
       ) : null}
-      <Text style={[s.buttonLabel, { color }]}>{children}</Text>
+      <Text style={[s.buttonLabel, { color }]}>{translateText(children, language)}</Text>
     </Pressable>
   );
 }
@@ -221,11 +231,12 @@ export function IconButton({
   filled?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const language = useAppLanguage();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={translateAccessibility(label, language)}
       style={({ pressed }) => [
         s.iconButton,
         filled && { backgroundColor: p.white },
@@ -250,6 +261,7 @@ export function Chip({
   tint?: string;
   style?: StyleProp<ViewStyle>;
 }) {
+  const language = useAppLanguage();
   return (
     <Pressable
       accessibilityRole="button"
@@ -264,7 +276,7 @@ export function Chip({
       ]}
     >
       <Text style={[s.chipText, selected && { color: p.white }]}>
-        {children}
+        {translateText(children, language)}
       </Text>
     </Pressable>
   );
@@ -274,14 +286,16 @@ export function Field({
   style,
   ...props
 }: TextInputProps & { label?: string }) {
+  const language = useAppLanguage();
   return (
     <View style={{ gap: 7, flex: 1 }}>
       {label && <Copy style={s.label}>{label}</Copy>}
       <TextInput
-        accessibilityLabel={label || props.placeholder}
-        placeholderTextColor={p.muted}
-        style={[s.input, style]}
         {...props}
+        accessibilityLabel={label ? translate(label, language) : props.placeholder ? translate(props.placeholder, language) : undefined}
+        placeholderTextColor={p.muted}
+        placeholder={props.placeholder ? translate(props.placeholder, language) : undefined}
+        style={[s.input, style]}
       />
     </View>
   );
@@ -321,6 +335,7 @@ export function Header({
   );
 }
 export function BottomNav({ active }: { active: string }) {
+  const language = useAppLanguage();
   const items = [
     ["home", "Explore", "compass", "/home"],
     ["map", "Map", "map", "/map"],
@@ -329,21 +344,22 @@ export function BottomNav({ active }: { active: string }) {
     ["profile", "Profile", "person", "/profile"],
   ] as const;
   return (
-    <View style={s.nav}>
-      {items.map(([id, label, icon, href]) => (
+    <View style={s.navShell}>
+      <View style={s.nav}>{items.map(([id, label, icon, href]) => (
         <Pressable
           key={id}
           onPress={() => router.navigate(href as Href)}
           accessibilityRole="button"
-          accessibilityLabel={label}
+          accessibilityLabel={translate(label, language)}
           accessibilityState={{ selected: active === id }}
           style={({ pressed }) => [s.navItem, pressed && { opacity: 0.65 }]}
         >
           <View style={[s.navIcon, active === id && s.navIconActive]}>
-            <Icon name={active === "saved" && id === "saved" ? "heartFill" : icon} size={25} color={active === id ? p.blue : p.muted} />
+            <Icon name={active === "saved" && id === "saved" ? "heartFill" : icon} size={22} color={active === id ? p.blue : p.muted} />
           </View>
+          <Text style={[s.navLabel, active === id && s.navLabelActive]}>{translate(label, language)}</Text>
         </Pressable>
-      ))}
+      ))}</View>
     </View>
   );
 }
@@ -371,7 +387,7 @@ export function Screen({
           <ScrollView
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[s.content, style, active ? { paddingBottom: 90 } : null, footer ? { paddingBottom: 112 } : null]}
+            contentContainerStyle={[s.content, style, active || footer ? { paddingBottom: 28 } : null]}
           >
             {!!syncError && (
               <View style={{ backgroundColor: "#FFF1F2", borderRadius: 6, padding: 10 }}>
@@ -424,6 +440,7 @@ export function DestinationPhoto({
   destination: Destination;
   style?: StyleProp<ImageStyle>;
 }) {
+  const language = useAppLanguage();
   const [failedId, setFailedId] = useState<string | null>(null);
   if (failedId === destination.id) {
     return (
@@ -437,7 +454,7 @@ export function DestinationPhoto({
     <Image
       source={destination.image}
       onError={() => setFailedId(destination.id)}
-      accessibilityLabel={`${destination.name}, ${destination.country}`}
+      accessibilityLabel={`${translate(destination.name, language)}, ${translate(destination.country, language)}`}
       style={style}
       contentFit="cover"
     />
@@ -445,12 +462,14 @@ export function DestinationPhoto({
 }
 
 export function DestinationCard({ destination }: { destination: Destination }) {
+  const language = useAppLanguage();
   const { saved, toggleSaved } = useTravel();
+  const { width } = useWindowDimensions();
   return (
-    <View style={s.destinationCard}>
+    <View style={[s.destinationCard, { width: Platform.OS === "web" && width >= 900 ? "23%" : Platform.OS === "web" && width >= 720 ? "31%" : "47.5%" }]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Explore ${destination.name}`}
+        accessibilityLabel={translateAccessibility(`Explore ${destination.name}`, language)}
         onPress={() =>
           router.push({
             pathname: "/trip",
@@ -466,7 +485,7 @@ export function DestinationCard({ destination }: { destination: Destination }) {
           </Copy>
           <Row style={{ gap: 4, marginTop: 7 }}>
             <Copy style={{ fontSize: 11 }}>
-              {placesForDestination(destination.id).length} places · {destination.tags.slice(0, 2).join(" & ")}
+              {formatMessage("{count} places · {tags}", { count: placesForDestination(destination.id).length, tags: destination.tags.slice(0, 2).map((tag) => translate(tag, language)).join(" & ") }, language)}
             </Copy>
           </Row>
         </View>
@@ -479,12 +498,8 @@ export function DestinationCard({ destination }: { destination: Destination }) {
         filled
         style={{
           position: "absolute",
-          right: 5,
-          top: 5,
-          width: 36,
-          height: 36,
-          minWidth: 36,
-          minHeight: 36,
+          right: 4,
+          top: 4,
           opacity: 0.94,
         }}
       />
@@ -577,8 +592,11 @@ export const s = StyleSheet.create({
   },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   screen: { flex: 1, backgroundColor: p.white },
-  content: { padding: 22, gap: 20, flexGrow: 1 },
+  content: { width: "100%", maxWidth: 860, alignSelf: "center", padding: 22, gap: 20, flexGrow: 1 },
   footer: {
+    width: "100%",
+    maxWidth: 860,
+    alignSelf: "center",
     padding: 18,
     paddingTop: 12,
     borderTopWidth: 1,
@@ -647,31 +665,38 @@ export const s = StyleSheet.create({
     backgroundColor: p.white,
     letterSpacing: 0,
   },
-  nav: {
-    flexDirection: "row",
+  navShell: {
     borderTopWidth: 1,
     borderTopColor: p.line,
     backgroundColor: p.white,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === "web" ? 14 : 4,
-    paddingHorizontal: 10,
+  },
+  nav: {
+    width: "100%",
+    maxWidth: 600,
+    alignSelf: "center",
+    flexDirection: "row",
+    paddingTop: 5,
+    paddingBottom: Platform.OS === "web" ? 8 : 3,
+    paddingHorizontal: 4,
   },
   navItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 50,
+    minHeight: 60,
+    gap: 1,
   },
   navIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 42,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
   },
   navIconActive: { backgroundColor: p.blueSoft },
+  navLabel: { color: p.muted, fontSize: 11, lineHeight: 16, fontWeight: "600", textAlign: "center" },
+  navLabelActive: { color: p.blue, fontWeight: "700" },
   destinationCard: {
-    width: "47.5%",
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 1,

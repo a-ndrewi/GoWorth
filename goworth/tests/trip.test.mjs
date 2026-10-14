@@ -36,3 +36,24 @@ test("invalid budgets are rejected", () => {
     assert.match(validateTrip({ ...valid, budget }), /budget/);
   }
 });
+
+const rome = { id: "osm:relation:41485", name: "Rome", country: "Italy", countryCode: "IT", latitude: 41.9, longitude: 12.5 };
+const florence = { id: "osm:relation:42602", name: "Florence", country: "Italy", countryCode: "IT", latitude: 43.77, longitude: 11.25 };
+const paris = { id: "osm:relation:71525", name: "Paris", country: "France", countryCode: "FR", latitude: 48.86, longitude: 2.35 };
+
+test("a route can span multiple cities and countries", () => {
+  assert.equal(validateTrip({ ...valid, destinationId: rome.id,
+    dayDestinations: [rome.id, florence.id, paris.id, paris.id],
+    routeStops: [rome, florence, paris],
+  }), null);
+});
+
+test("every route day must refer to a valid stop", () => {
+  const trip = { ...valid, destinationId: rome.id,
+    dayDestinations: [rome.id, florence.id, paris.id, paris.id],
+    routeStops: [rome, florence, paris],
+  };
+  assert.match(validateTrip({ ...trip, dayDestinations: [rome.id, "unknown", paris.id, paris.id] }), /valid city/);
+  assert.match(validateTrip({ ...trip, routeStops: [rome, florence, { ...paris, latitude: 100 }] }), /valid city/);
+  assert.match(validateTrip({ ...trip, routeStops: [rome, florence, florence] }), /valid city/);
+});

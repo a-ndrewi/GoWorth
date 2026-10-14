@@ -20,6 +20,7 @@ import {
   Chip,
   Copy,
   Field,
+  Header,
   Heading,
   IconButton,
   Row,
@@ -32,6 +33,8 @@ import { destinations, interests, money } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
 import { useAuth } from "@/state/auth-context";
 import { supabase } from "@/lib/supabase";
+import { translate } from "@/data/i18n";
+import { useAppLanguage } from "@/data/formatting";
 
 const authRedirectUrl = () =>
   Platform.OS === "web" ? `${window.location.origin}/auth` : Linking.createURL("auth");
@@ -120,6 +123,7 @@ export function WelcomeScreen() {
 }
 
 export function AuthScreen() {
+  const language = useAppLanguage();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const { user, passwordRecovery, finishPasswordRecovery } = useAuth();
   const { cloudReady, hasPreferences } = useTravel();
@@ -259,7 +263,7 @@ export function AuthScreen() {
               secureTextEntry={!show}
               value={password}
               onChangeText={setPassword}
-              placeholder="At least 8 characters"
+              placeholder={translate("At least 8 characters", language)}
               placeholderTextColor={p.muted}
               style={{
                 flex: 1,
@@ -317,7 +321,7 @@ export function AuthScreen() {
         <Copy style={{ textAlign: "center", fontSize: 13 }}>
           {resetMode ? "Remember your password? " : signUp ? "Already have an account? " : "Don't have an account? "}
           <Text style={{ color: p.blue, fontWeight: "600" }}>
-            {resetMode || signUp ? "Sign In" : "Sign Up"}
+            {translate(resetMode || signUp ? "Sign In" : "Sign Up", language)}
           </Text>
         </Copy>
       </Pressable>}
@@ -326,7 +330,16 @@ export function AuthScreen() {
 }
 
 export function PreferencesScreen() {
-  const { preferences, setPreferences, completePreferences, discoverySettings, setDiscoverySettings } = useTravel();
+  const language = useAppLanguage();
+  const {
+    preferences: storedPreferences,
+    hasPreferences,
+    completePreferences,
+    discoverySettings: storedDiscoverySettings,
+    setDiscoverySettings: commitDiscoverySettings,
+  } = useTravel();
+  const [preferences, setPreferences] = useState(storedPreferences);
+  const [discoverySettings, setDiscoverySettings] = useState(storedDiscoverySettings);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [choosingCenter, setChoosingCenter] = useState(false);
@@ -346,8 +359,10 @@ export function PreferencesScreen() {
           setSaving(true);
           setError("");
           try {
-            await completePreferences();
-            router.replace("/home" as Href);
+            await completePreferences(preferences);
+            commitDiscoverySettings(discoverySettings);
+            if (hasPreferences && router.canGoBack()) router.back();
+            else router.replace((hasPreferences ? "/profile" : "/home") as Href);
           } catch (caught) {
             setError(caught instanceof Error ? caught.message : "Could not save your preferences.");
           } finally {
@@ -357,12 +372,13 @@ export function PreferencesScreen() {
       }
       style={{ gap: 22 }}
     >
-      <View style={{ gap: 8 }}>
-        <Heading>Tell us about{"\n"}your travel style</Heading>
-        <Copy muted>
-          This helps GoWorth create{"\n"}better recommendations for you.
-        </Copy>
-      </View>
+      {hasPreferences ? <View style={{ gap: 8 }}>
+        <Header title="Travel preferences" />
+        <Copy muted>Shape the destinations and nearby places you see.</Copy>
+      </View> : <View style={{ gap: 8 }}>
+        <Heading>Tell us about your travel style</Heading>
+        <Copy muted>This helps GoWorth suggest destinations that fit you.</Copy>
+      </View>}
       <View style={{ gap: 10 }}>
         <Copy style={s.label}>Trip style</Copy>
         <View style={[s.grid, { gap: 8 }]}>
@@ -413,10 +429,10 @@ export function PreferencesScreen() {
         />
         <Row style={{ justifyContent: "space-between" }}>
           <Copy muted style={{ fontSize: 12 }}>
-            $500
+            {money(500)}
           </Copy>
           <Copy muted style={{ fontSize: 12 }}>
-            $10,000
+            {money(10000)}
           </Copy>
         </Row>
       </View>
@@ -451,7 +467,7 @@ export function PreferencesScreen() {
       </View>
       {!!error && <Copy style={s.error}>{error}</Copy>}
       <Sheet visible={choosingCenter} title="Search from" onClose={() => setChoosingCenter(false)}>
-        <TextInput accessibilityLabel="Search cities" placeholder="Find a city" placeholderTextColor={p.muted} value={cityQuery} onChangeText={setCityQuery} style={[s.input, { flex: 0 }]} />
+        <TextInput accessibilityLabel={translate("Search cities", language)} placeholder={translate("Find a city", language)} placeholderTextColor={p.muted} value={cityQuery} onChangeText={setCityQuery} style={[s.input, { flex: 0 }]} />
         <Pressable accessibilityRole="button" onPress={() => { setDiscoverySettings({ ...discoverySettings, centerId: null }); setChoosingCenter(false); }} style={[s.row, { paddingVertical: 10, gap: 10 }]}>
           <Copy style={{ flex: 1, fontWeight: "600" }}>My current location</Copy>
           {!center && <Copy style={{ color: p.blue }}>Selected</Copy>}

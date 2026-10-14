@@ -2,6 +2,7 @@ import { photos } from "@/constants/design";
 import { destinationCatalog } from "@/data/catalog";
 export { places, placesForDestination, placeMapUrl, type Place, type PlaceCategory } from "@/data/catalog";
 export { tripDays, validateTrip } from "@/utils/trip";
+export { money, dateLabel } from "@/data/formatting";
 export type { DestinationId } from "@/data/catalog";
 
 const destinationPhotos = {
@@ -80,20 +81,18 @@ export type Destination = (typeof destinations)[number];
 export const findDestination = (id?: string) =>
   destinations.find((destination) => destination.id === id) || destinations[0];
 
+export type RouteStop = {
+  id: string;
+  name: string;
+  country: string;
+  countryCode: string;
+  latitude: number;
+  longitude: number;
+};
+
 export const interests = [
   "Adventure", "Luxury", "Budget", "Nature", "Food", "Culture", "Beach", "Solo", "Family",
 ];
-
-export const money = (value: number) =>
-  `$${value.toLocaleString("en-US", {
-    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
-    maximumFractionDigits: 2,
-  })}`;
-
-export const dateLabel = (iso: string) =>
-  new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", {
-    month: "short", day: "numeric", timeZone: "UTC",
-  });
 
 export type Activity = {
   id: string;
@@ -102,6 +101,9 @@ export type Activity = {
   time: string;
   name: string;
   note: string;
+  placeId?: string;
+  latitude?: number;
+  longitude?: number;
 };
 
 export const expenseCategories = [
@@ -116,7 +118,9 @@ export type Expense = {
 };
 
 export type Trip = {
-  destinationId: Destination["id"];
+  destinationId: string;
+  dayDestinations?: string[];
+  routeStops?: RouteStop[];
   start: string;
   end: string;
   budget: number;

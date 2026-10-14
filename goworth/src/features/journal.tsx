@@ -7,10 +7,13 @@ import {
 } from "@/components/goworth/ui";
 import { palette as p } from "@/constants/design";
 import {
-  findDestination, money, places, type Activity, type Expense, type Trip,
+  destinations, money, places, type Activity, type Expense, type Trip,
   type TripJournalEntry,
 } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
+import { routeStop, routeStopForDay, routeTitle, uniqueRouteStops } from "@/data/trip-route";
+import { formatMessage, translate } from "@/data/i18n";
+import { getLanguage, useAppLanguage } from "@/data/formatting";
 
 type TripRecord = {
   id: string;
@@ -23,7 +26,7 @@ type TripRecord = {
 };
 
 function dateRange(trip: Trip) {
-  const format = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", {
+  const format = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDateString(getLanguage() === "ro" ? "ro-RO" : "en-US", {
     day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
   });
   return `${format(trip.start)} - ${format(trip.end)}`;
@@ -34,29 +37,33 @@ function recordLabel(status: TripRecord["status"]) {
 }
 
 function TripRecordRow({ record, onDelete }: { record: TripRecord; onDelete?: () => void }) {
-  const destination = findDestination(record.trip.destinationId);
+  const language = useAppLanguage();
+  const destination = destinations.find((item) => item.id === record.trip.destinationId);
+  const startingCity = routeStop(record.trip);
   const spent = record.expenses.reduce((sum, expense) => sum + expense.amount, 0);
   return <Row style={{ gap: 10, paddingVertical: 14, borderBottomWidth: 1, borderColor: p.line }}>
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Open ${destination.name} trip record`}
+      accessibilityLabel={`Open ${routeTitle(record.trip)} trip record`}
       onPress={() => router.push({ pathname: "/journal-trip", params: { id: record.id } } as Href)}
       style={[s.row, { flex: 1, minWidth: 0, gap: 13 }]}
     >
-      <DestinationPhoto destination={destination} style={{ width: 76, height: 76, borderRadius: 6 }} />
+      {destination ? <DestinationPhoto destination={destination} style={{ width: 76, height: 76, borderRadius: 6 }} /> : <View style={{ width: 76, height: 76, borderRadius: 6, backgroundColor: p.greenSoft, justifyContent: "center", alignItems: "center" }}><Icon name="map" color={p.green} /></View>}
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Copy style={{ fontSize: 15, fontWeight: "700" }}>{destination.name}</Copy>
+        <Copy style={{ fontSize: 15, fontWeight: "700" }}>{routeTitle(record.trip)}</Copy>
+        <Copy muted style={{ fontSize: 12 }}>{startingCity.country}</Copy>
         <Copy muted style={{ fontSize: 12 }}>{dateRange(record.trip)}</Copy>
         <Copy style={{ fontSize: 12, color: record.status === "completed" ? p.green : p.blue }}>{recordLabel(record.status)}</Copy>
-        <Copy muted style={{ fontSize: 11 }}>{record.activities.length} activities · {money(spent)} recorded</Copy>
+        <Copy muted style={{ fontSize: 11 }}>{formatMessage("{count} activities · {spent} recorded", { count: record.activities.length, spent: money(spent) }, language)}</Copy>
       </View>
       <Icon name="right" size={18} color={p.muted} />
     </Pressable>
-    {onDelete && <IconButton name="trash" label={`Delete ${destination.name} trip`} color={p.danger} onPress={onDelete} />}
+    {onDelete && <IconButton name="trash" label={`Delete ${routeTitle(record.trip)} trip`} color={p.danger} onPress={onDelete} />}
   </Row>;
 }
 
 export function MemoriesScreen() {
+  const language = useAppLanguage();
   const {
     trip, activities, expenses, savedPlaces, journal, journalEntries,
     journalAvailable, finishTrip, setJournal, deleteJournalEntry,
@@ -105,7 +112,7 @@ export function MemoriesScreen() {
       <Button secondary icon="edit" onPress={openEditor}>Edit note</Button>
     </View>}
     <View>
-      <Heading style={{ fontSize: 19, lineHeight: 25 }}>Past trips ({journalEntries.length})</Heading>
+      <Heading style={{ fontSize: 19, lineHeight: 25 }}>{formatMessage("Past trips ({count})", { count: journalEntries.length }, language)}</Heading>
       {history.map((record) => <TripRecordRow key={record.id} record={record} onDelete={() => { setError(""); setDeleteEntry(record); }} />)}
     </View>
     {!current && !history.length && !journal && <EmptyState title="Your journal starts with a trip" detail="Your itinerary, recorded expenses, places, and notes will stay together here when you finish a trip." action="Plan a trip" onPress={() => router.push("/planner" as Href)} />}
@@ -138,6 +145,7 @@ export function MemoriesScreen() {
 }
 
 export function JournalTripScreen() {
+  const language = useAppLanguage();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const {
     trip, activities, expenses, savedPlaces, externalPlaces, journal, journalEntries,
@@ -155,15 +163,17 @@ export function JournalTripScreen() {
   } : archived ? { ...archived } : null;
   if (!record) return <Screen><Header title="Trip record" /><EmptyState title="Trip not found" detail="This trip is no longer in your journal." action="Back to journal" onPress={() => router.replace("/memories" as Href)} /></Screen>;
 
-  const destination = findDestination(record.trip.destinationId);
+  const destination = destinations.find((item) => item.id === record.trip.destinationId);
+  const startingCity = routeStop(record.trip);
+  const routeCities = uniqueRouteStops(record.trip);
   const spent = record.expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const days = [...new Set(record.activities.map((activity) => activity.day))].sort((a, b) => a - b);
-  const localPlaces = places.filter((place) => place.destinationId === record.trip.destinationId && (
+  const localPlaces = places.filter((place) => routeCities.some((city) => city.id === place.destinationId) && (
     record.savedPlaceIds.includes(place.id) || record.activities.some((activity) => activity.name.trim().toLowerCase() === place.name.toLowerCase())
   ));
   const linkedExternalPlaces = externalPlaces.filter((place) => record.savedPlaceIds.includes(place.id) && (
     record.activities.some((activity) => activity.note.includes(place.sourceUrl)) ||
-    place.location?.toLocaleLowerCase().includes(destination.name.toLocaleLowerCase())
+    routeCities.some((city) => place.location?.toLocaleLowerCase().includes(city.name.toLocaleLowerCase()))
   ));
   const saveNote = async () => {
     setBusy(true);
@@ -178,21 +188,22 @@ export function JournalTripScreen() {
   };
   const share = () => {
     const lines = [
-      `${destination.name}, ${destination.country}`, dateRange(record.trip),
-      `Budget: ${money(record.trip.budget)}. Recorded expenses: ${money(spent)}.`,
-      ...record.activities.map((activity) => `Day ${activity.day}, ${activity.time}: ${activity.name}${activity.note ? ` - ${activity.note}` : ""}`),
+      routeCities.map((city) => `${city.name}, ${city.country}`).join(" → "), dateRange(record.trip),
+      formatMessage("Budget: {budget}. Recorded expenses: {spent}.", { budget: money(record.trip.budget), spent: money(spent) }, language),
+      ...record.activities.map((activity) => formatMessage("Day {day}, {time}: {name}{note}", { day: activity.day, time: activity.time, name: activity.name, note: activity.note ? ` - ${activity.note}` : "" }, language)),
       ...record.expenses.map((expense) => `${expense.category}: ${expense.label} - ${money(expense.amount)}`),
-      ...(record.reflection ? [`Note: ${record.reflection}`] : []),
+      ...(record.reflection ? [formatMessage("Note: {note}", { note: record.reflection }, language)] : []),
     ];
     void Share.share({ message: lines.join("\n") });
   };
 
   return <Screen style={{ gap: 18 }}>
     <Header title="Trip record" />
-    <DestinationPhoto destination={destination} style={{ width: "100%", height: 190, borderRadius: 6 }} />
+    {destination && <DestinationPhoto destination={destination} style={{ width: "100%", height: 190, borderRadius: 6 }} />}
     <View style={{ gap: 4 }}>
-      <Heading style={{ fontSize: 26, lineHeight: 32 }}>{destination.name}</Heading>
-      <Copy muted>{destination.country} · {dateRange(record.trip)}</Copy>
+      <Heading style={{ fontSize: 26, lineHeight: 32 }}>{routeTitle(record.trip)}</Heading>
+      <Copy muted>{startingCity.country} · {dateRange(record.trip)}</Copy>
+      {routeCities.length > 1 && <Copy muted>{routeCities.map((city) => `${city.name}, ${city.country}`).join(" → ")}</Copy>}
       <Copy style={{ fontSize: 12, color: record.status === "completed" ? p.green : p.blue }}>{recordLabel(record.status)}</Copy>
     </View>
     <Row style={{ justifyContent: "space-between", gap: 10 }}>
@@ -200,10 +211,10 @@ export function JournalTripScreen() {
       <View><Copy muted style={{ fontSize: 11 }}>RECORDED</Copy><Copy style={{ fontWeight: "700" }}>{money(spent)}</Copy></View>
       <View><Copy muted style={{ fontSize: 11 }}>REMAINING</Copy><Copy style={{ fontWeight: "700", color: spent > record.trip.budget ? p.danger : p.ink }}>{money(record.trip.budget - spent)}</Copy></View>
     </Row>
-    <Copy muted style={{ fontSize: 12 }}>{record.trip.companions} · {record.trip.interests.length ? record.trip.interests.join(", ") : "No interests specified"}</Copy>
+    <Copy muted style={{ fontSize: 12 }}>{translate(record.trip.companions, language)} · {record.trip.interests.length ? record.trip.interests.map((interest) => translate(interest, language)).join(", ") : translate("No interests specified", language)}</Copy>
     <View style={{ borderTopWidth: 1, borderColor: p.line, paddingTop: 16, gap: 8 }}>
-      <Heading style={{ fontSize: 19, lineHeight: 25 }}>Places ({localPlaces.length + linkedExternalPlaces.length})</Heading>
-      {localPlaces.length ? localPlaces.map((place) => <Pressable key={place.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/explore", params: { id: destination.id, place: place.id } } as Href)} style={[s.row, { paddingVertical: 7, gap: 10 }]}>
+      <Heading style={{ fontSize: 19, lineHeight: 25 }}>{formatMessage("Places ({count})", { count: localPlaces.length + linkedExternalPlaces.length }, language)}</Heading>
+      {localPlaces.length ? localPlaces.map((place) => <Pressable key={place.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/explore", params: { id: place.destinationId, place: place.id } } as Href)} style={[s.row, { paddingVertical: 7, gap: 10 }]}>
         <Icon name="pin" color={p.green} size={19} />
         <View style={{ flex: 1 }}><Copy style={{ fontWeight: "600", fontSize: 14 }}>{place.name}</Copy><Copy muted style={{ fontSize: 11 }}>{record.activities.some((activity) => activity.name.trim().toLowerCase() === place.name.toLowerCase()) ? "In itinerary" : "Saved place"} · {place.category}</Copy></View>
         <Icon name="right" color={p.muted} size={18} />
@@ -216,9 +227,9 @@ export function JournalTripScreen() {
       {!localPlaces.length && !linkedExternalPlaces.length && <Copy muted>No places were linked to this trip.</Copy>}
     </View>
     <View style={{ borderTopWidth: 1, borderColor: p.line, paddingTop: 16, gap: 11 }}>
-      <Heading style={{ fontSize: 19, lineHeight: 25 }}>Itinerary ({record.activities.length})</Heading>
+      <Heading style={{ fontSize: 19, lineHeight: 25 }}>{formatMessage("Itinerary ({count})", { count: record.activities.length }, language)}</Heading>
       {days.map((day) => <View key={day} style={{ gap: 7 }}>
-        <Copy style={{ fontWeight: "700", color: p.blue }}>Day {day}</Copy>
+        <Copy style={{ fontWeight: "700", color: p.blue }}>Day {day} · {routeStopForDay(record.trip, day).name}</Copy>
         {record.activities.filter((activity) => activity.day === day).sort((a, b) => a.time.localeCompare(b.time)).map((activity) => <Row key={activity.id} style={{ alignItems: "flex-start", gap: 10, paddingVertical: 5 }}>
           <Copy muted style={{ width: 45, fontSize: 12 }}>{activity.time}</Copy>
           <View style={{ flex: 1 }}><Copy style={{ fontWeight: "600", fontSize: 14 }}>{activity.name}</Copy><Copy muted style={{ fontSize: 12 }}>{activity.period}{activity.note ? ` · ${activity.note}` : ""}</Copy></View>
@@ -227,7 +238,7 @@ export function JournalTripScreen() {
       {!record.activities.length && <Copy muted>No activities were added to this itinerary.</Copy>}
     </View>
     <View style={{ borderTopWidth: 1, borderColor: p.line, paddingTop: 16, gap: 9 }}>
-      <Heading style={{ fontSize: 19, lineHeight: 25 }}>Expenses ({record.expenses.length})</Heading>
+      <Heading style={{ fontSize: 19, lineHeight: 25 }}>{formatMessage("Expenses ({count})", { count: record.expenses.length }, language)}</Heading>
       {record.expenses.map((expense) => <Row key={expense.id} style={{ justifyContent: "space-between", gap: 10, paddingVertical: 4 }}>
         <View style={{ flex: 1 }}><Copy style={{ fontSize: 14, fontWeight: "600" }}>{expense.label}</Copy><Copy muted style={{ fontSize: 11 }}>{expense.category}</Copy></View>
         <Copy style={{ fontWeight: "600" }}>{money(expense.amount)}</Copy>

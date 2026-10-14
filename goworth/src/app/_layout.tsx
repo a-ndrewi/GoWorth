@@ -42,7 +42,7 @@ function AppNavigator() {
           style={{
             flex: 1,
             width: "100%",
-            maxWidth: Platform.OS === "web" ? 480 : undefined,
+            maxWidth: Platform.OS === "web" ? 960 : undefined,
             backgroundColor: palette.white,
           }}
         >

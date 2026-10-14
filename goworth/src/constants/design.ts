@@ -9,7 +9,7 @@ export const palette = {
   pink: "#EE5D8D",
   purple: "#8B66D9",
   ink: "#0B2545",
-  muted: "#7C8390",
+  muted: "#5E6877",
   line: "#EBEDF1",
   soft: "#F5F6F8",
   white: "#FFFFFF",

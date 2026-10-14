@@ -48,7 +48,7 @@ function safeUrl(value: string | undefined, host: string) {
   }
 }
 
-function photoFromPage(page: CommonsPage, name: string, location: string): PlacePhoto | null {
+function photoFromPage(page: CommonsPage, name: string, location: string, trustedAssociation = false): PlacePhoto | null {
   const info = page.imageinfo?.[0];
   const metadata = info?.extmetadata;
   const license = metadata?.LicenseShortName?.value || "";
@@ -63,7 +63,7 @@ function photoFromPage(page: CommonsPage, name: string, location: string): Place
   const locationWords = tokens(location);
   const searchContext = `${title} ${metadata?.ImageDescription?.value || ""} ${metadata?.Categories?.value || ""}`;
   const matchesLocation = locationWords.some((word) => normalize(searchContext).includes(word));
-  if (!info?.thumburl || !info.descriptionurl || !matchesName || (genericName && !matchesLocation)) return null;
+  if (!info?.thumburl || !info.descriptionurl || (!trustedAssociation && (!matchesName || (genericName && !matchesLocation)))) return null;
   if (!/^CC0(?:\b|$)|^Public domain$/i.test(license) && !/^CC BY(?:-SA)?(?:\s|$)/i.test(license)) return null;
   if (!safeUrl(info.thumburl, "wikimedia.org") || !safeUrl(info.descriptionurl, "wikimedia.org")) return null;
   if (info.mime && !["image/jpeg", "image/png", "image/webp"].includes(info.mime)) return null;
@@ -133,6 +133,31 @@ async function verifiedPhoto(title: string, name: string, location: string) {
   return pages.length ? photoFromPage(pages[0], name, location) : null;
 }
 
+async function wikipediaPhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string) {
+  const pageId = sourceUrl?.match(/^https:\/\/en\.wikipedia\.org\/\?curid=(\d+)$/)?.[1];
+  if (!pageId && (latitude === undefined || longitude === undefined)) return null;
+  const params = new URLSearchParams({ action: "query", prop: "pageimages|coordinates", piprop: "name", format: "json", origin: "*" });
+  if (pageId) params.set("pageids", pageId);
+  else params.set("titles", name);
+  const response = await fetch(`https://en.wikipedia.org/w/api.php?${params}`);
+  if (!response.ok) return null;
+  const data: { query?: { pages?: Record<string, { title?: string; pageimage?: string; coordinates?: { lat: number; lon: number }[] }> } } = await response.json();
+  const page = Object.values(data.query?.pages || {})[0];
+  if (!page?.pageimage) return null;
+  if (!pageId) {
+    const point = page.coordinates?.[0];
+    if (!point || latitude === undefined || longitude === undefined) return null;
+    const latKm = (point.lat - latitude) * 111;
+    const lonKm = (point.lon - longitude) * 111 * Math.cos(latitude * Math.PI / 180);
+    if (Math.hypot(latKm, lonKm) > 5) return null;
+  }
+  const commons = await queryCommons(new URLSearchParams({
+    action: "query", titles: `File:${page.pageimage}`, prop: "imageinfo", iiprop: "url|mime|extmetadata",
+    iiurlwidth: "900", format: "json", origin: "*",
+  }));
+  return commons.length ? photoFromPage(commons[0], name, location, true) : null;
+}
+
 function claimPhoto(key: string, candidates: PlacePhoto[]) {
   const photo = candidates.find((candidate) => {
     const owner = photoOwners.get(candidate.url);
@@ -142,11 +167,16 @@ function claimPhoto(key: string, candidates: PlacePhoto[]) {
   return photo || null;
 }
 
-export function findPlacePhoto(name: string, location: string): Promise<PlacePhoto | null> {
-  const key = `${name}|${location}`.toLowerCase();
+export function findPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string): Promise<PlacePhoto | null> {
+  const key = `${name}|${location}|${latitude ?? ""}|${longitude ?? ""}|${sourceUrl ?? ""}`.toLowerCase();
   if (!cache.has(key)) {
     const request = (async () => {
-      const verified = verifiedFiles[key];
+      const linked = await wikipediaPhoto(name, location, latitude, longitude, sourceUrl).catch(() => null);
+      if (linked) {
+        const claimed = claimPhoto(key, [linked]);
+        if (claimed) return claimed;
+      }
+      const verified = verifiedFiles[`${name}|${location}`.toLowerCase()];
       if (verified) {
         const photo = await verifiedPhoto(verified, name, location);
         const claimed = photo ? claimPhoto(key, [photo]) : null;

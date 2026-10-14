@@ -4,6 +4,9 @@ import type { Activity, Expense, Trip, TripJournalEntry } from "@/data/travel";
 import type { NearbyPlace } from "@/data/nearby-places";
 import { externalPlaceFromSaved } from "@/data/external-places";
 import { useAuth } from "@/state/auth-context";
+import { placeFitsTripDay } from "@/utils/trip-place";
+import { destinationForDay, tripDays, validateTrip } from "@/utils/trip";
+import { loadUsdRate, setDisplaySettings, type AppCurrency, type AppLanguage } from "@/data/formatting";
 import {
   archiveCurrentTrip,
   deleteActivity,
@@ -20,6 +23,10 @@ import {
   saveTripReflection,
   savePreferences,
   saveProfile,
+  saveDisplayPreferences,
+  profileAvatarUrl,
+  uploadProfileAvatar,
+  removeProfileAvatar,
   setSavedItem,
 } from "@/lib/travel-repository";
 
@@ -30,7 +37,7 @@ export type TravelPreferences = {
   pace: string;
 };
 
-export type TravelProfile = { name: string; username: string };
+export type TravelProfile = { name: string; username: string; language: AppLanguage; currency: AppCurrency; avatarPath?: string; avatarStatus?: "none" | "pending" | "approved" | "rejected" };
 export type DiscoverySettings = { radiusKm: number; centerId: string | null };
 const defaultDiscoverySettings: DiscoverySettings = { radiusKm: 500, centerId: null };
 const externalPlacesKey = (userId: string) => `external-places:${userId}`;
@@ -56,6 +63,8 @@ function useTravelState() {
   const { user } = useAuth();
   const userId = user?.id;
   const fallbackName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Traveler";
+  const accountLanguage = user?.user_metadata?.goworth_language;
+  const accountCurrency = user?.user_metadata?.goworth_currency;
   const [saved, setSaved] = useState<string[]>([]);
   const [savedPlaces, setSavedPlaces] = useState<string[]>([]);
   const [externalPlaces, setExternalPlaces] = useState<NearbyPlace[]>([]);
@@ -65,7 +74,10 @@ function useTravelState() {
   const [preferences, setPreferencesState] = useState<TravelPreferences>(blankPreferences);
   const [discoverySettings, setDiscoverySettingsState] = useState<DiscoverySettings>(defaultDiscoverySettings);
   const [hasPreferences, setHasPreferences] = useState(false);
-  const [profile, setProfileState] = useState<TravelProfile>({ name: fallbackName, username: "" });
+  const [profile, setProfileState] = useState<TravelProfile>({ name: fallbackName, username: "", language: "en", currency: "EUR" });
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [plan, setPlan] = useState<"free" | "premium" | "lifetime">("free");
+  const [monthlyUsage, setMonthlyUsage] = useState({ trip: 0, place: 0, destination: 0 });
   const [journal, setJournalState] = useState("");
   const [journalEntries, setJournalEntries] = useState<TripJournalEntry[]>([]);
   const [journalAvailable, setJournalAvailable] = useState(false);
@@ -75,6 +87,10 @@ function useTravelState() {
   const [syncError, setSyncError] = useState("");
   const [reload, setReload] = useState(0);
   const writeQueue = useRef<Promise<void>>(Promise.resolve());
+
+  useEffect(() => {
+    if (!userId) setDisplaySettings({ language: "en", currency: "EUR" });
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -91,12 +107,30 @@ function useTravelState() {
     if (!userId) return;
     let current = true;
     Promise.all([loadTravelData(userId), AsyncStorage.getItem(externalPlacesKey(userId)).catch(() => null)])
-      .then(([data, localValue]) => {
+      .then(async ([data, localValue]) => {
         if (!current) return;
+        const language = accountLanguage === "ro" ||
+          (!accountLanguage && data.profile?.language === "ro") ? "ro" : "en";
+        let currency: AppCurrency = accountCurrency === "USD" ||
+          (!accountCurrency && data.profile?.currency === "USD") ? "USD" : "EUR";
+        if (currency === "USD") {
+          try { await loadUsdRate(); }
+          catch { currency = "EUR"; setSyncError("USD rate unavailable. Amounts are shown in EUR until the ECB rate returns."); }
+        }
+        setDisplaySettings({ language, currency });
         setProfileState({
           name: data.profile?.display_name || fallbackName,
           username: data.profile?.username || "",
+          language, currency,
+          avatarPath: data.profile?.avatar_path || undefined,
+          avatarStatus: data.profile?.avatar_status === "approved" || data.profile?.avatar_status === "pending" || data.profile?.avatar_status === "rejected" ? data.profile.avatar_status : "none",
         });
+        setAvatarUrl(data.profile?.avatar_status === "approved" && data.profile.avatar_path
+          ? await profileAvatarUrl(data.profile.avatar_path).catch(() => null) : null);
+        setPlan(data.entitlement?.plan === "lifetime" || (data.entitlement?.plan === "premium" && Date.parse(data.entitlement.valid_until || "") > Date.now()) ? data.entitlement.plan : "free");
+        setMonthlyUsage({ trip: data.usage.filter((event) => event.kind === "trip").length,
+          place: data.usage.filter((event) => event.kind === "place").length,
+          destination: data.usage.filter((event) => event.kind === "destination").length });
         setNotifications(data.profile?.notifications_enabled ?? false);
         setHasPreferences(!!data.preferences);
         setPreferencesState(data.preferences ? {
@@ -126,7 +160,7 @@ function useTravelState() {
         if (current) setLoadError("Could not load your account. Check your connection and try again.");
       });
     return () => { current = false; };
-  }, [userId, fallbackName, reload]);
+  }, [userId, fallbackName, accountLanguage, accountCurrency, reload]);
 
   const persist = (work: () => Promise<unknown>) => {
     const next = writeQueue.current.then(work);
@@ -143,7 +177,10 @@ function useTravelState() {
     if (!user || !cloudReady) return;
     const enabled = !saved.includes(id);
     void persist(() => setSavedItem(user.id, "destination", id, enabled))
-      .then(() => setSaved((current) => enabled ? [...new Set([...current, id])] : current.filter((item) => item !== id)))
+      .then(() => {
+        setSaved((current) => enabled ? [...new Set([...current, id])] : current.filter((item) => item !== id));
+        if (enabled) setMonthlyUsage((current) => ({ ...current, destination: current.destination + 1 }));
+      })
       .catch(() => undefined);
   };
 
@@ -153,6 +190,7 @@ function useTravelState() {
     void persist(() => setSavedItem(user.id, "place", id, enabled))
       .then(() => {
         setSavedPlaces((current) => enabled ? [...new Set([...current, id])] : current.filter((item) => item !== id));
+        if (enabled) setMonthlyUsage((current) => ({ ...current, place: current.place + 1 }));
         if (!enabled) setExternalPlaces((current) => current.filter((item) => item.id !== id));
       })
       .catch(() => undefined);
@@ -170,6 +208,7 @@ function useTravelState() {
       } catch { /* Cloud save is still authoritative when local storage is unavailable. */ }
     });
     setSavedPlaces((current) => enabled ? [...new Set([...current, place.id])] : current.filter((id) => id !== place.id));
+    if (enabled) setMonthlyUsage((current) => ({ ...current, place: current.place + 1 }));
     setExternalPlaces((current) => enabled ? [...current.filter((item) => item.id !== place.id), place] : current.filter((item) => item.id !== place.id));
   };
 
@@ -179,6 +218,7 @@ function useTravelState() {
     void persist(() => setSavedItem(user.id, kind, id, true)).then(() => {
       if (kind === "destination") setSaved((current) => [...new Set([...current, id])]);
       else setSavedPlaces((current) => [...new Set([...current, id])]);
+      setMonthlyUsage((current) => ({ ...current, [kind]: current[kind] + 1 }));
       void recordDiscoveryFavorite(user.id, kind, id).catch(() => undefined);
     }).catch(() => undefined);
   };
@@ -190,6 +230,8 @@ function useTravelState() {
 
   const generateTrip = async (next: Trip) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    const validation = validateTrip(next);
+    if (validation) throw new Error(validation);
     if (trip && !journalAvailable) throw new Error("Update the trip journal database before replacing this trip.");
     await writeQueue.current;
     await replaceTrip(user.id, next, []);
@@ -198,6 +240,7 @@ function useTravelState() {
       setJournalState("");
     }
     setTrip(next);
+    setMonthlyUsage((current) => ({ ...current, trip: current.trip + 1 }));
     setActivities([]);
     setExpenses([]);
     setSyncError("");
@@ -228,6 +271,10 @@ function useTravelState() {
 
   const addActivity = async (activity: Omit<Activity, "id">) => {
     if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    if (activity.day < 1 || activity.day > tripDays(trip.start, trip.end)) throw new Error("Choose a day in this trip.");
+    if (activity.placeId && (activity.latitude === undefined || activity.longitude === undefined || !placeFitsTripDay(trip, activity.day, { latitude: activity.latitude, longitude: activity.longitude }))) {
+      throw new Error(`This place is outside ${destinationForDay(trip, activity.day)}. Choose a matching day or add that city to your route.`);
+    }
     const next = { ...activity, id: `activity-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
     await persist(() => saveActivity(user.id, next, activities.length));
     setActivities((current) => [...current, next]);
@@ -235,6 +282,9 @@ function useTravelState() {
 
   const updateActivity = async (activity: Activity) => {
     if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    if (activity.placeId && (activity.latitude === undefined || activity.longitude === undefined || !placeFitsTripDay(trip, activity.day, { latitude: activity.latitude, longitude: activity.longitude }))) {
+      throw new Error("This place is outside the destination assigned to that day.");
+    }
     const position = activities.findIndex((item) => item.id === activity.id);
     if (position < 0) throw new Error("Activity not found. Reload your itinerary.");
     await persist(() => saveActivity(user.id, activity, position));
@@ -269,17 +319,37 @@ function useTravelState() {
   };
 
   const setPreferences = (next: TravelPreferences) => setPreferencesState(next);
-  const completePreferences = async () => {
+  const completePreferences = async (next: TravelPreferences = preferences) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
-    await savePreferences(user.id, preferences);
+    await savePreferences(user.id, next);
+    setPreferencesState(next);
     setHasPreferences(true);
     setSyncError("");
   };
-  const setProfile = async (next: TravelProfile) => {
+  const setProfile = async (next: Partial<TravelProfile>) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
-    await saveProfile(user.id, next, notifications);
-    setProfileState(next);
+    const merged = { ...profile, ...next };
+    if (next.currency === "USD" && profile.currency !== "USD") await loadUsdRate();
+    if (next.name !== undefined || next.username !== undefined) {
+      await saveProfile(user.id, merged, notifications);
+    } else {
+      await saveDisplayPreferences(merged.language, merged.currency);
+    }
+    setProfileState(merged);
+    setDisplaySettings({ language: merged.language, currency: merged.currency });
     setSyncError("");
+  };
+  const uploadAvatar = async (base64: string) => {
+    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    const uploaded = await uploadProfileAvatar(user.id, base64);
+    setAvatarUrl(uploaded.url);
+    setProfileState((current) => ({ ...current, avatarPath: uploaded.path, avatarStatus: "approved" }));
+  };
+  const removeAvatar = async () => {
+    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    await removeProfileAvatar();
+    setAvatarUrl(null);
+    setProfileState((current) => ({ ...current, avatarPath: undefined, avatarStatus: "none" }));
   };
   const setJournal = async (next: string) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
@@ -313,7 +383,7 @@ function useTravelState() {
     expenses, addExpense, updateExpense, removeExpense,
     preferences, setPreferences, hasPreferences, completePreferences,
     discoverySettings, setDiscoverySettings,
-    profile, setProfile, journal, setJournal, journalEntries, journalAvailable, setArchivedReflection, deleteJournalEntry,
+    profile, setProfile, avatarUrl, uploadAvatar, removeAvatar, plan, monthlyUsage, journal, setJournal, journalEntries, journalAvailable, setArchivedReflection, deleteJournalEntry,
     notifications, setNotifications: updateNotifications,
     cloudReady, loadError, retryLoad: () => {
       setCloudReady(false);

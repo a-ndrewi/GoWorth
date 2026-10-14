@@ -85,7 +85,7 @@ let nextRequestAt = 0;
 
 type SearchArea = { center: MapPin; radiusKm: number };
 
-function distanceKm(a: MapPin, b: MapPin) {
+export function distanceKm(a: Pick<MapPin, "latitude" | "longitude">, b: Pick<MapPin, "latitude" | "longitude">) {
   const radians = (degrees: number) => degrees * Math.PI / 180;
   const deltaLat = radians(b.latitude - a.latitude);
   const deltaLon = radians(b.longitude - a.longitude);
@@ -132,8 +132,15 @@ export async function searchMap(query: string, area?: SearchArea): Promise<Searc
         ? `https://www.openstreetmap.org/${item.osm_type}/${item.osm_id}`
         : `https://www.openstreetmap.org/?mlat=${item.lat}&mlon=${item.lon}`,
     })).filter((item) => !area || distanceKm(area.center, item) <= area.radiusKm * 1.45);
-    cache.set(key, results);
-    return results;
+    const seen = new Set<string>();
+    const uniqueResults = results.filter((item) => {
+      const label = normalizeSearchText(item.detail);
+      if (seen.has(label)) return false;
+      seen.add(label);
+      return true;
+    });
+    cache.set(key, uniqueResults);
+    return uniqueResults;
   } finally {
     clearTimeout(timeout);
   }

@@ -7,3 +7,14 @@
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
 }
+
+@media (hover: hover) {
+  [role="button"]:focus-visible,
+  [role="tab"]:focus-visible,
+  [role="link"]:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid #2563ff;
+    outline-offset: 2px;
+  }
+}
