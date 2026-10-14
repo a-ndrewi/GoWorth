@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Activity, Expense, Trip, TripJournalEntry } from "@/data/travel";
+import type { NearbyPlace } from "@/data/nearby-places";
+import { externalPlaceFromSaved } from "@/data/external-places";
 import { useAuth } from "@/state/auth-context";
 import {
   archiveCurrentTrip,
@@ -31,6 +33,17 @@ export type TravelPreferences = {
 export type TravelProfile = { name: string; username: string };
 export type DiscoverySettings = { radiusKm: number; centerId: string | null };
 const defaultDiscoverySettings: DiscoverySettings = { radiusKm: 500, centerId: null };
+const externalPlacesKey = (userId: string) => `external-places:${userId}`;
+
+function parseLocalExternalPlaces(value: string | null): NearbyPlace[] {
+  if (!value) return [];
+  try {
+    const records: unknown = JSON.parse(value);
+    if (!Array.isArray(records)) return [];
+    return records.map((item) => externalPlaceFromSaved(item?.id, item))
+      .filter((item): item is NearbyPlace => !!item);
+  } catch { return []; }
+}
 
 const blankPreferences: TravelPreferences = {
   interests: [],
@@ -45,6 +58,7 @@ function useTravelState() {
   const fallbackName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Traveler";
   const [saved, setSaved] = useState<string[]>([]);
   const [savedPlaces, setSavedPlaces] = useState<string[]>([]);
+  const [externalPlaces, setExternalPlaces] = useState<NearbyPlace[]>([]);
   const [trip, setTrip] = useState<Trip | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -76,8 +90,8 @@ function useTravelState() {
   useEffect(() => {
     if (!userId) return;
     let current = true;
-    loadTravelData(userId)
-      .then((data) => {
+    Promise.all([loadTravelData(userId), AsyncStorage.getItem(externalPlacesKey(userId)).catch(() => null)])
+      .then(([data, localValue]) => {
         if (!current) return;
         setProfileState({
           name: data.profile?.display_name || fallbackName,
@@ -96,6 +110,12 @@ function useTravelState() {
         setExpenses(data.trip ? data.expenses : []);
         setSaved(data.saved.filter((item) => item.kind === "destination").map((item) => item.item_id));
         setSavedPlaces(data.saved.filter((item) => item.kind === "place").map((item) => item.item_id));
+        const savedPlaceIds = new Set(data.saved.filter((item) => item.kind === "place").map((item) => item.item_id));
+        const cloudPlaces = data.saved.filter((item) => item.kind === "place")
+          .map((item) => externalPlaceFromSaved(item.item_id, "details" in item ? item.details : null))
+          .filter((item): item is NearbyPlace => !!item);
+        const localPlaces = parseLocalExternalPlaces(localValue).filter((item) => savedPlaceIds.has(item.id));
+        setExternalPlaces([...new Map([...localPlaces, ...cloudPlaces].map((item) => [item.id, item])).values()]);
         setJournalState(data.journal);
         setJournalEntries(data.journalEntries);
         setJournalAvailable(data.journalAvailable);
@@ -131,8 +151,26 @@ function useTravelState() {
     if (!user || !cloudReady) return;
     const enabled = !savedPlaces.includes(id);
     void persist(() => setSavedItem(user.id, "place", id, enabled))
-      .then(() => setSavedPlaces((current) => enabled ? [...new Set([...current, id])] : current.filter((item) => item !== id)))
+      .then(() => {
+        setSavedPlaces((current) => enabled ? [...new Set([...current, id])] : current.filter((item) => item !== id));
+        if (!enabled) setExternalPlaces((current) => current.filter((item) => item.id !== id));
+      })
       .catch(() => undefined);
+  };
+
+  const toggleExternalPlace = async (place: NearbyPlace) => {
+    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    const enabled = !savedPlaces.includes(place.id);
+    await persist(async () => {
+      await setSavedItem(user.id, "place", place.id, enabled, enabled ? place : undefined);
+      try {
+        const existing = parseLocalExternalPlaces(await AsyncStorage.getItem(externalPlacesKey(user.id)));
+        const next = enabled ? [...existing.filter((item) => item.id !== place.id), place] : existing.filter((item) => item.id !== place.id);
+        await AsyncStorage.setItem(externalPlacesKey(user.id), JSON.stringify(next));
+      } catch { /* Cloud save is still authoritative when local storage is unavailable. */ }
+    });
+    setSavedPlaces((current) => enabled ? [...new Set([...current, place.id])] : current.filter((id) => id !== place.id));
+    setExternalPlaces((current) => enabled ? [...current.filter((item) => item.id !== place.id), place] : current.filter((item) => item.id !== place.id));
   };
 
   const favoriteDiscoveryItem = (kind: "destination" | "place", id: string) => {
@@ -269,7 +307,7 @@ function useTravelState() {
   };
 
   return {
-    saved, toggleSaved, savedPlaces, togglePlace, favoriteDiscoveryItem,
+    saved, toggleSaved, savedPlaces, togglePlace, externalPlaces, toggleExternalPlace, favoriteDiscoveryItem,
     trip, hasTrip: !!trip, generateTrip, clearTrip, finishTrip,
     activities, addActivity, updateActivity, removeActivity,
     expenses, addExpense, updateExpense, removeExpense,

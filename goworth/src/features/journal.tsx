@@ -140,7 +140,7 @@ export function MemoriesScreen() {
 export function JournalTripScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const {
-    trip, activities, expenses, savedPlaces, journal, journalEntries,
+    trip, activities, expenses, savedPlaces, externalPlaces, journal, journalEntries,
     setJournal, setArchivedReflection, deleteJournalEntry,
   } = useTravel();
   const [editing, setEditing] = useState(false);
@@ -160,6 +160,10 @@ export function JournalTripScreen() {
   const days = [...new Set(record.activities.map((activity) => activity.day))].sort((a, b) => a - b);
   const localPlaces = places.filter((place) => place.destinationId === record.trip.destinationId && (
     record.savedPlaceIds.includes(place.id) || record.activities.some((activity) => activity.name.trim().toLowerCase() === place.name.toLowerCase())
+  ));
+  const linkedExternalPlaces = externalPlaces.filter((place) => record.savedPlaceIds.includes(place.id) && (
+    record.activities.some((activity) => activity.note.includes(place.sourceUrl)) ||
+    place.location?.toLocaleLowerCase().includes(destination.name.toLocaleLowerCase())
   ));
   const saveNote = async () => {
     setBusy(true);
@@ -198,12 +202,18 @@ export function JournalTripScreen() {
     </Row>
     <Copy muted style={{ fontSize: 12 }}>{record.trip.companions} · {record.trip.interests.length ? record.trip.interests.join(", ") : "No interests specified"}</Copy>
     <View style={{ borderTopWidth: 1, borderColor: p.line, paddingTop: 16, gap: 8 }}>
-      <Heading style={{ fontSize: 19, lineHeight: 25 }}>Places ({localPlaces.length})</Heading>
+      <Heading style={{ fontSize: 19, lineHeight: 25 }}>Places ({localPlaces.length + linkedExternalPlaces.length})</Heading>
       {localPlaces.length ? localPlaces.map((place) => <Pressable key={place.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/explore", params: { id: destination.id, place: place.id } } as Href)} style={[s.row, { paddingVertical: 7, gap: 10 }]}>
         <Icon name="pin" color={p.green} size={19} />
         <View style={{ flex: 1 }}><Copy style={{ fontWeight: "600", fontSize: 14 }}>{place.name}</Copy><Copy muted style={{ fontSize: 11 }}>{record.activities.some((activity) => activity.name.trim().toLowerCase() === place.name.toLowerCase()) ? "In itinerary" : "Saved place"} · {place.category}</Copy></View>
         <Icon name="right" color={p.muted} size={18} />
-      </Pressable>) : <Copy muted>No catalog places were linked to this trip.</Copy>}
+      </Pressable>) : null}
+      {linkedExternalPlaces.map((place) => <Pressable key={place.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/map", params: { external: place.id } } as Href)} style={[s.row, { paddingVertical: 7, gap: 10 }]}>
+        <Icon name="pin" color={p.green} size={19} />
+        <View style={{ flex: 1 }}><Copy style={{ fontWeight: "600", fontSize: 14 }}>{place.name}</Copy><Copy muted style={{ fontSize: 11 }}>{place.category} · {place.source}</Copy></View>
+        <Icon name="right" color={p.muted} size={18} />
+      </Pressable>)}
+      {!localPlaces.length && !linkedExternalPlaces.length && <Copy muted>No places were linked to this trip.</Copy>}
     </View>
     <View style={{ borderTopWidth: 1, borderColor: p.line, paddingTop: 16, gap: 11 }}>
       <Heading style={{ fontSize: 19, lineHeight: 25 }}>Itinerary ({record.activities.length})</Heading>

@@ -1,5 +1,6 @@
 import { destinationCatalog } from "@/data/catalog";
 import type { Place } from "@/data/travel";
+import { normalizeSearchText } from "@/utils/search";
 
 export type MapPin = { id: string; name: string; latitude: number; longitude: number; kind?: "destination" | "place" | "search" };
 
@@ -55,6 +56,16 @@ const coordinates: Record<(typeof destinationCatalog)[number]["id"], [number, nu
   zagreb: [45.815, 15.9819],
   ljubljana: [46.0569, 14.5058],
   bucharest: [44.4268, 26.1025],
+  brasov: [45.6427, 25.5887],
+  sibiu: [45.7936, 24.1213],
+  sighisoara: [46.2197, 24.7964],
+  "cluj-napoca": [46.7712, 23.6236],
+  oradea: [47.0465, 21.9189],
+  suceava: [47.6514, 26.2556],
+  iasi: [47.1585, 27.6014],
+  sinaia: [45.3505, 25.5514],
+  "alba-iulia": [46.0686, 23.5706],
+  "danube-delta": [45.17, 29.4],
   sofia: [42.6977, 23.3219],
   belgrade: [44.8125, 20.4612],
   brussels: [50.8503, 4.3517],
@@ -68,7 +79,7 @@ export const destinationPins: MapPin[] = destinationCatalog.map((destination) =>
   kind: "destination",
 }));
 
-export type SearchResult = MapPin & { detail: string; category: string; kind: "place" | "search" };
+export type SearchResult = MapPin & { detail: string; category: string; kind: "place" | "search"; sourceUrl: string };
 const cache = new Map<string, SearchResult[]>();
 let nextRequestAt = 0;
 
@@ -108,15 +119,18 @@ export async function searchMap(query: string, area?: SearchArea): Promise<Searc
       signal: controller.signal,
     });
     if (!response.ok) throw new Error("Map search is unavailable right now. Please try again later.");
-    const data: { place_id: number; display_name: string; lat: string; lon: string; type?: string }[] = await response.json();
+    const data: { place_id: number; osm_type?: string; osm_id?: number; display_name: string; lat: string; lon: string; type?: string }[] = await response.json();
     const results = data.map((item) => ({
-      id: String(item.place_id),
+      id: item.osm_type && item.osm_id ? `osm:${item.osm_type}:${item.osm_id}` : `nominatim:${item.place_id}`,
       name: item.display_name.split(",")[0],
       detail: item.display_name,
       category: item.type ? item.type.replace(/_/g, " ") : "Location",
       kind: "search" as const,
       latitude: Number(item.lat),
       longitude: Number(item.lon),
+      sourceUrl: item.osm_type && item.osm_id
+        ? `https://www.openstreetmap.org/${item.osm_type}/${item.osm_id}`
+        : `https://www.openstreetmap.org/?mlat=${item.lat}&mlon=${item.lon}`,
     })).filter((item) => !area || distanceKm(area.center, item) <= area.radiusKm * 1.45);
     cache.set(key, results);
     return results;
@@ -127,6 +141,7 @@ export async function searchMap(query: string, area?: SearchArea): Promise<Searc
 
 const wideDestinations: Record<string, number> = {
   iceland: 350, alps: 220, bali: 150, "new-york": 85,
+  "danube-delta": 160,
 };
 
 export async function searchCatalogPlace(place: Place): Promise<SearchResult[]> {
@@ -135,9 +150,9 @@ export async function searchCatalogPlace(place: Place): Promise<SearchResult[]> 
   if (!parent || !center) return [];
   const radiusKm = wideDestinations[parent.id] ?? 55;
   const matches = await searchMap(place.name, { center, radiusKm });
-  const placeWords = place.name.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((word) => word.length > 2);
+  const placeWords = normalizeSearchText(place.name).replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((word) => word.length > 2);
   return matches.filter((match) => {
-    const name = match.name.toLowerCase();
+    const name = normalizeSearchText(match.name);
     return placeWords.length > 0 && placeWords.every((word) => name.includes(word));
   }).map((match) => ({ ...match, name: place.name, kind: "place" }));
 }

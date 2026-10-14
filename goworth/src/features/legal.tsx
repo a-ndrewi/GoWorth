@@ -17,7 +17,7 @@ const documents: { id: LegalDocumentId; icon: IconName }[] = [
 export function LegalScreen() {
   const { user, deleteAccount } = useAuth();
   const {
-    profile, preferences, saved, savedPlaces, trip, activities, expenses,
+    profile, preferences, saved, savedPlaces, externalPlaces, trip, activities, expenses,
     journal, journalEntries,
   } = useTravel();
   const [confirming, setConfirming] = useState(false);
@@ -31,7 +31,7 @@ export function LegalScreen() {
     const data = JSON.stringify({
       exportedAt: new Date().toISOString(),
       account: { id: user.id, email: user.email, profile },
-      preferences, savedDestinations: saved, savedPlaces,
+      preferences, savedDestinations: saved, savedPlaces, externalPlaces,
       currentTrip: trip ? { trip, activities, expenses, note: journal } : null,
       pastTrips: journalEntries,
       personalNote: trip ? null : journal,

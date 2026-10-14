@@ -3,6 +3,7 @@ import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
+import { CalendarPicker, TimeDropdown } from "@/components/goworth/date-time-controls";
 import {
   Button,
   Chip,
@@ -28,6 +29,7 @@ import {
   findDestination,
   interests,
   money,
+  places,
   tripDays,
   validateTrip,
   type Activity,
@@ -36,6 +38,7 @@ import {
   type Trip,
 } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
+import { normalizeSearchText } from "@/utils/search";
 
 export function PlannerScreen() {
   const params = useLocalSearchParams<{ destination?: string }>();
@@ -51,12 +54,25 @@ export function PlannerScreen() {
     interests: preferences.interests,
   });
   const [selecting, setSelecting] = useState(false);
+  const [destinationQuery, setDestinationQuery] = useState("");
+  const [dateField, setDateField] = useState<"start" | "end" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
   const patch = (next: Partial<Trip>) =>
     setDraft((old) => ({ ...old, ...next }));
+  const chooseDate = (value: string) => {
+    if (dateField === "start") {
+      const end = draft.end && (draft.end < value || tripDays(value, draft.end) > 14) ? "" : draft.end;
+      patch({ start: value, end });
+    } else if (dateField === "end") patch({ end: value });
+  };
+  const maxEnd = draft.start
+    ? new Date(Date.parse(draft.start) + 13 * 86_400_000).toISOString().slice(0, 10)
+    : undefined;
+  const matchingDestinations = destinations.filter((destination) =>
+    normalizeSearchText(`${destination.name} ${destination.country}`).includes(normalizeSearchText(destinationQuery.trim())));
   const generate = async () => {
     const validation = validateTrip(draft);
     if (validation) {
@@ -116,24 +132,17 @@ export function PlannerScreen() {
           <Icon name="pin" size={19} color={p.blue} />
         </Pressable>
       </View>
-      <Row style={{ alignItems: "flex-start" }}>
-        <Field
-          label="Departure"
-          placeholder="YYYY-MM-DD"
-          value={draft.start}
-          onChangeText={(start) => patch({ start })}
-          autoCapitalize="none"
-          maxLength={10}
-        />
-        <Field
-          label="Return"
-          placeholder="YYYY-MM-DD"
-          value={draft.end}
-          onChangeText={(end) => patch({ end })}
-          autoCapitalize="none"
-          maxLength={10}
-        />
+      <Row style={{ alignItems: "flex-start", gap: 8 }}>
+        {(["start", "end"] as const).map((field) => <View key={field} style={{ flex: 1, gap: 7 }}>
+          <Copy style={s.label}>{field === "start" ? "Departure" : "Return"}</Copy>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Choose ${field === "start" ? "departure" : "return"} date`}
+            onPress={() => setDateField(field)} style={[s.input, s.row, { justifyContent: "space-between", minHeight: 48, paddingHorizontal: 9, gap: 4 }]}>
+            <Copy style={{ fontSize: 13, flexShrink: 1 }}>{draft[field] ? new Date(`${draft[field]}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "Select date"}</Copy>
+            <Icon name="calendar" size={18} color={p.blue} />
+          </Pressable>
+        </View>)}
       </Row>
+      {!!draft.start && !!draft.end && <Copy muted style={{ fontSize: 12 }}>{tripDays(draft.start, draft.end)} days in {findDestination(draft.destinationId).name}</Copy>}
       <View style={{ gap: 11 }}>
         <Row style={{ justifyContent: "space-between" }}>
           <Copy style={s.label}>Budget (per person)</Copy>
@@ -206,7 +215,9 @@ export function PlannerScreen() {
         title="Where are we going?"
         onClose={() => setSelecting(false)}
       >
-        {destinations.map((d) => (
+        <Field label="Search destinations" placeholder="City or country" value={destinationQuery} onChangeText={setDestinationQuery} />
+        {!matchingDestinations.length && <Copy muted>No destinations found.</Copy>}
+        {matchingDestinations.map((d) => (
           <Pressable
             key={d.id}
             accessibilityRole="button"
@@ -230,6 +241,9 @@ export function PlannerScreen() {
           </Pressable>
         ))}
       </Sheet>
+      <CalendarPicker key={dateField ?? "closed"} visible={!!dateField} title={dateField === "end" ? "Return date" : "Departure date"}
+        value={dateField ? draft[dateField] : ""} minDate={dateField === "end" ? draft.start || undefined : undefined}
+        maxDate={dateField === "end" ? maxEnd : undefined} onSelect={chooseDate} onClose={() => setDateField(null)} />
       <Sheet
         visible={info}
         title="Your travel plan"
@@ -264,14 +278,13 @@ export function PlannerScreen() {
 }
 
 export function ItineraryScreen() {
-  const { trip, activities, addActivity, updateActivity, removeActivity } = useTravel();
+  const { trip, activities, externalPlaces, addActivity, updateActivity, removeActivity } = useTravel();
   const [selectedDay, setDay] = useState(1);
   const [editing, setEditing] = useState<Activity | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [time, setTime] = useState("16:00");
-  const [period, setPeriod] = useState<Activity["period"]>("Afternoon");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -291,7 +304,6 @@ export function ItineraryScreen() {
     setName(activity?.name || "");
     setNote(activity?.note || "");
     setTime(activity?.time || "16:00");
-    setPeriod(activity?.period || "Afternoon");
     setError("");
     setConfirmDelete(false);
     setShowEditor(true);
@@ -307,7 +319,7 @@ export function ItineraryScreen() {
     }
     const activity = {
       day,
-      period,
+      period: (Number(time.slice(0, 2)) < 12 ? "Morning" : Number(time.slice(0, 2)) < 18 ? "Afternoon" : "Evening") as Activity["period"],
       time,
       name: name.trim(),
       note: note.trim(),
@@ -424,14 +436,16 @@ export function ItineraryScreen() {
           >
             {today
               .filter((a) => a.period === section)
-              .map((activity) => (
-                <Pressable
-                  key={activity.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Edit ${activity.name}`}
-                  onPress={() => openEditor(activity)}
-                  style={[s.row, { alignItems: "flex-start", gap: 12 }]}
-                >
+              .map((activity) => {
+                const externalPlace = externalPlaces.find((place) => activity.note.includes(place.sourceUrl));
+                const catalogPlace = places.find((place) => place.destinationId === trip.destinationId && place.name === activity.name);
+                return <Row key={activity.id} style={{ alignItems: "center", gap: 6 }}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Edit ${activity.name}`}
+                    onPress={() => openEditor(activity)}
+                    style={[s.row, { flex: 1, minWidth: 0, alignItems: "flex-start", gap: 12 }]}
+                  >
                   <Copy
                     muted
                     style={{ width: 46, fontSize: 11, paddingTop: 15 }}
@@ -457,8 +471,12 @@ export function ItineraryScreen() {
                       </Copy>
                     )}
                   </View>
-                </Pressable>
-              ))}
+                  </Pressable>
+                  {(externalPlace || catalogPlace) && <IconButton name="map" label={`Open ${activity.name} on map`} onPress={() => router.push(externalPlace
+                    ? { pathname: "/map", params: { external: externalPlace.id } } as Href
+                    : { pathname: "/map", params: { destination: trip.destinationId, place: catalogPlace!.id } } as Href)} />}
+                </Row>;
+              })}
             {!today.some((a) => a.period === section) && (
               <Copy muted style={{ fontSize: 12, paddingVertical: 10 }}>
                 A little room for spontaneity.
@@ -485,25 +503,7 @@ export function ItineraryScreen() {
           onChangeText={setName}
           maxLength={90}
         />
-        <Field
-          label="Time"
-          value={time}
-          onChangeText={setTime}
-          placeholder="HH:MM"
-          maxLength={5}
-        />
-        <Row>
-          {(["Morning", "Afternoon", "Evening"] as const).map((v) => (
-            <Chip
-              key={v}
-              selected={period === v}
-              onPress={() => setPeriod(v)}
-              style={{ flex: 1, paddingHorizontal: 5 }}
-            >
-              {v}
-            </Chip>
-          ))}
-        </Row>
+        <TimeDropdown value={time} onChange={setTime} />
         <Field
           label="Notes"
           placeholder="Anything worth remembering"

@@ -12,7 +12,7 @@ export function validateTrip(trip: {
     Number.isFinite(Date.parse(value)) &&
     new Date(value).toISOString().slice(0, 10) === value;
   if (!validDate(trip.start) || !validDate(trip.end))
-    return "Enter valid dates in YYYY-MM-DD format.";
+    return "Select valid dates for departure and return.";
   const days = tripDays(trip.start, trip.end);
   if (days < 1) return "Your return date must be on or after your departure.";
   if (days > 14) return "Choose a trip of up to 14 days for this preview.";

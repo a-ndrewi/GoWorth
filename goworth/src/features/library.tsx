@@ -13,10 +13,11 @@ import { useAuth } from "@/state/auth-context";
 
 export function SavedScreen() {
   const { tab: initialTab } = useLocalSearchParams<{ tab?: string }>();
-  const { saved, savedPlaces, togglePlace, trip } = useTravel();
+  const { saved, savedPlaces, togglePlace, externalPlaces, toggleExternalPlace, trip } = useTravel();
   const [tab, setTab] = useState(initialTab === "Places" ? "Places" : "Destinations");
   const savedDestinations = destinations.filter((destination) => saved.includes(destination.id));
   const savedPlaceRecords = places.filter((place) => savedPlaces.includes(place.id));
+  const unavailablePlaces = Math.max(0, savedPlaces.length - savedPlaceRecords.length - externalPlaces.length);
   const openMap = (place: (typeof places)[number]) =>
     router.push({ pathname: "/map", params: { destination: place.destinationId, place: place.id } } as Href);
   return (
@@ -39,7 +40,17 @@ export function SavedScreen() {
           <IconButton name="map" label={`Map for ${place.name}`} onPress={() => openMap(place)} />
           <IconButton name="heartFill" label={`Unsave ${place.name}`} color={p.pink} onPress={() => togglePlace(place.id)} />
         </Row>)}
-        {!savedPlaceRecords.length && <EmptyState title="No places saved" detail="Save a landmark, trail, or market to find it here." action="Explore places" onPress={() => router.push("/explore" as Href)} />}
+        {externalPlaces.map((place) => <Row key={place.id} style={{ paddingVertical: 10, gap: 12, borderBottomWidth: 1, borderColor: p.line }}>
+          <View style={{ width: 46, height: 46, borderRadius: 6, backgroundColor: p.greenSoft, justifyContent: "center", alignItems: "center" }}><Icon name="pin" color={p.green} /></View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View ${place.name}`} onPress={() => router.push({ pathname: "/map", params: { external: place.id } } as Href)} style={{ flex: 1, minWidth: 0 }}>
+            <Copy style={{ fontWeight: "600" }}>{place.name}</Copy>
+            <Copy muted style={{ fontSize: 12 }}>{place.location || place.category} · {place.source}</Copy>
+          </Pressable>
+          <IconButton name="map" label={`Map for ${place.name}`} onPress={() => router.push({ pathname: "/map", params: { external: place.id } } as Href)} />
+          <IconButton name="heartFill" label={`Unsave ${place.name}`} color={p.pink} onPress={() => void toggleExternalPlace(place)} />
+        </Row>)}
+        {!!unavailablePlaces && <Copy muted>{unavailablePlaces} saved {unavailablePlaces === 1 ? "place is" : "places are"} unavailable on this device.</Copy>}
+        {!savedPlaces.length && <EmptyState title="No places saved" detail="Save a landmark, trail, or market to find it here." action="Explore places" onPress={() => router.push("/explore" as Href)} />}
       </>}
       {tab === "Current trip" && (trip ? <>
         <DestinationCard destination={findDestination(trip.destinationId)} />
@@ -52,7 +63,7 @@ export function SavedScreen() {
 
 export function ProfileScreen() {
   const { user, signOut } = useAuth();
-  const { profile, setProfile, saved, savedPlaces, trip, clearTrip, journal, journalEntries } = useTravel();
+  const { profile, setProfile, saved, savedPlaces, externalPlaces, trip, clearTrip, journal, journalEntries } = useTravel();
   const savedDestinations = destinations.filter((destination) => saved.includes(destination.id));
   const savedPlaceRecords = places.filter((place) => savedPlaces.includes(place.id));
   const [tab, setTab] = useState("Trips");
@@ -114,10 +125,10 @@ export function ProfileScreen() {
         </View>
         <View style={{ gap: 8, borderTopWidth: 1, borderColor: p.line, paddingTop: 16 }}>
           <Row style={{ justifyContent: "space-between", alignItems: "center" }}>
-            <Heading style={{ fontSize: 18, lineHeight: 24 }}>Places ({savedPlaceRecords.length})</Heading>
-            {!!savedPlaceRecords.length && <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/saved", params: { tab: "Places" } } as Href)} style={{ paddingVertical: 8, paddingLeft: 10 }}><Copy style={{ color: p.blue, fontSize: 13, fontWeight: "700" }}>View all</Copy></Pressable>}
+            <Heading style={{ fontSize: 18, lineHeight: 24 }}>Places ({savedPlaceRecords.length + externalPlaces.length})</Heading>
+            {!!(savedPlaceRecords.length + externalPlaces.length) && <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/saved", params: { tab: "Places" } } as Href)} style={{ paddingVertical: 8, paddingLeft: 10 }}><Copy style={{ color: p.blue, fontSize: 13, fontWeight: "700" }}>View all</Copy></Pressable>}
           </Row>
-          {savedPlaceRecords.length ? savedPlaceRecords.slice(0, 4).map((place) => (
+          {savedPlaceRecords.slice(0, 4).map((place) => (
             <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`View ${place.name}`} onPress={() => router.push({ pathname: "/explore", params: { id: place.destinationId, place: place.id } } as Href)} style={[s.row, { paddingVertical: 9, gap: 10 }]}>
               <Icon name="pin" color={p.green} />
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -126,7 +137,11 @@ export function ProfileScreen() {
               </View>
               <Icon name="right" color={p.muted} />
             </Pressable>
-          )) : <Copy muted>No places saved yet.</Copy>}
+          ))}
+          {externalPlaces.slice(0, Math.max(0, 4 - savedPlaceRecords.length)).map((place) => <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`View ${place.name}`} onPress={() => router.push({ pathname: "/map", params: { external: place.id } } as Href)} style={[s.row, { paddingVertical: 9, gap: 10 }]}>
+            <Icon name="pin" color={p.green} /><View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "600" }}>{place.name}</Copy><Copy muted style={{ fontSize: 12 }}>{place.location || place.category} · {place.source}</Copy></View><Icon name="right" color={p.muted} />
+          </Pressable>)}
+          {!savedPlaceRecords.length && !externalPlaces.length && <Copy muted>No places saved yet.</Copy>}
         </View>
         <Button secondary onPress={() => router.push("/saved" as Href)}>View all saved</Button>
       </> : <EmptyState title="Nothing saved yet" detail="Save destinations or places to keep them close." action="Explore destinations" onPress={() => router.push("/home" as Href)} />)}

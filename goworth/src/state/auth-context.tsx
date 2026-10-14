@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { AppState, Platform } from "react-native";
 import * as Linking from "expo-linking";
 import type { User } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 
 type AuthState = {
@@ -86,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase || !user) throw new Error("Sign in to delete your account.");
     const { error } = await supabase.rpc("delete_my_account");
     if (error) throw error;
+    await AsyncStorage.multiRemove([`external-places:${user.id}`, `discovery-settings:${user.id}`]).catch(() => undefined);
     await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
     setUser(null);
   };

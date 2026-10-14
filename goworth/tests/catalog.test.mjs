@@ -8,9 +8,9 @@ import { tipsForDestination } from "../src/data/tips.ts";
 
 test("every destination has a unique ID and six unique places", () => {
   const ids = destinationCatalog.map((destination) => destination.id);
-  assert.equal(ids.length, 54);
+  assert.equal(ids.length, 64);
   assert.equal(new Set(ids).size, ids.length);
-  assert.equal(places.length, 324);
+  assert.equal(places.length, ids.length * 6);
   assert.equal(new Set(places.map((place) => place.id)).size, places.length);
   for (const id of ids) {
     assert.equal(placesForDestination(id).length, 6, `${id} should have six places`);

@@ -1,4 +1,5 @@
 import type { Activity, Expense, Trip, TripJournalEntry } from "@/data/travel";
+import type { NearbyPlace } from "@/data/nearby-places";
 import { supabase } from "@/lib/supabase";
 
 function client() {
@@ -20,12 +21,15 @@ export async function loadTravelData(userId: string) {
       db.from("trips").select("destination_id,start_date,end_date,budget,companions,interests").eq("user_id", userId).maybeSingle(),
       db.from("trip_activities").select("id,day,period,activity_time,name,note").eq("user_id", userId).order("position"),
       db.from("trip_expenses").select("id,label,category,amount").eq("user_id", userId).order("position"),
-      db.from("saved_items").select("kind,item_id").eq("user_id", userId),
+      db.from("saved_items").select("kind,item_id,details").eq("user_id", userId),
       db.from("travel_memories").select("journal").eq("user_id", userId).maybeSingle(),
       db.from("trip_journal_entries").select("id,destination_id,start_date,end_date,budget,companions,interests,activities,expenses,saved_place_ids,reflection,status,archived_at").eq("user_id", userId).order("archived_at", { ascending: false }),
     ]);
 
   const loadedTrip = requireData(trip);
+  const savedRows = requireData(saved.error
+    ? await db.from("saved_items").select("kind,item_id").eq("user_id", userId)
+    : saved);
   return {
     profile: requireData(profile),
     preferences: requireData(preferences),
@@ -53,7 +57,7 @@ export async function loadTravelData(userId: string) {
       category: item.category,
       amount: Number(item.amount),
     })) as Expense[],
-    saved: requireData(saved) ?? [],
+    saved: savedRows ?? [],
     journal: requireData(memory)?.journal ?? "",
     journalAvailable: !journalEntries.error,
     journalEntries: journalEntries.error ? [] : mapJournalEntries(journalEntries.data ?? []),
@@ -200,11 +204,15 @@ export async function setSavedItem(
   kind: "destination" | "place",
   itemId: string,
   enabled: boolean,
+  details?: NearbyPlace,
 ) {
   const db = client();
-  const result = enabled
-    ? await db.from("saved_items").upsert({ user_id: userId, kind, item_id: itemId })
+  let result = enabled
+    ? await db.from("saved_items").upsert({ user_id: userId, kind, item_id: itemId, ...(details ? { details } : {}) })
     : await db.from("saved_items").delete().eq("user_id", userId).eq("kind", kind).eq("item_id", itemId);
+  if (details && result.error && /column.*details|details.*column/i.test(result.error.message)) {
+    result = await db.from("saved_items").upsert({ user_id: userId, kind, item_id: itemId });
+  }
   requireData(result);
 }
 

@@ -430,5 +430,85 @@
     "license": "CC0",
     "width": 960,
     "height": 654
+  },
+  "brasov": {
+    "title": "Piața Sfatului, Brașov 2025.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Pia%C8%9Ba_Sfatului,_Bra%C8%99ov_2025.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/wiki/User:August_Dominus\" title=\"User:August Dominus\">August Dominus</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 720
+  },
+  "sibiu": {
+    "title": "Sibiu Romania.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Sibiu_Romania.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/wiki/User:Salwa_Farwaneh\" title=\"User:Salwa Farwaneh\">Salwa Farwaneh</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 720
+  },
+  "sighisoara": {
+    "title": "Sighișoara, Romania (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Sighi%C8%99oara,_Romania_(Unsplash).jpg",
+    "creator": "Alisa Anton <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@alisaanton\">alisaanton</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 640
+  },
+  "cluj-napoca": {
+    "title": "St. Michael's Church in Cluj-Napoca, Transylvania, Romania (1).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:St._Michael%27s_Church_in_Cluj-Napoca,_Transylvania,_Romania_(1).jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Rosenborg_BK_Fan&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Rosenborg BK Fan (page does not exist)\">Rosenborg BK Fan</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 720
+  },
+  "oradea": {
+    "title": "The Black Eagle Palace Oradea (249087659).jpeg",
+    "source": "https://commons.wikimedia.org/wiki/File:The_Black_Eagle_Palace_Oradea_(249087659).jpeg",
+    "creator": "<div class=\"fn value\">\n<a rel=\"nofollow\" class=\"external text\" href=\"https://500px.com/valenas\">Sergiu Valenas</a></div>",
+    "license": "CC0",
+    "width": 960,
+    "height": 1622
+  },
+  "suceava": {
+    "title": "Panoramic view of Suceava, Romania (as seen in June, 2025 from the defensive walls of the medieval Seat Fortress of Suceava).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Panoramic_view_of_Suceava,_Romania_(as_seen_in_June,_2025_from_the_defensive_walls_of_the_medieval_Seat_Fortress_of_Suceava).jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Rosenborg_BK_Fan&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Rosenborg BK Fan (page does not exist)\">Rosenborg BK Fan</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 720
+  },
+  "iasi": {
+    "title": "The Palace of Culture in Iași, Romania (front view).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:The_Palace_of_Culture_in_Ia%C8%99i,_Romania_(front_view).jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Rosenborg_BK_Fan&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Rosenborg BK Fan (page does not exist)\">Rosenborg BK Fan</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 720
+  },
+  "sinaia": {
+    "title": "Sunset watching on Sinaia mountain (Unsplash).jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Sunset_watching_on_Sinaia_mountain_(Unsplash).jpg",
+    "creator": "Alexandru Zdrobău <a rel=\"nofollow\" class=\"external text\" href=\"https://unsplash.com/@alexandruz\">alexandruz</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 638
+  },
+  "alba-iulia": {
+    "title": "View of the Roman Catholic Cathedral from the garden of the Orthodox Cathedral, Alba Iulia, 2017.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:View_of_the_Roman_Catholic_Cathedral_from_the_garden_of_the_Orthodox_Cathedral,_Alba_Iulia,_2017.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/wiki/User:DimiTalen\" title=\"User:DimiTalen\">DimiTalen</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 1444
+  },
+  "danube-delta": {
+    "title": "Pelicans in Danube Delta.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Pelicans_in_Danube_Delta.jpg",
+    "creator": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Cristian_Butacu&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Cristian Butacu (page does not exist)\">Cristian Butacu</a>",
+    "license": "CC0",
+    "width": 960,
+    "height": 1280
   }
 }

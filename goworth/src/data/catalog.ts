@@ -1,4 +1,5 @@
 import { europePlaces } from "./europe-places.ts";
+import { romaniaDestinations, romaniaPlaces } from "./romania.ts";
 
 export const destinationCatalog = [
   { id: "positano", name: "Positano", country: "Italy", region: "Europe", tags: ["Beach", "Culture", "Food"], description: "A town on Italy's Amalfi Coast, with steep lanes, beaches, and access to coastal walking routes.", imageKey: "positano" },
@@ -52,6 +53,7 @@ export const destinationCatalog = [
   { id: "zagreb", name: "Zagreb", country: "Croatia", region: "Europe", tags: ["City", "Culture", "Food"], description: "Upper Town streets, museums, markets, and public parks.", imageKey: "zagreb" },
   { id: "ljubljana", name: "Ljubljana", country: "Slovenia", region: "Europe", tags: ["City", "Culture", "Nature"], description: "A riverside center with a castle, markets, bridges, and green spaces.", imageKey: "ljubljana" },
   { id: "bucharest", name: "Bucharest", country: "Romania", region: "Europe", tags: ["City", "Culture", "Food"], description: "Historic churches, broad avenues, museums, and parks.", imageKey: "bucharest" },
+  ...romaniaDestinations,
   { id: "sofia", name: "Sofia", country: "Bulgaria", region: "Europe", tags: ["City", "Culture", "Nature"], description: "Churches, archaeological sites, parks, and mountain access.", imageKey: "sofia" },
   { id: "belgrade", name: "Belgrade", country: "Serbia", region: "Europe", tags: ["City", "Culture", "Food"], description: "Fortress grounds, riverfront districts, museums, and markets.", imageKey: "belgrade" },
   { id: "brussels", name: "Brussels", country: "Belgium", region: "Europe", tags: ["City", "Culture", "Food"], description: "Grand squares, art museums, parks, and neighborhood markets.", imageKey: "brussels" },
@@ -320,6 +322,7 @@ export const places: Place[] = [
   { id: "karura-forest", destinationId: "nairobi", name: "Karura Forest", category: "Nature", detail: "Urban forest with walking trails" },
   { id: "maasai-market-nairobi", destinationId: "nairobi", name: "Maasai Market", category: "Food & Markets", detail: "Rotating open-air craft market" },
   ...europePlaces,
+  ...romaniaPlaces,
 ];
 
 export const placesForDestination = (destinationId: string) =>

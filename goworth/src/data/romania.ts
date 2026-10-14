@@ -1,0 +1,86 @@
+import type { Place } from "./catalog.ts";
+
+export const romaniaDestinations = [
+  { id: "brasov", name: "Brașov", country: "Romania", region: "Europe", tags: ["City", "Culture", "Mountains", "Nature"], description: "A Transylvanian city with medieval streets, a central square, and trails on Mount Tâmpa.", imageKey: "brasov" },
+  { id: "sibiu", name: "Sibiu", country: "Romania", region: "Europe", tags: ["City", "Culture", "Food"], description: "Historic squares, museums, and Saxon architecture in southern Transylvania.", imageKey: "sibiu" },
+  { id: "sighisoara", name: "Sighișoara", country: "Romania", region: "Europe", tags: ["City", "Culture"], description: "A medieval hilltop citadel with towers, cobbled lanes, and an inhabited historic center.", imageKey: "sighisoara" },
+  { id: "cluj-napoca", name: "Cluj-Napoca", country: "Romania", region: "Europe", tags: ["City", "Culture", "Food", "Nature"], description: "Transylvania's university city, with historic squares, parks, museums, and nearby Turda.", imageKey: "clujNapoca" },
+  { id: "oradea", name: "Oradea", country: "Romania", region: "Europe", tags: ["City", "Culture", "Food"], description: "Art Nouveau buildings, riverside walks, and a restored fortress near Romania's western border.", imageKey: "oradea" },
+  { id: "suceava", name: "Suceava", country: "Romania", region: "Europe", tags: ["City", "Culture", "Nature"], description: "A gateway to Bucovina's monasteries, with a medieval fortress and open-air heritage museum.", imageKey: "suceava" },
+  { id: "iasi", name: "Iași", country: "Romania", region: "Europe", tags: ["City", "Culture", "Nature"], description: "Moldavia's cultural center, known for the Palace of Culture, monasteries, and leafy parks.", imageKey: "iasi" },
+  { id: "sinaia", name: "Sinaia", country: "Romania", region: "Europe", tags: ["Mountains", "Nature", "Culture"], description: "A Carpathian mountain town with royal castles, a monastery, and trails in the Bucegi Mountains.", imageKey: "sinaia" },
+  { id: "alba-iulia", name: "Alba Iulia", country: "Romania", region: "Europe", tags: ["City", "Culture"], description: "A Transylvanian city centered on a star-shaped citadel, cathedrals, and history museums.", imageKey: "albaIulia" },
+  { id: "danube-delta", name: "Danube Delta", country: "Romania", region: "Europe", tags: ["Nature", "Beach", "Culture"], description: "A wetland of channels, reedbeds, villages, forests, and Black Sea beaches in eastern Romania.", imageKey: "danubeDelta" },
+] as const;
+
+export const romaniaPlaces: Place[] = [
+  { id: "piata-sfatului", destinationId: "brasov", name: "Piața Sfatului", category: "Landmarks", detail: "Historic council square in the old town" },
+  { id: "black-church-brasov", destinationId: "brasov", name: "Black Church", category: "Landmarks", detail: "Gothic church beside the council square" },
+  { id: "tampa-mountain", destinationId: "brasov", name: "Mount Tâmpa", category: "Nature", detail: "Forested mountain above Brașov" },
+  { id: "rope-street-brasov", destinationId: "brasov", name: "Strada Sforii", category: "Neighborhoods", detail: "Narrow passage in the old town" },
+  { id: "first-romanian-school", destinationId: "brasov", name: "First Romanian School Museum", category: "Museums", detail: "Historic school in the Șchei district" },
+  { id: "catherines-gate-brasov", destinationId: "brasov", name: "Catherine's Gate", category: "Landmarks", detail: "Surviving medieval city gate" },
+
+  { id: "piata-mare-sibiu", destinationId: "sibiu", name: "Piața Mare", category: "Landmarks", detail: "Sibiu's main historic square" },
+  { id: "bridge-of-lies", destinationId: "sibiu", name: "Bridge of Lies", category: "Landmarks", detail: "Cast-iron bridge in the Lower Town" },
+  { id: "brukenthal-museum", destinationId: "sibiu", name: "Brukenthal National Museum", category: "Museums", detail: "Art collections in Brukenthal Palace" },
+  { id: "astra-museum", destinationId: "sibiu", name: "ASTRA Museum", category: "Museums", detail: "Open-air museum of traditional rural life" },
+  { id: "council-tower-sibiu", destinationId: "sibiu", name: "Council Tower", category: "Landmarks", detail: "Tower between Piața Mare and Piața Mică" },
+  { id: "sub-arini-park", destinationId: "sibiu", name: "Sub Arini Park", category: "Nature", detail: "Large public park southwest of the center" },
+
+  { id: "sighisoara-citadel", destinationId: "sighisoara", name: "Sighișoara Citadel", category: "Neighborhoods", detail: "Inhabited medieval historic center" },
+  { id: "clock-tower-sighisoara", destinationId: "sighisoara", name: "Clock Tower", category: "Landmarks", detail: "Medieval tower and history museum" },
+  { id: "church-on-the-hill", destinationId: "sighisoara", name: "Church on the Hill", category: "Landmarks", detail: "Gothic church above the citadel" },
+  { id: "covered-stairway-sighisoara", destinationId: "sighisoara", name: "Covered Stairway", category: "Landmarks", detail: "Wooden staircase leading uphill" },
+  { id: "citadel-square-sighisoara", destinationId: "sighisoara", name: "Citadel Square", category: "Neighborhoods", detail: "Central square inside the fortified town" },
+  { id: "breite-oak-reserve", destinationId: "sighisoara", name: "Breite Ancient Oak Tree Reserve", category: "Nature", detail: "Protected oak woodland west of town" },
+
+  { id: "union-square-cluj", destinationId: "cluj-napoca", name: "Piața Unirii", category: "Landmarks", detail: "Main square in central Cluj-Napoca" },
+  { id: "st-michaels-cluj", destinationId: "cluj-napoca", name: "St. Michael's Church", category: "Landmarks", detail: "Gothic church on Piața Unirii" },
+  { id: "central-park-cluj", destinationId: "cluj-napoca", name: "Central Park Simion Bărnuțiu", category: "Nature", detail: "Park beside the Someșul Mic River" },
+  { id: "botanical-garden-cluj", destinationId: "cluj-napoca", name: "Alexandru Borza Botanical Garden", category: "Nature", detail: "University botanical garden" },
+  { id: "ethnographic-museum-cluj", destinationId: "cluj-napoca", name: "Ethnographic Museum of Transylvania", category: "Museums", detail: "Regional culture museum in the city center" },
+  { id: "turda-salt-mine", destinationId: "cluj-napoca", name: "Salina Turda", category: "Landmarks", detail: "Historic salt mine near Cluj-Napoca" },
+
+  { id: "union-square-oradea", destinationId: "oradea", name: "Piața Unirii", category: "Landmarks", detail: "Central square with historic architecture" },
+  { id: "black-eagle-palace", destinationId: "oradea", name: "Black Eagle Palace", category: "Landmarks", detail: "Art Nouveau arcade on Piața Unirii" },
+  { id: "oradea-fortress", destinationId: "oradea", name: "Oradea Fortress", category: "Landmarks", detail: "Restored medieval fortress complex" },
+  { id: "moon-church-oradea", destinationId: "oradea", name: "Moon Church", category: "Landmarks", detail: "Church with an astronomical moon mechanism" },
+  { id: "cris-country-museum", destinationId: "oradea", name: "Țării Crișurilor Museum", category: "Museums", detail: "Regional art, history, and natural history collections" },
+  { id: "decembrie-park-oradea", destinationId: "oradea", name: "1 Decembrie Park", category: "Nature", detail: "Public park near the fortress" },
+
+  { id: "seat-fortress-suceava", destinationId: "suceava", name: "Seat Fortress of Suceava", category: "Landmarks", detail: "Medieval stronghold east of the center" },
+  { id: "bucovina-village-museum", destinationId: "suceava", name: "Bucovina Village Museum", category: "Museums", detail: "Open-air collection of traditional buildings" },
+  { id: "saint-john-new-monastery", destinationId: "suceava", name: "Saint John the New Monastery", category: "Landmarks", detail: "Historic monastery in central Suceava" },
+  { id: "history-museum-suceava", destinationId: "suceava", name: "History Museum of Suceava", category: "Museums", detail: "Museum of Bucovina and Moldavian history" },
+  { id: "dragomirna-monastery", destinationId: "suceava", name: "Dragomirna Monastery", category: "Landmarks", detail: "Fortified monastery north of the city" },
+  { id: "zamca-monastery", destinationId: "suceava", name: "Zamca Monastery", category: "Landmarks", detail: "Armenian monastery complex" },
+
+  { id: "palace-of-culture-iasi", destinationId: "iasi", name: "Palace of Culture", category: "Museums", detail: "Landmark housing several museums" },
+  { id: "metropolitan-cathedral-iasi", destinationId: "iasi", name: "Metropolitan Cathedral of Iași", category: "Landmarks", detail: "Orthodox cathedral in the city center" },
+  { id: "copou-park", destinationId: "iasi", name: "Copou Park", category: "Nature", detail: "Historic park on Copou Hill" },
+  { id: "three-hierarchs-monastery", destinationId: "iasi", name: "Three Hierarchs Monastery", category: "Landmarks", detail: "Seventeenth-century church with carved stonework" },
+  { id: "union-square-iasi", destinationId: "iasi", name: "Piața Unirii", category: "Landmarks", detail: "Central square associated with the union of the principalities" },
+  { id: "botanical-garden-iasi", destinationId: "iasi", name: "Anastasie Fătu Botanical Garden", category: "Nature", detail: "Botanical garden in the Copou area" },
+
+  { id: "peles-castle", destinationId: "sinaia", name: "Peleș Castle", category: "Landmarks", detail: "Former royal residence in the Carpathians" },
+  { id: "pelisor-castle", destinationId: "sinaia", name: "Pelișor Castle", category: "Landmarks", detail: "Smaller royal residence beside Peleș" },
+  { id: "sinaia-monastery", destinationId: "sinaia", name: "Sinaia Monastery", category: "Landmarks", detail: "Historic monastery near the town center" },
+  { id: "dimitrie-ghica-park", destinationId: "sinaia", name: "Dimitrie Ghica Park", category: "Nature", detail: "Central public garden" },
+  { id: "stana-regala", destinationId: "sinaia", name: "Stâna Regală", category: "Nature", detail: "Mountain viewpoint reached by forest trails" },
+  { id: "cota-2000", destinationId: "sinaia", name: "Cota 2000", category: "Nature", detail: "High-elevation Bucegi mountain area" },
+
+  { id: "alba-carolina-citadel", destinationId: "alba-iulia", name: "Alba Carolina Citadel", category: "Landmarks", detail: "Star-shaped eighteenth-century fortification" },
+  { id: "third-gate-alba-iulia", destinationId: "alba-iulia", name: "Third Gate of the Citadel", category: "Landmarks", detail: "Baroque ceremonial entrance" },
+  { id: "st-michaels-alba-iulia", destinationId: "alba-iulia", name: "St. Michael's Cathedral", category: "Landmarks", detail: "Roman Catholic cathedral inside the citadel" },
+  { id: "coronation-cathedral", destinationId: "alba-iulia", name: "Coronation Cathedral", category: "Landmarks", detail: "Orthodox cathedral beside the citadel square" },
+  { id: "national-museum-union", destinationId: "alba-iulia", name: "National Museum of the Union", category: "Museums", detail: "Museum of regional and national history" },
+  { id: "principia-museum", destinationId: "alba-iulia", name: "Principia Museum", category: "Museums", detail: "Roman archaeological remains inside the citadel" },
+
+  { id: "sulina-beach", destinationId: "danube-delta", name: "Sulina Beach", category: "Beaches", detail: "Black Sea beach near the Danube's mouth" },
+  { id: "sulina-old-lighthouse", destinationId: "danube-delta", name: "Sulina Old Lighthouse", category: "Landmarks", detail: "Historic lighthouse in Sulina" },
+  { id: "letea-forest", destinationId: "danube-delta", name: "Letea Forest", category: "Nature", detail: "Protected dune and oak forest" },
+  { id: "caraorman-forest", destinationId: "danube-delta", name: "Caraorman Forest", category: "Nature", detail: "Protected woodland on sandy delta ridges" },
+  { id: "mila-23", destinationId: "danube-delta", name: "Mila 23", category: "Neighborhoods", detail: "Fishing village reached by water" },
+  { id: "sfantu-gheorghe-delta", destinationId: "danube-delta", name: "Sfântu Gheorghe Beach", category: "Beaches", detail: "Wild beach by the southern Danube branch" },
+];

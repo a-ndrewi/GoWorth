@@ -15,6 +15,7 @@ import {
   type Place, type PlaceCategory,
 } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
+import { normalizeSearchText } from "@/utils/search";
 
 const categories = ["City", "Beach", "Nature", "Culture", "Mountains", "Food"];
 const placeIcons: Record<PlaceCategory, IconName> = {
@@ -64,7 +65,7 @@ export function HomeScreen() {
   const [category, setCategory] = useState("");
   const [visibleCount, setVisibleCount] = useState(10);
   const filtered = destinations.filter((destination) =>
-    `${destination.name} ${destination.country}`.toLowerCase().includes(query.trim().toLowerCase()) &&
+    normalizeSearchText(`${destination.name} ${destination.country}`).includes(normalizeSearchText(query.trim())) &&
     (!category || destination.tags.some((tag) => tag === category)),
   );
   const recommendations = destinations.filter((destination) =>
@@ -188,6 +189,7 @@ export function TripDetailsScreen() {
           <Heading style={{ fontSize: 20 }}>{nearby.length} places to explore</Heading>
           {nearby.slice(0, 4).map((place) => <PlaceRow key={place.id} place={place} saved={savedPlaces.includes(place.id)} onSave={() => togglePlace(place.id)} onPress={() => router.push({ pathname: "/explore", params: { id: destination.id, place: place.id } } as Href)} />)}
           <Button secondary onPress={() => router.push({ pathname: "/explore", params: { id: destination.id } } as Href)}>View all places</Button>
+          <Button secondary icon="map" onPress={openMap}>More nearby on map</Button>
         </>}
         {tab === "Tips" && <TipsPanel
           destination={destination}
@@ -274,7 +276,7 @@ export function ExploreScreen() {
   const filters = ["All", ...new Set(localPlaces.map((place) => place.category))];
   const filtered = localPlaces.filter((place) =>
     (filter === "All" || place.category === filter) &&
-    `${place.name} ${place.detail} ${place.category}`.toLowerCase().includes(query.trim().toLowerCase()),
+    normalizeSearchText(`${place.name} ${place.detail} ${place.category}`).includes(normalizeSearchText(query.trim())),
   );
   const canAdd = !!trip && trip.destinationId === destination.id;
   const openMap = (place: Place) => {
@@ -296,6 +298,7 @@ export function ExploreScreen() {
         {filtered.map((place) => <PlaceRow key={place.id} place={place} saved={savedPlaces.includes(place.id)} onSave={() => togglePlace(place.id)} onPress={() => { setSelected(place); setSelectedDay(1); setAddedDays([]); setNotice(""); }} />)}
       </View>
       {!filtered.length && <EmptyState title="No places found" detail="Try another name or category." action="Reset search" onPress={() => { setQuery(""); setFilter("All"); }} />}
+      <Button secondary icon="map" onPress={() => router.push({ pathname: "/map", params: { destination: destination.id } } as Href)}>More nearby on map</Button>
       <Sheet visible={choosingDestination} title="Choose a destination" onClose={() => setChoosingDestination(false)}>
         {destinations.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Explore places in ${item.name}`} onPress={() => { setChosenDestinationId(item.id); setFilter("All"); setQuery(""); setChoosingDestination(false); }} style={[s.row, { paddingVertical: 8 }]}>
           <DestinationPhoto destination={item} style={{ width: 56, height: 48, borderRadius: 6 }} />
