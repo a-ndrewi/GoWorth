@@ -33,7 +33,7 @@ export function discoveryDeck(center: Coordinates | null, radiusKm: number, regi
   const localPlaces = new Map<string, Place[]>();
   for (const place of places) {
     const current = localPlaces.get(place.destinationId) ?? [];
-    if (current.length < 2) localPlaces.set(place.destinationId, [...current, place]);
+    if (current.length < 6) localPlaces.set(place.destinationId, [...current, place]);
   }
 
   const deck: DiscoveryItem[] = [];
@@ -42,7 +42,7 @@ export function discoveryDeck(center: Coordinates | null, radiusKm: number, regi
     for (const { destination, distanceKm: distance } of group) {
       deck.push({ key: `destination:${destination.id}`, kind: "destination", destination, distanceKm: distance });
     }
-    for (let placeIndex = 0; placeIndex < 2; placeIndex++) {
+    for (let placeIndex = 0; placeIndex < 6; placeIndex++) {
       for (const { destination, distanceKm: distance } of group) {
         const place = localPlaces.get(destination.id)?.[placeIndex];
         if (place) deck.push({ key: `place:${place.id}`, kind: "place", destination, place, distanceKm: distance });

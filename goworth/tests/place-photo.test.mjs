@@ -40,3 +40,22 @@ test("place photos reject unrelated files and retain Commons attribution", async
     globalThis.fetch = originalFetch;
   }
 });
+
+test("failed image URLs can be skipped without losing a verified alternative", async () => {
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => {
+    requests++;
+    return { ok: true, json: async () => ({ query: { pages: {
+      1: { index: 1, title: "File:Old Bridge Testport A.jpg", imageinfo: [{ thumburl: "https://thumb.wikimedia.org/a.jpg", descriptionurl: "https://commons.wikimedia.org/wiki/File:Old_Bridge_Testport_A.jpg", mime: "image/jpeg", extmetadata: { LicenseShortName: { value: "CC0" } } }] },
+      2: { index: 2, title: "File:Old Bridge Testport B.jpg", imageinfo: [{ thumburl: "https://thumb.wikimedia.org/b.jpg", descriptionurl: "https://commons.wikimedia.org/wiki/File:Old_Bridge_Testport_B.jpg", mime: "image/jpeg", extmetadata: { LicenseShortName: { value: "CC0" } } }] },
+    } } }) };
+  };
+  try {
+    const first = await findPlacePhoto("Old Bridge", "Testport");
+    const next = await findPlacePhoto("Old Bridge", "Testport", undefined, undefined, undefined, [first.url]);
+    assert.equal(first.url, "https://thumb.wikimedia.org/a.jpg");
+    assert.equal(next.url, "https://thumb.wikimedia.org/b.jpg");
+    assert.equal(requests, 1);
+  } finally { globalThis.fetch = originalFetch; }
+});

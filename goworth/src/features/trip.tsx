@@ -38,6 +38,7 @@ import {
   type RouteStop,
 } from "@/data/travel";
 import { searchTripCities, searchTripCountries, type TripCountry } from "@/data/trip-geography";
+import { countryFlag, usStates } from "@/data/geography";
 import { routeStop, routeStopForDay, routeTitle, uniqueRouteStops } from "@/data/trip-route";
 import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
@@ -65,11 +66,9 @@ export function PlannerScreen() {
   const [selecting, setSelecting] = useState(false);
   const [country, setCountry] = useState<TripCountry | null>(null);
   const [countryQuery, setCountryQuery] = useState("");
-  const [countryResults, setCountryResults] = useState<TripCountry[]>([]);
+  const [stateCode, setStateCode] = useState<string | null>(null);
   const [cityQuery, setCityQuery] = useState("");
-  const [cityResults, setCityResults] = useState<RouteStop[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState("");
+  const [listLimit, setListLimit] = useState(40);
   const [dateField, setDateField] = useState<"start" | "end" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -87,35 +86,21 @@ export function PlannerScreen() {
     ? new Date(Date.parse(draft.start) + 13 * 86_400_000).toISOString().slice(0, 10)
     : undefined;
   const openDestinationSelector = (day: number | null) => {
-    const current = routeStop(draft, day === null ? draft.destinationId : draft.dayDestinations?.[day] || draft.destinationId);
-    setCountry(current.countryCode ? { name: current.country, code: current.countryCode } : null);
-    setCountryQuery(current.country);
-    setCountryResults([]);
+    setCountry(null);
+    setCountryQuery("");
+    setStateCode(null);
     setCityQuery("");
-    setCityResults([]);
-    setSearchError("");
+    setListLimit(40);
     setSelectingDay(day);
     setSelecting(true);
   };
-  const findCountries = async () => {
-    setSearching(true); setSearchError("");
-    try {
-      const results = await searchTripCountries(countryQuery);
-      setCountryResults(results);
-      if (!results.length) setSearchError("No countries found. Try another name.");
-    } catch (caught) { setSearchError(caught instanceof Error ? caught.message : "Country search failed."); }
-    finally { setSearching(false); }
-  };
-  const findCities = async () => {
-    if (!country) return;
-    setSearching(true); setSearchError("");
-    try {
-      const results = await searchTripCities(cityQuery, country);
-      setCityResults(results);
-      if (!results.length) setSearchError("No cities found in this country. Try another name.");
-    } catch (caught) { setSearchError(caught instanceof Error ? caught.message : "City search failed."); }
-    finally { setSearching(false); }
-  };
+  const countryResults = !country ? searchTripCountries(countryQuery, listLimit + 1) : [];
+  const stateResults = country?.code === "US" && !stateCode
+    ? usStates.filter((state) => state.name.toLocaleLowerCase().includes(cityQuery.trim().toLocaleLowerCase())).slice(0, listLimit + 1)
+    : [];
+  const cityResults = country && (country.code !== "US" || stateCode)
+    ? searchTripCities(cityQuery, country, listLimit + 1, stateCode ?? undefined)
+    : [];
   const chooseStop = (stop: RouteStop) => {
     const count = draft.start && draft.end ? tripDays(draft.start, draft.end) : 0;
     const oldStart = draft.destinationId;
@@ -281,18 +266,28 @@ export function PlannerScreen() {
       </Button>
       <Sheet
         visible={selecting}
-        title={selectingDay === null ? "Starting city" : formatMessage("City for day {day}", { day: selectingDay + 1 }, language)}
+        title={!country ? translate("Country", language) : country.code === "US" && !stateCode ? translate("State", language) : selectingDay === null ? translate("Starting city", language) : formatMessage("City for day {day}", { day: selectingDay + 1 }, language)}
         onClose={() => { setSelecting(false); setSelectingDay(null); }}
       >
-        <Field label="Country" placeholder="Search a country" value={countryQuery} onChangeText={(value) => { setCountryQuery(value); setCountry(null); setCountryResults([]); setCityResults([]); }} />
-        {!country && <Button secondary busy={searching} disabled={countryQuery.trim().length < 2} onPress={() => void findCountries()}>Search countries</Button>}
-        {!country && countryResults.map((item) => <Pressable key={item.code} accessibilityRole="button" onPress={() => { setCountry(item); setCountryQuery(item.name); setCountryResults([]); setSearchError(""); }} style={[s.row, { paddingVertical: 10, gap: 10 }]}><Icon name="globe" color={p.blue} /><Copy style={{ flex: 1 }}>{item.name}</Copy><Icon name="right" color={p.muted} /></Pressable>)}
-        {country && <>
-          <Field label={formatMessage("City in {country}", { country: translate(country.name, language) }, language)} placeholder="Search a city or town" value={cityQuery} onChangeText={(value) => { setCityQuery(value); setCityResults([]); }} />
-          <Button secondary busy={searching} disabled={cityQuery.trim().length < 2} onPress={() => void findCities()}>Search cities</Button>
-          {cityResults.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={formatMessage("Choose {city}, {country}", { city: item.name, country: translate(item.country, language) }, language)} onPress={() => chooseStop(item)} style={[s.row, { paddingVertical: 10, gap: 10 }]}><Icon name="pin" color={p.green} /><View style={{ flex: 1 }}><Copy style={{ fontWeight: "600" }}>{item.name}</Copy><Copy muted style={{ fontSize: 12 }}>{item.country}</Copy></View><Icon name="right" color={p.muted} /></Pressable>)}
+        {country && <Button secondary icon="back" onPress={() => { if (stateCode) { setStateCode(null); setCityQuery(""); } else { setCountry(null); setCountryQuery(""); } setListLimit(40); }}>{translate(stateCode ? "All states" : "All countries", language)}</Button>}
+        {!country && <>
+          <Field label="Country" placeholder="Search a country" value={countryQuery} onChangeText={(value) => { setCountryQuery(value); setListLimit(40); }} />
+          {countryResults.slice(0, listLimit).map((item) => <Pressable key={item.code} accessibilityRole="button" onPress={() => { setCountry(item); setStateCode(null); setCityQuery(""); setListLimit(40); }} style={[s.row, { paddingVertical: 10, gap: 10 }]}><Copy style={{ fontSize: 23 }}>{countryFlag(item.code)}</Copy><Copy style={{ flex: 1 }}>{translate(item.name, language)}</Copy><Icon name="right" color={p.muted} /></Pressable>)}
+          {!countryResults.length && <Copy muted>{translate("No countries found. Try another name.", language)}</Copy>}
+          {countryResults.length > listLimit && <Button secondary icon="plus" onPress={() => setListLimit((limit) => limit + 40)}>{translate("Show more countries", language)}</Button>}
         </>}
-        {!!searchError && <Copy style={s.error}>{searchError}</Copy>}
+        {country?.code === "US" && !stateCode && <>
+          <Field label="State" placeholder="Search states" value={cityQuery} onChangeText={(value) => { setCityQuery(value); setListLimit(40); }} />
+          {stateResults.slice(0, listLimit).map((state) => <Pressable key={state.code} accessibilityRole="button" onPress={() => { setStateCode(state.code); setCityQuery(""); setListLimit(40); }} style={[s.row, { paddingVertical: 10, gap: 10 }]}><Icon name="map" color={p.green} /><Copy style={{ flex: 1 }}>{state.name}</Copy><Copy muted>{state.cityCount}</Copy><Icon name="right" color={p.muted} /></Pressable>)}
+          {!stateResults.length && <Copy muted>{translate("No states found", language)}</Copy>}
+          {stateResults.length > listLimit && <Button secondary icon="plus" onPress={() => setListLimit((limit) => limit + 40)}>{translate("Show more states", language)}</Button>}
+        </>}
+        {country && (country.code !== "US" || stateCode) && <>
+          <Field label={formatMessage("City in {country}", { country: translate(country.name, language) }, language)} placeholder="Search a city or town" value={cityQuery} onChangeText={(value) => { setCityQuery(value); setListLimit(40); }} />
+          {cityResults.slice(0, listLimit).map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={formatMessage("Choose {city}, {country}", { city: item.name, country: translate(item.country, language) }, language)} onPress={() => chooseStop(item)} style={[s.row, { paddingVertical: 10, gap: 10 }]}><Icon name="pin" color={p.green} /><View style={{ flex: 1 }}><Copy style={{ fontWeight: "600" }}>{item.name}</Copy><Copy muted style={{ fontSize: 12 }}>{stateCode ? `${usStates.find((state) => state.code === stateCode)?.name}, ` : ""}{translate(item.country, language)}</Copy></View><Icon name="right" color={p.muted} /></Pressable>)}
+          {!cityResults.length && <Copy muted>{translate("No cities found in this country. Try another name.", language)}</Copy>}
+          {cityResults.length > listLimit && <Button secondary icon="plus" onPress={() => setListLimit((limit) => limit + 40)}>{translate("Show more cities", language)}</Button>}
+        </>}
       </Sheet>
       <CalendarPicker key={dateField ?? "closed"} visible={!!dateField} title={dateField === "end" ? "Return date" : "Departure date"}
         value={dateField ? draft[dateField] : ""} minDate={dateField === "end" ? draft.start || undefined : undefined}

@@ -11,6 +11,9 @@ import "@/global.css";
 
 const tabByPath: Record<string, string> = {
   "/home": "home",
+  "/country": "home",
+  "/city": "home",
+  "/place": "home",
   "/explore": "home",
   "/map": "map",
   "/planner": "planner",
@@ -75,6 +78,9 @@ function AppNavigator() {
             </Stack.Protected>
             <Stack.Protected guard={!!user}>
               <Stack.Screen name="home" />
+              <Stack.Screen name="country" />
+              <Stack.Screen name="city" />
+              <Stack.Screen name="place" />
               <Stack.Screen name="map" />
               <Stack.Screen name="trip" />
               <Stack.Screen name="explore" />

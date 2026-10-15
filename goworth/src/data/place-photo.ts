@@ -19,9 +19,10 @@ type CommonsPage = {
   }[];
 };
 
-const cache = new Map<string, Promise<PlacePhoto | null>>();
-const photoOwners = new Map<string, string>();
+const cache = new Map<string, { expiresAt: number; photos: Promise<PlacePhoto[]> }>();
+const broadCache = new Map<string, Promise<PlacePhoto[]>>();
 const stopWords = new Set(["the", "of", "de", "do", "da", "del", "di", "la", "le", "and", "at"]);
+const genericWords = new Set(["church", "museum", "market", "palace", "old", "town", "beach", "garden", "temple", "park", "national", "historic", "city", "center", "centre"]);
 const verifiedFiles: Record<string, string> = {
   "palace of the parliament|bucharest, romania": "File:Palace of the Parliament.jpg",
 };
@@ -55,11 +56,13 @@ function photoFromPage(page: CommonsPage, name: string, location: string, truste
   const title = page.title || "";
   const titleWords = tokens(title.replace(/^File:/, ""));
   const placeWords = tokens(name);
+  const distinctiveWords = placeWords.filter((word) => !genericWords.has(word));
   const titleCompact = normalize(title).replace(/ /g, "");
-  const matchesName = placeWords.length > 0 && placeWords.every((word) =>
-    titleWords.includes(word) || titleCompact.includes(word),
+  const description = normalize(metadata?.ImageDescription?.value || "");
+  const matchesName = placeWords.length > 0 && (distinctiveWords.length ? distinctiveWords : placeWords).every((word) =>
+    titleWords.includes(word) || titleCompact.includes(word) || description.includes(word),
   );
-  const genericName = placeWords.length < 2 || ["park", "museum", "market", "palace", "old", "town", "beach", "garden", "temple"].some((word) => placeWords.includes(word));
+  const genericName = distinctiveWords.length < 2 || placeWords.some((word) => genericWords.has(word));
   const locationWords = tokens(location);
   const searchContext = `${title} ${metadata?.ImageDescription?.value || ""} ${metadata?.Categories?.value || ""}`;
   const matchesLocation = locationWords.some((word) => normalize(searchContext).includes(word));
@@ -158,40 +161,37 @@ async function wikipediaPhoto(name: string, location: string, latitude?: number,
   return commons.length ? photoFromPage(commons[0], name, location, true) : null;
 }
 
-function claimPhoto(key: string, candidates: PlacePhoto[]) {
-  const photo = candidates.find((candidate) => {
-    const owner = photoOwners.get(candidate.url);
-    return !owner || owner === key;
-  });
-  if (photo) photoOwners.set(photo.url, key);
-  return photo || null;
-}
-
-export function findPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string): Promise<PlacePhoto | null> {
+export async function findPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string, excludedUrls: string[] = []): Promise<PlacePhoto | null> {
   const key = `${name}|${location}|${latitude ?? ""}|${longitude ?? ""}|${sourceUrl ?? ""}`.toLowerCase();
-  if (!cache.has(key)) {
-    const request = (async () => {
+  let entry = cache.get(key);
+  if (!entry || entry.expiresAt < Date.now()) {
+    const photos = (async () => {
       const linked = await wikipediaPhoto(name, location, latitude, longitude, sourceUrl).catch(() => null);
-      if (linked) {
-        const claimed = claimPhoto(key, [linked]);
-        if (claimed) return claimed;
-      }
       const verified = verifiedFiles[`${name}|${location}`.toLowerCase()];
+      let verifiedResult: PlacePhoto | null = null;
       if (verified) {
-        const photo = await verifiedPhoto(verified, name, location);
-        const claimed = photo ? claimPhoto(key, [photo]) : null;
-        if (claimed) return claimed;
+        verifiedResult = await verifiedPhoto(verified, name, location).catch(() => null);
       }
-      const specific = await searchCommons(`${name} ${location}`, name, location);
-      const claimedSpecific = claimPhoto(key, specific);
-      if (claimedSpecific) return claimedSpecific;
-      const broad = await searchCommons(name, name, location);
-      return claimPhoto(key, broad);
+      if (linked || verifiedResult) return [linked, verifiedResult].filter((photo): photo is PlacePhoto => !!photo);
+      return searchCommons(`${name} ${location}`, name, location);
     })().catch((error) => {
       cache.delete(key);
       throw error;
     });
-    cache.set(key, request);
+    const currentEntry = { photos, expiresAt: Date.now() + 5 * 60 * 1000 };
+    entry = currentEntry;
+    cache.set(key, currentEntry);
+    void photos.then((results) => {
+      if (cache.get(key) === currentEntry && results.length) currentEntry.expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+    }).catch(() => undefined);
   }
-  return cache.get(key)!;
+  const photos = await entry.photos;
+  const specific = photos.find((photo) => !excludedUrls.includes(photo.url));
+  if (specific) return specific;
+  let broad = broadCache.get(key);
+  if (!broad) {
+    broad = searchCommons(name, name, location).catch((error) => { broadCache.delete(key); throw error; });
+    broadCache.set(key, broad);
+  }
+  return (await broad).find((photo) => !excludedUrls.includes(photo.url)) ?? null;
 }

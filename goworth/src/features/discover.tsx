@@ -2,12 +2,12 @@ import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
 import { Linking, Pressable, Share, StyleSheet, TextInput, View } from "react-native";
 import {
-  Brand, Button, Chip, Copy, DestinationCard, DestinationPhoto, EmptyState,
+  Brand, Button, Chip, Copy, DestinationPhoto, EmptyState,
   Header, Heading, Icon, IconButton, Row, Screen, SectionTitle, Sheet, s,
   type IconName,
 } from "@/components/goworth/ui";
 import { PlacePreviewPhoto } from "@/components/goworth/place-preview";
-import { DiscoveryCommunity, DiscoverySwiper } from "@/components/goworth/discovery-swiper";
+import { DiscoverySwiper } from "@/components/goworth/discovery-swiper";
 import { palette as p } from "@/constants/design";
 import { tipsForDestination, type DestinationTip } from "@/data/tips";
 import {
@@ -16,13 +16,13 @@ import {
 } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
 import { normalizeSearchText } from "@/utils/search";
-import { searchCatalogPlace } from "@/data/map";
+import { destinationPins, searchCatalogPlace } from "@/data/map";
 import { destinationForDay } from "@/utils/trip";
 import { uniqueRouteStops } from "@/data/trip-route";
 import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
+import { countries, countryFlag } from "@/data/geography";
 
-const categories = ["City", "Beach", "Nature", "Culture", "Mountains", "Food"];
 const placeIcons: Record<PlaceCategory, IconName> = {
   Landmarks: "pin",
   Museums: "book",
@@ -67,18 +67,11 @@ function PlaceRow({ place, onPress, saved, onSave }: {
 
 export function HomeScreen() {
   const language = useAppLanguage();
-  const { trip, preferences } = useTravel();
+  const { trip } = useTravel();
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("");
-  const [visibleCount, setVisibleCount] = useState(10);
-  const filtered = destinations.filter((destination) =>
-    normalizeSearchText(`${destination.name} ${destination.country}`).includes(normalizeSearchText(query.trim())) &&
-    (!category || destination.tags.some((tag) => tag === category)),
-  );
-  const recommendations = destinations.filter((destination) =>
-    preferences.region === "Worldwide" || destination.region === preferences.region,
-  ).slice(0, 4);
-  const moreDestinations = destinations.filter((destination) => !recommendations.includes(destination));
+  const [visibleCount, setVisibleCount] = useState(24);
+  const filtered = countries.filter((country) =>
+    normalizeSearchText(`${country.name} ${translate(country.name, language)}`).includes(normalizeSearchText(query.trim())));
 
   return (
     <Screen active="home" style={{ gap: 18 }}>
@@ -90,58 +83,31 @@ export function HomeScreen() {
           onPress={() => router.push((trip ? "/itinerary" : "/planner") as Href)}
         />
       </Row>
-      <Heading style={{ fontSize: 24, lineHeight: 30 }}>Explore destinations</Heading>
+      <Heading style={{ fontSize: 24, lineHeight: 30 }}>{translate("Explore countries", language)}</Heading>
       <View style={styles.homeBrowse}>
         <Row style={styles.search}>
           <Icon name="search" color={p.muted} size={19} />
           <TextInput
-            accessibilityLabel={translate("Search destinations", language)}
-            placeholder={translate("Where do you want to go?", language)}
+            accessibilityLabel={translate("Search countries", language)}
+            placeholder={translate("Search countries", language)}
             placeholderTextColor={p.muted}
             value={query}
-            onChangeText={setQuery}
+            onChangeText={(value) => { setQuery(value); setVisibleCount(24); }}
             style={{ flex: 1, minWidth: 0, fontSize: 14, color: p.ink, height: 44 }}
           />
         </Row>
-        {!!query.trim() && <Button secondary icon="map" onPress={() => router.push({ pathname: "/map", params: { q: query.trim() } } as Href)}>Search the world map</Button>}
-        <View style={[s.grid, { gap: 7 }]}>
-          {categories.map((item) => (
-            <Chip
-              key={item}
-              selected={category === item}
-              onPress={() => setCategory(category === item ? "" : item)}
-            >
-              {item}
-            </Chip>
-          ))}
-        </View>
       </View>
-      {!query && !category && <DiscoverySwiper />}
-      {!query && !category && (
-        <>
-          <DiscoveryCommunity />
-          <SectionTitle title={preferences.region === "Worldwide" ? "Popular destinations" : formatMessage("Explore {region}", { region: translate(preferences.region, language) }, language)} />
-          <View style={s.grid}>
-            {recommendations.map((destination) => <DestinationCard key={destination.id} destination={destination} />)}
-          </View>
-          <SectionTitle title="More destinations" action="View map" onPress={() => router.push("/map" as Href)} />
-          <View style={s.grid}>
-            {moreDestinations.slice(0, visibleCount).map((destination) => (
-              <DestinationCard key={destination.id} destination={destination} />
-            ))}
-          </View>
-          {visibleCount < moreDestinations.length && <Button secondary icon="plus" onPress={() => setVisibleCount((count) => count + 10)}>Show more destinations</Button>}
-        </>
-      )}
-      {(!!query || !!category) && (
-        <>
-          <SectionTitle title="Destinations" action="Clear" onPress={() => { setQuery(""); setCategory(""); }} />
-          <View style={s.grid}>
-            {filtered.map((destination) => <DestinationCard key={destination.id} destination={destination} />)}
-          </View>
-          {!filtered.length && <EmptyState title="No destinations found" detail="Try another search or category." action="Clear filters" onPress={() => { setQuery(""); setCategory(""); }} />}
-        </>
-      )}
+      {!query && <DiscoverySwiper />}
+      <SectionTitle title={translate("Countries", language)} action={translate("View map", language)} onPress={() => router.push("/map" as Href)} />
+      <View style={{ gap: 9 }}>
+        {filtered.slice(0, visibleCount).map((country) => <Pressable key={country.code} accessibilityRole="button" accessibilityLabel={`Explore ${country.name}`} onPress={() => router.push({ pathname: "/country", params: { code: country.code } } as Href)} style={[s.row, { minHeight: 74, gap: 13, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: p.line, borderRadius: 6, backgroundColor: p.white }]}>
+          <View style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center", backgroundColor: p.greenSoft, borderRadius: 5 }}><Copy style={{ fontSize: 31, lineHeight: 39 }}>{countryFlag(country.code)}</Copy></View>
+          <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontSize: 16, fontWeight: "700" }}>{translate(country.name, language)}</Copy><Copy muted style={{ fontSize: 12 }}>{country.cityCount.toLocaleString(language === "ro" ? "ro-RO" : "en-US")} {language === "ro" ? "orașe" : "cities"}</Copy></View>
+          <Icon name="right" color={p.muted} size={18} />
+        </Pressable>)}
+      </View>
+      {!filtered.length && <EmptyState title={translate("No countries found", language)} detail={translate("Try another country name.", language)} action={translate("Clear search", language)} onPress={() => setQuery("")} />}
+      {visibleCount < filtered.length && <Button secondary icon="plus" onPress={() => setVisibleCount((count) => count + 24)}>{translate("Show more countries", language)}</Button>}
     </Screen>
   );
 }
@@ -334,7 +300,7 @@ export function ExploreScreen() {
       </Sheet>
       <Sheet visible={!!selected} title={selected?.name || ""} onClose={() => setSelected(null)}>
         {selected && <>
-          <PlacePreviewPhoto name={selected.name} location={`${destination.name}, ${destination.country}`} />
+          <PlacePreviewPhoto name={selected.name} location={`${destination.name}, ${destination.country}`} latitude={destinationPins.find((pin) => pin.id === destination.id)?.latitude} longitude={destinationPins.find((pin) => pin.id === destination.id)?.longitude} />
           <View style={{ gap: 5 }}>
             <Copy muted>{selected.category} · {destination.name}, {destination.country}</Copy>
             <Copy>{selected.detail}</Copy>

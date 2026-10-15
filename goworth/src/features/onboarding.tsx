@@ -30,6 +30,7 @@ import {
 } from "@/components/goworth/ui";
 import { palette as p, photos } from "@/constants/design";
 import { destinations, interests, money } from "@/data/travel";
+import { cityForGlobalId, countryForCode, searchCities } from "@/data/geography";
 import { useTravel } from "@/state/travel-context";
 import { useAuth } from "@/state/auth-context";
 import { supabase } from "@/lib/supabase";
@@ -344,7 +345,10 @@ export function PreferencesScreen() {
   const [error, setError] = useState("");
   const [choosingCenter, setChoosingCenter] = useState(false);
   const [cityQuery, setCityQuery] = useState("");
-  const center = destinations.find((item) => item.id === discoverySettings.centerId);
+  const selectedCity = cityForGlobalId(discoverySettings.centerId);
+  const center = selectedCity
+    ? { id: selectedCity.id, name: selectedCity.name, country: countryForCode(selectedCity.countryCode)?.name ?? selectedCity.countryCode }
+    : destinations.find((item) => item.id === discoverySettings.centerId);
   const toggle = (interest: string) =>
     setPreferences({
       ...preferences,
@@ -472,9 +476,9 @@ export function PreferencesScreen() {
           <Copy style={{ flex: 1, fontWeight: "600" }}>My current location</Copy>
           {!center && <Copy style={{ color: p.blue }}>Selected</Copy>}
         </Pressable>
-        {destinations.filter((item) => `${item.name} ${item.country}`.toLowerCase().includes(cityQuery.trim().toLowerCase())).map((item) => (
+        {searchCities(cityQuery).map((item) => (
           <Pressable key={item.id} accessibilityRole="button" onPress={() => { setDiscoverySettings({ ...discoverySettings, centerId: item.id }); setChoosingCenter(false); setCityQuery(""); }} style={[s.row, { paddingVertical: 10, gap: 10, borderTopWidth: 1, borderColor: p.line }]}>
-            <Copy style={{ flex: 1 }}>{item.name}, {item.country}</Copy>
+            <Copy style={{ flex: 1 }}>{item.name}, {countryForCode(item.countryCode)?.name ?? item.countryCode}</Copy>
             {center?.id === item.id && <Copy style={{ color: p.blue }}>Selected</Copy>}
           </Pressable>
         ))}

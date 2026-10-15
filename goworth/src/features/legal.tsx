@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
-import { Platform, Pressable, Share, View } from "react-native";
+import { Linking, Platform, Pressable, Share, View } from "react-native";
 import { Button, Copy, Field, Header, Heading, Icon, Screen, Sheet, s, type IconName } from "@/components/goworth/ui";
 import { palette as p } from "@/constants/design";
 import { legalDocuments, legalIdentity, type LegalDocumentId } from "@/data/legal";
@@ -107,12 +107,26 @@ export function LegalScreen() {
 
 export function LegalDocumentScreen() {
   const language = useAppLanguage();
-  const { type } = useLocalSearchParams<{ type?: string }>();
+  const { type, photoName, photoArtist, photoLicense, photoPageUrl, photoLicenseUrl } = useLocalSearchParams<{ type?: string; photoName?: string; photoArtist?: string; photoLicense?: string; photoPageUrl?: string; photoLicenseUrl?: string }>();
   const id = type && Object.prototype.hasOwnProperty.call(legalDocuments, type) ? type as LegalDocumentId : "privacy";
   const document = (language === "ro" ? legalDocumentsRo : legalDocuments)[id];
+  const validPhotoSource = photoPageUrl?.startsWith("https://commons.wikimedia.org/wiki/File:");
+  const validLicenseUrl = photoLicenseUrl?.startsWith("https://creativecommons.org/licenses/") || photoLicenseUrl?.startsWith("https://creativecommons.org/publicdomain/") || photoLicenseUrl === photoPageUrl;
   return <Screen style={{ gap: 20 }}>
     <Header title={document.title} />
     <Copy style={{ color: p.danger, fontSize: 12, fontWeight: "600" }}>{document.updated} · Operator details pending</Copy>
+    {id === "credits" && validPhotoSource && <View style={{ gap: 8 }}>
+      <Heading style={{ fontSize: 18, lineHeight: 24 }}>{photoName}</Heading>
+      <Copy>{photoArtist} · {photoLicense}</Copy>
+      <Button secondary icon="globe" onPress={() => { if (photoPageUrl) void Linking.openURL(photoPageUrl); }}>{translate("Photo source", language)}</Button>
+      {validLicenseUrl && photoLicenseUrl !== photoPageUrl && <Button secondary icon="book" onPress={() => { if (photoLicenseUrl) void Linking.openURL(photoLicenseUrl); }}>{translate("Photo license", language)}</Button>}
+    </View>}
+    {id === "credits" && <View style={{ gap: 8 }}>
+      <Button secondary icon="globe" onPress={() => void Linking.openURL("https://www.geonames.org/")}>GeoNames</Button>
+      <Button secondary icon="book" onPress={() => void Linking.openURL("https://creativecommons.org/licenses/by/4.0/")}>CC BY 4.0</Button>
+      <Button secondary icon="map" onPress={() => void Linking.openURL("https://www.openstreetmap.org/copyright")}>OpenStreetMap</Button>
+      <Button secondary icon="camera" onPress={() => void Linking.openURL("https://commons.wikimedia.org/wiki/Commons:Reusing_content_outside_Wikimedia")}>Wikimedia Commons</Button>
+    </View>}
     {document.sections.map((section) => <View key={section.title} style={{ gap: 7 }}>
       <Heading style={{ fontSize: 18, lineHeight: 24 }}>{section.title}</Heading>
       <Copy style={{ lineHeight: 23 }}>{section.body}</Copy>

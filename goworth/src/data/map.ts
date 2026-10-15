@@ -1,8 +1,11 @@
 import { destinationCatalog } from "@/data/catalog";
 import type { Place } from "@/data/travel";
 import { normalizeSearchText } from "@/utils/search";
+import { countryForCode, representativeCities, usStates } from "@/data/geography";
+import { usStateCenters } from "@/data/us-state-centers";
+import { isExplorePlace, photonBoundingBoxes, photonSearchCategories, searchWikipediaPlaces } from "@/data/nearby-places";
 
-export type MapPin = { id: string; name: string; latitude: number; longitude: number; kind?: "destination" | "place" | "search" };
+export type MapPin = { id: string; name: string; latitude: number; longitude: number; kind?: "destination" | "city" | "state" | "place" | "search"; countryCode?: string; stateCode?: string };
 
 const coordinates: Record<(typeof destinationCatalog)[number]["id"], [number, number]> = {
   positano: [40.6281, 14.4845],
@@ -79,11 +82,30 @@ export const destinationPins: MapPin[] = destinationCatalog.map((destination) =>
   kind: "destination",
 }));
 
-export type SearchResult = MapPin & { detail: string; category: string; kind: "place" | "search"; sourceUrl: string };
+export const worldCityPins: MapPin[] = representativeCities().map((city) => ({
+  id: city.id, name: `${city.name}, ${countryForCode(city.countryCode)?.name ?? city.countryCode}`,
+  latitude: city.latitude, longitude: city.longitude, kind: "city", countryCode: city.countryCode,
+}));
+
+export const usStatePins: MapPin[] = usStates.map((state) => ({
+  id: `us-state:${state.code}`,
+  name: `${state.name}, United States`,
+  latitude: usStateCenters[state.code][0],
+  longitude: usStateCenters[state.code][1],
+  kind: "state",
+  countryCode: "US",
+  stateCode: state.code,
+}));
+
+export type SearchResult = MapPin & { detail: string; category: string; kind: "place" | "search"; sourceUrl: string; source?: "OpenStreetMap" | "Wikipedia" };
 const cache = new Map<string, SearchResult[]>();
 let nextRequestAt = 0;
 
-type SearchArea = { center: MapPin; radiusKm: number };
+type SearchArea = { center: MapPin; radiusKm: number; placesOnly?: boolean };
+type PhotonSearchFeature = {
+  geometry?: { coordinates?: [number, number] };
+  properties?: { osm_type?: string; osm_id?: number; osm_key?: string; name?: string; city?: string; state?: string; country?: string; type?: string; osm_value?: string };
+};
 
 export function distanceKm(a: Pick<MapPin, "latitude" | "longitude">, b: Pick<MapPin, "latitude" | "longitude">) {
   const radians = (degrees: number) => degrees * Math.PI / 180;
@@ -93,45 +115,58 @@ export function distanceKm(a: Pick<MapPin, "latitude" | "longitude">, b: Pick<Ma
   return 12742 * Math.asin(Math.sqrt(value));
 }
 
+export function parsePhotonSearchResults(features: PhotonSearchFeature[], area?: SearchArea): SearchResult[] {
+  const osmTypes: Record<string, string> = { N: "node", W: "way", R: "relation" };
+  const seen = new Set<string>();
+  return features.flatMap((feature) => {
+    const properties = feature.properties;
+    const [longitude, latitude] = feature.geometry?.coordinates ?? [];
+    const osmType = properties?.osm_type ? osmTypes[properties.osm_type] : undefined;
+    if (area?.placesOnly && !isExplorePlace(properties)) return [];
+    if (!properties?.name?.trim() || !osmType || typeof properties.osm_id !== "number" || !Number.isInteger(properties.osm_id) ||
+      latitude === undefined || longitude === undefined || !Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return [];
+    if (area && distanceKm(area.center, { latitude, longitude }) > area.radiusKm * 1.45) return [];
+    const id = `osm:${osmType}:${properties.osm_id}`;
+    const detail = [properties.name, properties.city !== properties.name ? properties.city : "", properties.state, properties.country].filter(Boolean).join(", ");
+    if (seen.has(id)) return [];
+    seen.add(id);
+    return [{ id, name: properties.name, detail, category: (properties.type || properties.osm_value || "Location").replace(/_/g, " "),
+      kind: "search" as const, latitude, longitude, sourceUrl: `https://www.openstreetmap.org/${osmType}/${properties.osm_id}` }];
+  });
+}
+
 export async function searchMap(query: string, area?: SearchArea): Promise<SearchResult[]> {
-  const key = `${query.trim().toLowerCase()}|${area?.center.id ?? "world"}|${area?.radiusKm ?? 0}`;
+  const key = `${query.trim().toLowerCase()}|${area?.center.id ?? "world"}|${area?.radiusKm ?? 0}|${area?.placesOnly ? "places" : "all"}`;
   if (cache.has(key)) return cache.get(key)!;
 
+  if (!area?.placesOnly && query.trim().length >= 3) {
+    const center = area?.center ?? { latitude: 0, longitude: 0 };
+    const matches = await searchWikipediaPlaces(query, center, area?.radiusKm ?? 20040, !area).catch(() => []);
+    if (matches.length) {
+      const results: SearchResult[] = matches.map((item) => ({ ...item, kind: "search" }));
+      cache.set(key, results);
+      return results;
+    }
+  }
+
   const wait = Math.max(0, nextRequestAt - Date.now());
-  nextRequestAt = Date.now() + wait + 1100;
+  nextRequestAt = Date.now() + wait + 1000;
   if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
   try {
-    const params = new URLSearchParams({ q: query.trim(), format: "jsonv2", limit: "5", addressdetails: "1" });
+    const params = new URLSearchParams({ q: query.trim(), limit: area?.placesOnly ? "30" : "10" });
+    if (area?.placesOnly) params.set("include", photonSearchCategories.join(","));
     if (area) {
-      const latDelta = area.radiusKm / 111;
-      const lonDelta = area.radiusKm / (111 * Math.max(0.2, Math.cos(area.center.latitude * Math.PI / 180)));
-      params.set("viewbox", [
-        area.center.longitude - lonDelta, area.center.latitude + latDelta,
-        area.center.longitude + lonDelta, area.center.latitude - latDelta,
-      ].join(","));
-      params.set("bounded", "1");
+      params.set("lat", String(area.center.latitude));
+      params.set("lon", String(area.center.longitude));
+      params.set("bbox", photonBoundingBoxes(area.center, area.radiusKm)[0].join(","));
     }
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
+    const response = await fetch(`https://photon.komoot.io/api/?${params}`, { signal: controller.signal });
     if (!response.ok) throw new Error("Map search is unavailable right now. Please try again later.");
-    const data: { place_id: number; osm_type?: string; osm_id?: number; display_name: string; lat: string; lon: string; type?: string }[] = await response.json();
-    const results = data.map((item) => ({
-      id: item.osm_type && item.osm_id ? `osm:${item.osm_type}:${item.osm_id}` : `nominatim:${item.place_id}`,
-      name: item.display_name.split(",")[0],
-      detail: item.display_name,
-      category: item.type ? item.type.replace(/_/g, " ") : "Location",
-      kind: "search" as const,
-      latitude: Number(item.lat),
-      longitude: Number(item.lon),
-      sourceUrl: item.osm_type && item.osm_id
-        ? `https://www.openstreetmap.org/${item.osm_type}/${item.osm_id}`
-        : `https://www.openstreetmap.org/?mlat=${item.lat}&mlon=${item.lon}`,
-    })).filter((item) => !area || distanceKm(area.center, item) <= area.radiusKm * 1.45);
+    const data: { features?: PhotonSearchFeature[] } = await response.json();
+    const results = parsePhotonSearchResults(data.features ?? [], area);
     const seen = new Set<string>();
     const uniqueResults = results.filter((item) => {
       const label = normalizeSearchText(item.detail);

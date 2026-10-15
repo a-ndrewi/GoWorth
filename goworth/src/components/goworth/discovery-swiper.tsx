@@ -3,13 +3,15 @@ import { Image } from "expo-image";
 import * as Location from "expo-location";
 import { router, type Href } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Animated, Linking, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Copy, DestinationPhoto, Heading, Icon, IconButton, Row } from "@/components/goworth/ui";
 import { palette as p } from "@/constants/design";
 import { discoveryDeck, type Coordinates, type DiscoveryItem } from "@/data/discovery";
 import { destinations, places } from "@/data/travel";
 import { destinationPins } from "@/data/map";
+import { cityForGlobalId, countryForCode } from "@/data/geography";
+import { loadNearbyPlaces, type NearbyPlace } from "@/data/nearby-places";
 import { findPlacePhoto, type PlacePhoto } from "@/data/place-photo";
 import { loadRecentDiscoveries, type RecentDiscovery } from "@/lib/travel-repository";
 import { useTravel } from "@/state/travel-context";
@@ -17,6 +19,7 @@ import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
 
 const BATCH_SIZE = 6;
+type SwipeItem = DiscoveryItem | { key: string; kind: "nearby"; place: NearbyPlace; location: string; distanceKm?: number };
 
 function Radar({ title, detail }: { title: string; detail: string }) {
   const [pulse] = useState(() => new Animated.Value(0));
@@ -39,8 +42,8 @@ function Radar({ title, detail }: { title: string; detail: string }) {
 }
 
 function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
-  item: DiscoveryItem;
-  nextItem?: DiscoveryItem;
+  item: SwipeItem;
+  nextItem?: SwipeItem;
   onChoice: (choice: "skip" | "favorite") => void;
   onRefresh: () => void;
 }) {
@@ -50,25 +53,30 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
   const [position] = useState(() => new Animated.ValueXY());
   const [moving, setMoving] = useState(false);
   const [placePhoto, setPlacePhoto] = useState<PlacePhoto | null>(null);
-  const [imageFailed, setImageFailed] = useState(false);
-  const placeName = item.place?.name;
-  const photoLocation = `${item.destination.name}, ${item.destination.country}`;
+  const [failedUrls, setFailedUrls] = useState<string[]>([]);
+  const destination = item.kind === "nearby" ? null : item.destination;
+  const placeName = item.kind === "nearby" ? item.place.name : item.place?.name;
+  const photoLocation = item.kind === "nearby" ? item.location : `${item.destination.name}, ${item.destination.country}`;
+  const livePlace = item.kind === "nearby" ? item.place : null;
+  const destinationPin = destination ? destinationPins.find((pin) => pin.id === destination.id) : null;
   useEffect(() => {
     if (!placeName) return;
     let active = true;
-    findPlacePhoto(placeName, photoLocation).then((photo) => {
+    findPlacePhoto(placeName, photoLocation, livePlace?.latitude ?? destinationPin?.latitude, livePlace?.longitude ?? destinationPin?.longitude, livePlace?.sourceUrl, failedUrls).then((photo) => {
       if (active) setPlacePhoto(photo);
     }).catch(() => undefined);
     return () => { active = false; };
-  }, [placeName, photoLocation]);
+  }, [placeName, photoLocation, livePlace?.latitude, livePlace?.longitude, livePlace?.sourceUrl, destinationPin?.latitude, destinationPin?.longitude, failedUrls]);
   const swipe = (choice: "skip" | "favorite") => {
     if (moving) return;
     setMoving(true);
     Animated.timing(position, { toValue: { x: choice === "favorite" ? 480 : -480, y: 20 }, duration: 220, useNativeDriver: false }).start(() => onChoice(choice));
   };
-  const open = () => router.push(item.kind === "destination"
-    ? { pathname: "/trip", params: { id: item.destination.id } } as Href
-    : { pathname: "/explore", params: { id: item.destination.id, place: item.place!.id } } as Href);
+  const open = () => router.push(item.kind === "nearby"
+    ? { pathname: "/map", params: { q: `${item.place.name}, ${item.location}` } } as Href
+    : item.kind === "destination"
+      ? { pathname: "/trip", params: { id: item.destination.id } } as Href
+      : { pathname: "/explore", params: { id: item.destination.id, place: item.place!.id } } as Href);
   const gesture = Gesture.Pan()
       .activeOffsetX([-10, 10])
       .failOffsetY([-18, 18])
@@ -83,26 +91,26 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
   return <View style={{ gap: 15 }}>
     <View style={[styles.deckStage, { height: cardHeight + 10 }, nextItem && { marginRight: 10 }]}>
       {nextItem && <View pointerEvents="none" style={[styles.card, styles.peekCard, { height: cardHeight }]}>
-        <DestinationPhoto destination={nextItem.destination} style={StyleSheet.absoluteFill} />
+        {nextItem.kind !== "nearby" && <DestinationPhoto destination={nextItem.destination} style={StyleSheet.absoluteFill} />}
         <LinearGradient colors={["rgba(0,0,0,0.2)", "rgba(0,0,0,0.55)"]} style={StyleSheet.absoluteFill} />
       </View>}
       <GestureDetector gesture={gesture}>
-        <Animated.View style={[styles.card, { height: cardHeight, transform: [...position.getTranslateTransform(), { rotate: rotation }] }]}>
-          <DestinationPhoto destination={item.destination} style={StyleSheet.absoluteFill} />
-          {placePhoto && !imageFailed && <Image source={{ uri: placePhoto.url }} contentFit="cover" transition={250} accessibilityLabel={translateAccessibility(`Photo of ${placeName}`, language)} onError={() => setImageFailed(true)} style={StyleSheet.absoluteFill} />}
+        <Animated.View style={[styles.card, { height: cardHeight, backgroundColor: p.green, transform: [...position.getTranslateTransform(), { rotate: rotation }] }]}>
+          {destination && <DestinationPhoto destination={destination} style={StyleSheet.absoluteFill} />}
+          {placePhoto && !failedUrls.includes(placePhoto.url) && <Image source={{ uri: placePhoto.url }} contentFit="cover" transition={250} accessibilityLabel={translateAccessibility(`Photo of ${placeName}`, language)} onError={() => setFailedUrls((urls) => [...urls, placePhoto.url])} style={StyleSheet.absoluteFill} />}
           <LinearGradient colors={["rgba(0,0,0,0.14)", "rgba(0,0,0,0.06)", "rgba(0,0,0,0.82)"]} style={StyleSheet.absoluteFill} />
           <View style={styles.cardContent}>
             <View style={{ alignSelf: "flex-start", gap: 7 }}>
-              <View style={styles.typeBadge}><Icon name={item.kind === "place" ? "pin" : "city"} size={15} color={p.white} /><Copy style={styles.typeText}>{item.kind === "place" ? "PLACE" : "CITY"}</Copy></View>
-              {placePhoto && !imageFailed && <Pressable accessibilityRole="link" accessibilityLabel={translateAccessibility(`Photo source and license for ${placeName}`, language)} onPress={() => void Linking.openURL(placePhoto.pageUrl)} style={styles.photoCredit}>
-                <Text numberOfLines={2} style={styles.photoCreditText}>{translate("Photo: ", language)}{placePhoto.artist} · {placePhoto.license}</Text>
+              <View style={styles.typeBadge}><Icon name="pin" size={15} color={p.white} /><Copy style={styles.typeText}>PLACE</Copy></View>
+              {placePhoto && !failedUrls.includes(placePhoto.url) && <Pressable accessibilityRole="link" accessibilityLabel={translateAccessibility(`Photo source and license for ${placeName}`, language)} onPress={() => router.push({ pathname: "/legal-document", params: { type: "credits", photoName: placeName, photoArtist: placePhoto.artist, photoLicense: placePhoto.license, photoPageUrl: placePhoto.pageUrl, photoLicenseUrl: placePhoto.licenseUrl } } as Href)} style={styles.photoCredit}>
+                <Text numberOfLines={2} style={styles.photoCreditText}>{translate("Photo details", language)}</Text>
               </Pressable>}
             </View>
-            <IconButton name="right" label={`Explore ${item.place?.name ?? item.destination.name}`} onPress={open} filled style={{ position: "absolute", right: 12, top: 12, width: 38, height: 38, minWidth: 38, minHeight: 38 }} />
+            <IconButton name="right" label={`Explore ${placeName}`} onPress={open} filled style={{ position: "absolute", right: 12, top: 12, width: 38, height: 38, minWidth: 38, minHeight: 38 }} />
             <View style={{ gap: 7 }}>
-              <Heading style={styles.cardTitle}>{item.place?.name ?? item.destination.name}</Heading>
-              <Copy style={styles.cardMeta}>{item.place ? `${item.destination.name}, ${translate(item.destination.country, language)}` : translate(item.destination.country, language)}{item.distanceKm !== undefined ? formatMessage("  ·  ~{distance} km away", { distance: Math.round(item.distanceKm) }, language) : ""}</Copy>
-              <Copy style={styles.cardDetail}>{item.place?.detail ?? item.destination.description}</Copy>
+              <Heading style={styles.cardTitle}>{placeName}</Heading>
+              <Copy style={styles.cardMeta}>{item.kind === "nearby" ? item.location : `${item.destination.name}, ${translate(item.destination.country, language)}`}{item.distanceKm !== undefined ? formatMessage("  ·  ~{distance} km away", { distance: Math.round(item.distanceKm) }, language) : ""}</Copy>
+              <Copy style={styles.cardDetail}>{item.kind === "nearby" ? item.place.category : item.place?.detail ?? item.destination.description}</Copy>
             </View>
           </View>
         </Animated.View>
@@ -111,24 +119,36 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
     <Row style={{ justifyContent: "center", gap: 24 }}>
       <View style={styles.actionGroup}><IconButton name="close" label="Skip this suggestion" onPress={() => swipe("skip")} style={styles.actionButton} /><Copy muted style={styles.actionLabel}>Pass</Copy></View>
       <View style={styles.actionGroup}><IconButton name="refresh" label="Refresh suggestions" onPress={onRefresh} color={p.blue} style={[styles.actionButton, styles.refreshButton]} /><Copy muted style={styles.actionLabel}>Refresh</Copy></View>
-      <View style={styles.actionGroup}><IconButton name="heart" label={translateAccessibility(`Add ${item.place?.name ?? item.destination.name} to favorites`, language)} onPress={() => swipe("favorite")} color={p.pink} style={styles.actionButton} /><Copy muted style={styles.actionLabel}>Save</Copy></View>
+      <View style={styles.actionGroup}><IconButton name="heart" label={translateAccessibility(`Add ${placeName} to favorites`, language)} onPress={() => swipe("favorite")} color={p.pink} style={styles.actionButton} /><Copy muted style={styles.actionLabel}>Save</Copy></View>
     </Row>
   </View>;
 }
 
 export function DiscoverySwiper() {
   const language = useAppLanguage();
-  const { trip, preferences, discoverySettings, saved, savedPlaces, favoriteDiscoveryItem } = useTravel();
+  const { trip, preferences, discoverySettings, savedPlaces, favoriteDiscoveryItem, toggleExternalPlace } = useTravel();
   const [location, setLocation] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState<"checking" | "ready" | "unavailable">("checking");
   const [seenKeys, setSeenKeys] = useState<string[]>([]);
   const [cycle, setCycle] = useState(0);
   const [loading, setLoading] = useState(false);
-  const manualPin = destinationPins.find((pin) => pin.id === discoverySettings.centerId);
+  const [liveResult, setLiveResult] = useState<{ key: string; places: NearbyPlace[] } | null>(null);
+  const selectedCity = useMemo(() => cityForGlobalId(discoverySettings.centerId), [discoverySettings.centerId]);
+  const manualPin = useMemo(() => destinationPins.find((pin) => pin.id === discoverySettings.centerId) ?? (selectedCity ? { ...selectedCity, name: `${selectedCity.name}, ${countryForCode(selectedCity.countryCode)?.name ?? selectedCity.countryCode}` } : undefined), [discoverySettings.centerId, selectedCity]);
   const tripPin = destinationPins.find((pin) => pin.id === trip?.destinationId);
   const center = manualPin ?? (discoverySettings.centerId ? null : location ?? tripPin ?? null);
   const centerLabel = manualPin ? manualPin.name.split(",")[0] : location ? translate("near you", language) : tripPin ? formatMessage("near {city}", { city: tripPin.name.split(",")[0] }, language) : translate("around the world", language);
   const radiusLabel = center ? discoverySettings.radiusKm === 20000 ? translate("Worldwide", language) : formatMessage("{distance} km radius", { distance: discoverySettings.radiusKm.toLocaleString(language === "ro" ? "ro-RO" : "en-US") }, language) : translate("Explore worldwide", language);
+  const centerKey = center ? `${center.latitude.toFixed(3)}|${center.longitude.toFixed(3)}|${Math.min(discoverySettings.radiusKm, 25)}` : "";
+
+  useEffect(() => {
+    if (!center || !centerKey) return;
+    let active = true;
+    loadNearbyPlaces(center, Math.min(discoverySettings.radiusKm, 25))
+      .then((places) => { if (active) setLiveResult({ key: centerKey, places }); })
+      .catch(() => { if (active) setLiveResult({ key: centerKey, places: [] }); })
+    return () => { active = false; };
+  }, [center, centerKey, discoverySettings.radiusKm]);
 
   useEffect(() => {
     if (discoverySettings.centerId) return;
@@ -142,13 +162,13 @@ export function DiscoverySwiper() {
     return () => { current = false; };
   }, [discoverySettings.centerId]);
 
-  const allItems = useMemo(() => discoveryDeck(center, discoverySettings.radiusKm, preferences.region), [center, discoverySettings.radiusKm, preferences.region]);
-  const candidates = useMemo(() => allItems.filter((item) => item.kind === "destination" ? !saved.includes(item.destination.id) : !savedPlaces.includes(item.place!.id)), [allItems, saved, savedPlaces]);
-  const ordered = useMemo(() => {
-    if (!candidates.length) return candidates;
-    const offset = (cycle * 7) % candidates.length;
-    return [...candidates.slice(offset), ...candidates.slice(0, offset)];
-  }, [candidates, cycle]);
+  const catalogItems = discoveryDeck(center, discoverySettings.radiusKm, preferences.region).filter((item) => item.kind === "place");
+  const liveItems: SwipeItem[] = liveResult?.key === centerKey ? liveResult.places.map((place) => ({ key: `nearby:${place.id}`, kind: "nearby", place, location: place.location ?? manualPin?.name ?? tripPin?.name ?? "Near you" })) : [];
+  const allItems: SwipeItem[] = [...liveItems, ...catalogItems];
+  const candidates = allItems.filter((item) => !savedPlaces.includes(item.place!.id));
+  const offset = candidates.length ? (cycle * 7) % candidates.length : 0;
+  const ordered = [...candidates.slice(offset), ...candidates.slice(0, offset)];
+  const nearbyLoading = !!centerKey && liveResult?.key !== centerKey;
 
   useEffect(() => {
     if (!loading) return;
@@ -156,8 +176,11 @@ export function DiscoverySwiper() {
     return () => clearTimeout(timer);
   }, [loading, seenKeys.length, cycle]);
   const refresh = () => { setLoading(true); setSeenKeys([]); setCycle((value) => value + 1); };
-  const choose = (item: DiscoveryItem, choice: "skip" | "favorite") => {
-    if (choice === "favorite") favoriteDiscoveryItem(item.kind, item.place?.id ?? item.destination.id);
+  const choose = (item: SwipeItem, choice: "skip" | "favorite") => {
+    if (choice === "favorite") {
+      if (item.kind === "nearby") void toggleExternalPlace({ ...item.place, location: item.location }).catch(() => undefined);
+      else favoriteDiscoveryItem(item.kind, item.place?.id ?? item.destination.id);
+    }
     const next = [...seenKeys, item.key];
     setSeenKeys(next);
     if (next.length % BATCH_SIZE === 0 || !ordered.some((value) => !next.includes(value.key))) setLoading(true);
@@ -170,13 +193,13 @@ export function DiscoverySwiper() {
     <Row style={{ justifyContent: "space-between", alignItems: "center", gap: 12 }}>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Copy style={styles.eyebrow}>YOUR DISCOVERY DECK</Copy>
-        <Heading style={styles.sectionTitle}>Where to next?</Heading>
+        <Heading style={styles.sectionTitle}>Discover places</Heading>
         <Copy muted style={{ fontSize: 12 }}>{centerLabel} · {radiusLabel}</Copy>
       </View>
       <IconButton name="settings" label="Discovery settings" onPress={() => router.push("/preferences" as Href)} color={p.blue} />
     </Row>
     {!center && locationStatus === "unavailable" && <Pressable accessibilityRole="button" onPress={() => router.push("/preferences" as Href)}><Copy style={{ color: p.blue, fontSize: 12 }}>Choose a city in settings to search within your radius.</Copy></Pressable>}
-    {loading || (!center && locationStatus === "checking") ? <Radar title={loading ? "Looking for more places" : "Finding places near you"} detail={loading ? "Fresh suggestions are loading for you…" : "Checking your search area…"} /> : item ? <SwipeCard key={item.key} item={item} nextItem={nextItem} onChoice={(choice) => choose(item, choice)} onRefresh={refresh} /> : exhausted ? <View style={{ alignItems: "center", gap: 10, paddingVertical: 28 }}><Icon name="compass" color={p.green} size={36} /><Heading style={{ fontSize: 19, textAlign: "center" }}>{allItems.length ? "You have seen nearby picks" : "No places in this area yet"}</Heading><Copy muted style={{ textAlign: "center", fontSize: 13 }}>{allItems.length ? "Expand your radius for more places, or refresh to revisit suggestions." : "Try a wider radius or a different city for more suggestions."}</Copy><Row style={{ gap: 10 }}><IconButton name="refresh" label="Refresh suggestions" onPress={refresh} color={p.blue} /><IconButton name="settings" label="Change discovery radius" onPress={() => router.push("/preferences" as Href)} color={p.blue} /></Row></View> : null}
+    {loading || nearbyLoading || (!center && locationStatus === "checking") ? <Radar title={loading ? "Looking for more places" : "Finding places near you"} detail={loading ? "Fresh suggestions are loading for you…" : "Checking your search area…"} /> : item ? <SwipeCard key={item.key} item={item} nextItem={nextItem} onChoice={(choice) => choose(item, choice)} onRefresh={refresh} /> : exhausted ? <View style={{ alignItems: "center", gap: 10, paddingVertical: 28 }}><Icon name="compass" color={p.green} size={36} /><Heading style={{ fontSize: 19, textAlign: "center" }}>{allItems.length ? "You have seen nearby picks" : "No places in this area yet"}</Heading><Copy muted style={{ textAlign: "center", fontSize: 13 }}>{allItems.length ? "Expand your radius for more places, or refresh to revisit suggestions." : "Try a wider radius or a different city for more suggestions."}</Copy><Row style={{ gap: 10 }}><IconButton name="refresh" label="Refresh suggestions" onPress={refresh} color={p.blue} /><IconButton name="settings" label="Change discovery radius" onPress={() => router.push("/preferences" as Href)} color={p.blue} /></Row></View> : null}
   </View>;
 }
 
