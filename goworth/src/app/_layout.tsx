@@ -19,6 +19,7 @@ const tabByPath: Record<string, string> = {
   "/planner": "planner",
   "/saved": "saved",
   "/profile": "profile",
+  "/membership": "profile",
   "/memories": "profile",
 };
 
@@ -91,6 +92,7 @@ function AppNavigator() {
               <Stack.Screen name="memories" />
               <Stack.Screen name="journal-trip" />
               <Stack.Screen name="profile" />
+              <Stack.Screen name="membership" />
               <Stack.Screen name="preferences" />
             </Stack.Protected>
           </Stack>

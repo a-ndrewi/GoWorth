@@ -1,10 +1,13 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Activity, Expense, Trip, TripJournalEntry } from "@/data/travel";
 import type { NearbyPlace } from "@/data/nearby-places";
 import { externalPlaceFromSaved } from "@/data/external-places";
+import { syncStoreEntitlement } from "@/lib/entitlements";
+import { purchasesConfigured } from "@/lib/purchases";
 import { useAuth } from "@/state/auth-context";
 import { placeFitsTripDay } from "@/utils/trip-place";
+import { describeSyncFailure, isFreeLimitFailure, SyncFailure } from "@/utils/sync-error";
 import { destinationForDay, tripDays, validateTrip } from "@/utils/trip";
 import { loadUsdRate, setDisplaySettings, type AppCurrency, type AppLanguage } from "@/data/formatting";
 import {
@@ -155,6 +158,9 @@ function useTravelState() {
         setJournalAvailable(data.journalAvailable);
         setSyncError("");
         setCloudReady(true);
+        if (purchasesConfigured()) void syncStoreEntitlement()
+          .then((membership) => { if (current) setPlan(membership.plan); })
+          .catch(() => undefined);
       })
       .catch(() => {
         if (current) setLoadError("Could not load your account. Check your connection and try again.");
@@ -162,14 +168,15 @@ function useTravelState() {
     return () => { current = false; };
   }, [userId, fallbackName, accountLanguage, accountCurrency, reload]);
 
-  const persist = (work: () => Promise<unknown>) => {
+  const persist = (work: () => Promise<unknown>, showGlobalError = true) => {
     const next = writeQueue.current.then(work);
     writeQueue.current = next.then(() => undefined, () => undefined);
     return next.then(() => {
       setSyncError("");
     }, (error: unknown) => {
-      setSyncError("Changes could not sync. Check your connection and try again.");
-      throw error;
+      const message = describeSyncFailure(error, profile.language);
+      setSyncError(showGlobalError ? message : "");
+      throw new SyncFailure(message, isFreeLimitFailure(error));
     });
   };
 
@@ -196,7 +203,7 @@ function useTravelState() {
       .catch(() => undefined);
   };
 
-  const toggleExternalPlace = async (place: NearbyPlace) => {
+  const toggleExternalPlace = async (place: NearbyPlace, showGlobalError = true) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
     const enabled = !savedPlaces.includes(place.id);
     await persist(async () => {
@@ -206,7 +213,7 @@ function useTravelState() {
         const next = enabled ? [...existing.filter((item) => item.id !== place.id), place] : existing.filter((item) => item.id !== place.id);
         await AsyncStorage.setItem(externalPlacesKey(user.id), JSON.stringify(next));
       } catch { /* Cloud save is still authoritative when local storage is unavailable. */ }
-    });
+    }, showGlobalError);
     setSavedPlaces((current) => enabled ? [...new Set([...current, place.id])] : current.filter((id) => id !== place.id));
     if (enabled) setMonthlyUsage((current) => ({ ...current, place: current.place + 1 }));
     setExternalPlaces((current) => enabled ? [...current.filter((item) => item.id !== place.id), place] : current.filter((item) => item.id !== place.id));
@@ -215,7 +222,7 @@ function useTravelState() {
   const favoriteDiscoveryItem = async (kind: "destination" | "place", id: string) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
     if (kind === "destination" ? saved.includes(id) : savedPlaces.includes(id)) return;
-    await persist(() => setSavedItem(user.id, kind, id, true));
+    await persist(() => setSavedItem(user.id, kind, id, true), false);
     if (kind === "destination") setSaved((current) => [...new Set([...current, id])]);
     else setSavedPlaces((current) => [...new Set([...current, id])]);
     setMonthlyUsage((current) => ({ ...current, [kind]: current[kind] + 1 }));
@@ -226,6 +233,13 @@ function useTravelState() {
     setDiscoverySettingsState(next);
     if (userId) void AsyncStorage.setItem(`discovery-settings:${userId}`, JSON.stringify(next)).catch(() => undefined);
   };
+
+  const refreshMembership = useCallback(async () => {
+    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    const membership = await syncStoreEntitlement();
+    setPlan(membership.plan);
+    return membership;
+  }, [user, cloudReady]);
 
   const generateTrip = async (next: Trip) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
@@ -382,7 +396,7 @@ function useTravelState() {
     expenses, addExpense, updateExpense, removeExpense,
     preferences, setPreferences, hasPreferences, completePreferences,
     discoverySettings, setDiscoverySettings,
-    profile, setProfile, avatarUrl, uploadAvatar, removeAvatar, plan, monthlyUsage, journal, setJournal, journalEntries, journalAvailable, setArchivedReflection, deleteJournalEntry,
+    profile, setProfile, avatarUrl, uploadAvatar, removeAvatar, plan, monthlyUsage, refreshMembership, journal, setJournal, journalEntries, journalAvailable, setArchivedReflection, deleteJournalEntry,
     notifications, setNotifications: updateNotifications,
     cloudReady, loadError, retryLoad: () => {
       setCloudReady(false);

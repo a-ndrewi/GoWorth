@@ -18,6 +18,7 @@ import { useTravel } from "@/state/travel-context";
 import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
 import { isSavedDiscoverySuggestion } from "@/utils/discovery-suggestions";
+import { SyncFailure } from "@/utils/sync-error";
 
 const BATCH_SIZE = 6;
 type SwipeItem = DiscoveryItem | { key: string; kind: "nearby"; place: NearbyPlace; location: string; distanceKm?: number };
@@ -54,6 +55,7 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
   const [position] = useState(() => new Animated.ValueXY());
   const [moving, setMoving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [freeLimitReached, setFreeLimitReached] = useState(false);
   const [placePhoto, setPlacePhoto] = useState<PlacePhoto | null>(null);
   const [failedUrls, setFailedUrls] = useState<string[]>([]);
   const destination = item.kind === "nearby" ? null : item.destination;
@@ -73,12 +75,14 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
     if (moving) return;
     setMoving(true);
     setSaveError("");
+    setFreeLimitReached(false);
     Animated.timing(position, { toValue: { x: choice === "favorite" ? 480 : -480, y: 20 }, duration: 220, useNativeDriver: false }).start(({ finished }) => {
       if (!finished) { setMoving(false); return; }
       void onChoice(choice).catch((error: unknown) => {
         position.setValue({ x: 0, y: 0 });
         setMoving(false);
         setSaveError(error instanceof Error ? error.message : "Could not save this place. Try again.");
+        setFreeLimitReached(error instanceof SyncFailure && error.isFreeLimit);
       });
     });
   };
@@ -131,7 +135,12 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
       <View style={styles.actionGroup}><IconButton name="refresh" label="Refresh suggestions" onPress={onRefresh} color={p.blue} style={[styles.actionButton, styles.refreshButton]} /><Copy muted style={styles.actionLabel}>Refresh</Copy></View>
       <View style={styles.actionGroup}><IconButton name="heart" label={translateAccessibility(`Add ${placeName} to favorites`, language)} onPress={() => swipe("favorite")} color={p.pink} style={styles.actionButton} /><Copy muted style={styles.actionLabel}>Save</Copy></View>
     </Row>
-    {!!saveError && <Copy style={{ color: p.danger, fontSize: 12, textAlign: "center" }}>{saveError}</Copy>}
+    {!!saveError && <View style={{ alignItems: "center", gap: 6 }}>
+      <Copy style={{ color: p.danger, fontSize: 12, textAlign: "center" }}>{saveError}</Copy>
+      {freeLimitReached && <Pressable accessibilityRole="button" onPress={() => router.push("/membership" as Href)}>
+        <Copy style={{ color: p.blue, fontSize: 13, fontWeight: "700" }}>{language === "ro" ? "Vezi planurile" : "See plans"}</Copy>
+      </Pressable>}
+    </View>}
   </View>;
 }
 
@@ -193,7 +202,7 @@ export function DiscoverySwiper() {
   const refresh = () => { setLoading(true); setSeenKeys([]); setCycle((value) => value + 1); };
   const choose = async (item: SwipeItem, choice: "skip" | "favorite") => {
     if (choice === "favorite") {
-      if (item.kind === "nearby") await toggleExternalPlace({ ...item.place, location: item.location });
+      if (item.kind === "nearby") await toggleExternalPlace({ ...item.place, location: item.location }, false);
       else await favoriteDiscoveryItem(item.kind, item.place?.id ?? item.destination.id);
     }
     const next = [...seenKeys, item.key];

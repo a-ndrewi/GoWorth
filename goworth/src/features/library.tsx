@@ -79,7 +79,7 @@ export function SavedScreen() {
 export function ProfileScreen() {
   const language = useAppLanguage();
   const { user, signOut } = useAuth();
-  const { profile, setProfile, avatarUrl, uploadAvatar, removeAvatar, plan, monthlyUsage, saved, savedPlaces, externalPlaces, trip, clearTrip, journal, journalEntries } = useTravel();
+  const { profile, setProfile, avatarUrl, uploadAvatar, removeAvatar, plan, saved, savedPlaces, externalPlaces, trip, clearTrip, journal, journalEntries } = useTravel();
   const savedDestinations = destinations.filter((destination) => saved.includes(destination.id));
   const savedPlaceRecords = places.filter((place) => savedPlaces.includes(place.id));
   const [tab, setTab] = useState("Trips");
@@ -201,7 +201,7 @@ export function ProfileScreen() {
         <Button secondary icon="book" onPress={() => router.push("/memories" as Href)}>Open travel journal</Button>
       </>}
       <View style={{ borderTopWidth: 1, borderColor: p.line, paddingTop: 8 }}>
-        <Pressable accessibilityRole="button" onPress={() => { setError(""); setDialog("Membership"); }} style={[s.row, { paddingVertical: 15 }]}><Icon name="crown" color={p.green} /><Copy style={{ flex: 1 }}>{formatMessage("Membership · {plan}", { plan: translate(plan === "free" ? "Free" : plan === "premium" ? "Premium" : "Lifetime", language) }, language)}</Copy><Icon name="right" color={p.muted} /></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/membership" as Href)} style={[s.row, { paddingVertical: 15 }]}><Icon name="crown" color={p.green} /><Copy style={{ flex: 1 }}>{formatMessage("Membership · {plan}", { plan: translate(plan === "free" ? "Free" : plan === "premium" ? "Premium" : "Lifetime", language) }, language)}</Copy><Icon name="right" color={p.muted} /></Pressable>
         <Pressable accessibilityRole="button" onPress={() => router.push("/preferences" as Href)} style={[s.row, { paddingVertical: 15 }]}><Icon name="compass" color={p.blue} /><Copy style={{ flex: 1 }}>Travel preferences</Copy><Icon name="right" color={p.muted} /></Pressable>
         <Pressable accessibilityRole="button" onPress={() => router.push("/legal" as Href)} style={[s.row, { paddingVertical: 15 }]}><Icon name="book" color={p.blue} /><Copy style={{ flex: 1 }}>Legal & privacy</Copy><Icon name="right" color={p.muted} /></Pressable>
         <Pressable accessibilityRole="button" onPress={() => setDialog("Log out")} style={[s.row, { paddingVertical: 15 }]}><Icon name="logout" color={p.danger} /><Copy style={{ color: p.danger }}>Log out</Copy></Pressable>
@@ -232,16 +232,6 @@ export function ProfileScreen() {
           <Copy muted style={{ fontSize: 12 }}>{formatMessage("Budgets are stored in EUR. USD values use the latest available ECB reference rate{date}.", { date: currentExchangeRate() ? ` (${currentExchangeRate()!.date})` : "" }, language)}</Copy>
           {!!error && <Copy style={s.error}>{error}</Copy>}
           {!!trip && <Button secondary onPress={() => { setError(""); setDialog("Delete trip"); }}>Delete current trip</Button>}
-        </>}
-        {dialog === "Membership" && <>
-          <Copy style={{ fontWeight: "700" }}>Free · €0</Copy>
-          <Copy muted>1 trip, 5 saved places and 5 saved destinations per calendar month.</Copy>
-          <Copy muted>{formatMessage("This month: {trips}/1 trips · {places}/5 places · {destinations}/5 destinations", { trips: monthlyUsage.trip, places: monthlyUsage.place, destinations: monthlyUsage.destination }, language)}</Copy>
-          <Copy style={{ fontWeight: "700" }}>Premium · €9.99/month</Copy>
-          <Copy muted>Unlimited trips and saves while the subscription is active.</Copy>
-          <Copy style={{ fontWeight: "700" }}>Lifetime · €200 once</Copy>
-          <Copy muted>Unlimited trips and saves for the lifetime of your GoWorth account.</Copy>
-          <Copy muted>{formatMessage("Purchases are not available yet. Your current plan is {plan}.", { plan: translate(plan === "free" ? "Free" : plan === "premium" ? "Premium" : "Lifetime", language) }, language)}</Copy>
         </>}
         {dialog === "Delete trip" && <>
           <Copy muted>Your itinerary and expenses will be deleted. Saved places and your journal will remain.</Copy>
