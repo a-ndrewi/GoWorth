@@ -212,15 +212,14 @@ function useTravelState() {
     setExternalPlaces((current) => enabled ? [...current.filter((item) => item.id !== place.id), place] : current.filter((item) => item.id !== place.id));
   };
 
-  const favoriteDiscoveryItem = (kind: "destination" | "place", id: string) => {
-    if (!user || !cloudReady) return;
+  const favoriteDiscoveryItem = async (kind: "destination" | "place", id: string) => {
+    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
     if (kind === "destination" ? saved.includes(id) : savedPlaces.includes(id)) return;
-    void persist(() => setSavedItem(user.id, kind, id, true)).then(() => {
-      if (kind === "destination") setSaved((current) => [...new Set([...current, id])]);
-      else setSavedPlaces((current) => [...new Set([...current, id])]);
-      setMonthlyUsage((current) => ({ ...current, [kind]: current[kind] + 1 }));
-      void recordDiscoveryFavorite(user.id, kind, id).catch(() => undefined);
-    }).catch(() => undefined);
+    await persist(() => setSavedItem(user.id, kind, id, true));
+    if (kind === "destination") setSaved((current) => [...new Set([...current, id])]);
+    else setSavedPlaces((current) => [...new Set([...current, id])]);
+    setMonthlyUsage((current) => ({ ...current, [kind]: current[kind] + 1 }));
+    void recordDiscoveryFavorite(user.id, kind, id).catch(() => undefined);
   };
 
   const setDiscoverySettings = (next: DiscoverySettings) => {

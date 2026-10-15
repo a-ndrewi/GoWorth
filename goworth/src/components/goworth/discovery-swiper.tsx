@@ -17,6 +17,7 @@ import { loadRecentDiscoveries, type RecentDiscovery } from "@/lib/travel-reposi
 import { useTravel } from "@/state/travel-context";
 import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
+import { isSavedDiscoverySuggestion } from "@/utils/discovery-suggestions";
 
 const BATCH_SIZE = 6;
 type SwipeItem = DiscoveryItem | { key: string; kind: "nearby"; place: NearbyPlace; location: string; distanceKm?: number };
@@ -44,7 +45,7 @@ function Radar({ title, detail }: { title: string; detail: string }) {
 function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
   item: SwipeItem;
   nextItem?: SwipeItem;
-  onChoice: (choice: "skip" | "favorite") => void;
+  onChoice: (choice: "skip" | "favorite") => Promise<void>;
   onRefresh: () => void;
 }) {
   const language = useAppLanguage();
@@ -52,6 +53,7 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
   const cardHeight = Math.max(305, Math.min(380, Math.round(windowHeight * 0.44)));
   const [position] = useState(() => new Animated.ValueXY());
   const [moving, setMoving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [placePhoto, setPlacePhoto] = useState<PlacePhoto | null>(null);
   const [failedUrls, setFailedUrls] = useState<string[]>([]);
   const destination = item.kind === "nearby" ? null : item.destination;
@@ -70,7 +72,15 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
   const swipe = (choice: "skip" | "favorite") => {
     if (moving) return;
     setMoving(true);
-    Animated.timing(position, { toValue: { x: choice === "favorite" ? 480 : -480, y: 20 }, duration: 220, useNativeDriver: false }).start(() => onChoice(choice));
+    setSaveError("");
+    Animated.timing(position, { toValue: { x: choice === "favorite" ? 480 : -480, y: 20 }, duration: 220, useNativeDriver: false }).start(({ finished }) => {
+      if (!finished) { setMoving(false); return; }
+      void onChoice(choice).catch((error: unknown) => {
+        position.setValue({ x: 0, y: 0 });
+        setMoving(false);
+        setSaveError(error instanceof Error ? error.message : "Could not save this place. Try again.");
+      });
+    });
   };
   const open = () => router.push(item.kind === "nearby"
     ? { pathname: "/map", params: { q: `${item.place.name}, ${item.location}` } } as Href
@@ -121,12 +131,13 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
       <View style={styles.actionGroup}><IconButton name="refresh" label="Refresh suggestions" onPress={onRefresh} color={p.blue} style={[styles.actionButton, styles.refreshButton]} /><Copy muted style={styles.actionLabel}>Refresh</Copy></View>
       <View style={styles.actionGroup}><IconButton name="heart" label={translateAccessibility(`Add ${placeName} to favorites`, language)} onPress={() => swipe("favorite")} color={p.pink} style={styles.actionButton} /><Copy muted style={styles.actionLabel}>Save</Copy></View>
     </Row>
+    {!!saveError && <Copy style={{ color: p.danger, fontSize: 12, textAlign: "center" }}>{saveError}</Copy>}
   </View>;
 }
 
 export function DiscoverySwiper() {
   const language = useAppLanguage();
-  const { trip, preferences, discoverySettings, savedPlaces, favoriteDiscoveryItem, toggleExternalPlace } = useTravel();
+  const { trip, preferences, discoverySettings, savedPlaces, externalPlaces, favoriteDiscoveryItem, toggleExternalPlace } = useTravel();
   const [location, setLocation] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState<"checking" | "ready" | "unavailable">("checking");
   const [seenKeys, setSeenKeys] = useState<string[]>([]);
@@ -165,7 +176,11 @@ export function DiscoverySwiper() {
   const catalogItems = discoveryDeck(center, discoverySettings.radiusKm, preferences.region).filter((item) => item.kind === "place");
   const liveItems: SwipeItem[] = liveResult?.key === centerKey ? liveResult.places.map((place) => ({ key: `nearby:${place.id}`, kind: "nearby", place, location: place.location ?? manualPin?.name ?? tripPin?.name ?? "Near you" })) : [];
   const allItems: SwipeItem[] = [...liveItems, ...catalogItems];
-  const candidates = allItems.filter((item) => !savedPlaces.includes(item.place!.id));
+  const savedIds = new Set(savedPlaces);
+  const candidates = allItems.filter((item) => !isSavedDiscoverySuggestion(
+    item.kind === "nearby" ? item.place : { ...item.place!, destinationId: item.destination.id },
+    savedIds, externalPlaces, places, destinationPins,
+  ));
   const offset = candidates.length ? (cycle * 7) % candidates.length : 0;
   const ordered = [...candidates.slice(offset), ...candidates.slice(0, offset)];
   const nearbyLoading = !!centerKey && liveResult?.key !== centerKey;
@@ -176,10 +191,10 @@ export function DiscoverySwiper() {
     return () => clearTimeout(timer);
   }, [loading, seenKeys.length, cycle]);
   const refresh = () => { setLoading(true); setSeenKeys([]); setCycle((value) => value + 1); };
-  const choose = (item: SwipeItem, choice: "skip" | "favorite") => {
+  const choose = async (item: SwipeItem, choice: "skip" | "favorite") => {
     if (choice === "favorite") {
-      if (item.kind === "nearby") void toggleExternalPlace({ ...item.place, location: item.location }).catch(() => undefined);
-      else favoriteDiscoveryItem(item.kind, item.place?.id ?? item.destination.id);
+      if (item.kind === "nearby") await toggleExternalPlace({ ...item.place, location: item.location });
+      else await favoriteDiscoveryItem(item.kind, item.place?.id ?? item.destination.id);
     }
     const next = [...seenKeys, item.key];
     setSeenKeys(next);
