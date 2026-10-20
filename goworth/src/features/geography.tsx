@@ -14,7 +14,8 @@ import { translate } from "@/data/i18n";
 
 export function CountryScreen() {
   const language = useAppLanguage();
-  const { code, state: routeState } = useLocalSearchParams<{ code?: string; state?: string }>();
+  const { code, state: routeState, search } = useLocalSearchParams<{ code?: string; state?: string; search?: string }>();
+  const { exploreHistoryReady, recordCountryVisit } = useTravel();
   const country = countryForCode(code);
   const [query, setQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(40);
@@ -24,6 +25,9 @@ export function CountryScreen() {
   const cities = useMemo(() => code === "US" ? selectedStateCode ? citiesForUsState(selectedStateCode) : [] : citiesForCountry(code ?? ""), [code, selectedStateCode]);
   const filtered = useMemo(() => cities.filter((city) => normalizeSearchText(`${city.name} ${translate(city.name, language)}`).includes(normalizeSearchText(query))), [cities, query, language]);
   const filteredStates = isUs && !selectedState ? usStates.filter((state) => normalizeSearchText(state.name).includes(normalizeSearchText(query))) : [];
+  useEffect(() => {
+    if (country && exploreHistoryReady) recordCountryVisit(country.code, search);
+  }, [country, exploreHistoryReady, recordCountryVisit, search]);
   if (!country) return <Screen><Header title={translate("Country unavailable", language)} /><EmptyState title={translate("Country not found", language)} detail={translate("Choose another country.", language)} action={translate("Explore countries", language)} onPress={() => router.replace("/home" as Href)} /></Screen>;
   return <Screen active="home" style={{ gap: 17 }}>
     <Header title={selectedState ? selectedState.name : `${countryFlag(country.code)}  ${translate(country.name, language)}`} subtitle={selectedState ? `${translate(country.name, language)} · ${selectedState.cityCount.toLocaleString(language === "ro" ? "ro-RO" : "en-US")} ${language === "ro" ? "orașe" : "cities"}` : `${country.cityCount.toLocaleString(language === "ro" ? "ro-RO" : "en-US")} ${language === "ro" ? "orașe" : "cities"}`} />
@@ -97,9 +101,11 @@ export function CityScreen() {
     country: country.code, city: city.id, place: place.id,
     name: place.name, latitude: String(place.latitude), longitude: String(place.longitude),
     category: place.category, detail: place.detail, sourceUrl: place.sourceUrl,
+    ...(query.trim() ? { search: query.trim() } : {}),
   } } as Href);
   return <Screen active="home" style={{ gap: 17 }}>
     <Header title={translate(city.name, language)} subtitle={`${city.stateCode ? `${usStates.find((state) => state.code === city.stateCode)?.name ?? city.stateCode} · ` : ""}${countryFlag(country.code)}  ${translate(country.name, language)}`} />
+    <Button secondary icon="plus" onPress={() => router.push({ pathname: "/planner", params: { country: country.code, city: city.id } } as Href)}>Plan a trip</Button>
     <View style={{ gap: 8 }}><Row style={{ borderWidth: 1, borderColor: p.line, borderRadius: 6, paddingHorizontal: 12, gap: 8 }}><Icon name="search" color={p.muted} size={18} /><TextInput accessibilityLabel={`${translate("Search places", language)}: ${city.name}`} placeholder={translate("Search places", language)} placeholderTextColor={p.muted} value={query} onChangeText={(value) => { searchId.current++; setSearching(false); setSearchError(""); setQuery(value); setVisibleCount(20); }} onSubmitEditing={() => void searchCity()} returnKeyType="search" style={{ flex: 1, minWidth: 0, height: 46, fontSize: 14, color: p.ink }} /></Row><Button secondary icon="search" busy={searching} disabled={query.trim().length < 3} onPress={() => void searchCity()}>{translate("Search city", language)}</Button></View>
     <Row style={{ flexWrap: "wrap", gap: 6 }}>{categories.map((item) => <Chip key={item} selected={category === item} onPress={() => { setCategory(item); setVisibleCount(20); }}>{translate(item, language)}</Chip>)}</Row>
     {status === "loading" && <ActivityIndicator color={p.green} />}
@@ -121,10 +127,10 @@ export function CityScreen() {
 
 export function PlaceScreen() {
   const language = useAppLanguage();
-  const { country: code, city: cityId, place: placeId, name, latitude, longitude, category, detail, sourceUrl } = useLocalSearchParams<{ country?: string; city?: string; place?: string; name?: string; latitude?: string; longitude?: string; category?: string; detail?: string; sourceUrl?: string }>();
+  const { country: code, city: cityId, place: placeId, name, latitude, longitude, category, detail, sourceUrl, search } = useLocalSearchParams<{ country?: string; city?: string; place?: string; name?: string; latitude?: string; longitude?: string; category?: string; detail?: string; sourceUrl?: string; search?: string }>();
   const country = countryForCode(code);
   const city = useMemo(() => cityForId(code ?? "", cityId ?? ""), [code, cityId]);
-  const { savedPlaces, toggleExternalPlace } = useTravel();
+  const { savedPlaces, toggleExternalPlace, exploreHistoryReady, recordPlaceVisit } = useTravel();
   const [result, setResult] = useState<{ key: string; place: NearbyPlace | null; status: "ready" | "error" } | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -144,6 +150,9 @@ export function PlaceScreen() {
       .catch(() => { if (active) setResult({ key, place: null, status: "error" }); });
     return () => { active = false; };
   }, [city, placeId, key, routePlace]);
+  useEffect(() => {
+    if (country && city && place && exploreHistoryReady) recordPlaceVisit(country.code, city.id, place, search);
+  }, [country, city, place, exploreHistoryReady, recordPlaceVisit, search]);
   if (!country || !city) return <Screen><Header title={translate("Place unavailable", language)} /><EmptyState title={translate("Place not found", language)} detail={translate("Choose a city to explore.", language)} action={translate("Explore countries", language)} onPress={() => router.replace("/home" as Href)} /></Screen>;
   return <Screen active="home" style={{ gap: 16 }}>
     <Header title={place?.name ?? "Place"} subtitle={`${translate(city.name, language)} · ${countryFlag(country.code)} ${translate(country.name, language)}`} />
@@ -154,9 +163,10 @@ export function PlaceScreen() {
       <PlacePreviewPhoto name={place.name} location={`${city.name}, ${country.name}`} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} />
       <Copy muted>{translate(place.category, language)} · {place.source}</Copy>
       <Copy>{place.detail}</Copy>
+      <Button icon="plus" onPress={() => router.push({ pathname: "/planner", params: { country: country.code, city: city.id } } as Href)}>Plan a trip</Button>
       <Button icon={savedPlaces.includes(place.id) ? "heartFill" : "heart"} busy={busy} onPress={async () => { setBusy(true); setNotice(""); try { await toggleExternalPlace({ ...place, location: `${city.name}, ${country.name}` }); } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save this place."); } finally { setBusy(false); } }}>{translate(savedPlaces.includes(place.id) ? "Remove from saved" : "Save place", language)}</Button>
       {!!notice && <Copy style={{ color: p.danger }}>{notice}</Copy>}
-      <Button secondary icon="map" onPress={() => router.push({ pathname: "/map", params: { lat: String(place.latitude), lon: String(place.longitude), name: place.name, pinKind: "place" } } as Href)}>{translate("Open on map", language)}</Button>
+      <Button secondary icon="map" onPress={() => router.push({ pathname: "/map", params: { lat: String(place.latitude), lon: String(place.longitude), name: place.name, pinKind: "place", country: country.code, city: city.id } } as Href)}>{translate("Open on map", language)}</Button>
       <Button secondary icon="globe" onPress={() => void Linking.openURL(place.sourceUrl)}>{translate("Open source", language)}</Button>
     </>}
   </Screen>;

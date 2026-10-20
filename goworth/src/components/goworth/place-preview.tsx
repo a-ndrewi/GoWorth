@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { router, type Href } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { ActivityIndicator, Pressable, View, type StyleProp, type ViewStyle } from "react-native";
 import { Copy, Icon } from "@/components/goworth/ui";
 import { palette as p } from "@/constants/design";
 import { findPlacePhoto, type PlacePhoto } from "@/data/place-photo";
@@ -48,7 +48,7 @@ export function PlacePreviewPhoto({ name, location, latitude, longitude, sourceU
   </View>;
 }
 
-export function PlaceThumbnail({ name, location, latitude, longitude, sourceUrl }: PlacePhotoProps) {
+export function PlaceThumbnail({ name, location, latitude, longitude, sourceUrl, style, fallbackColor = p.green }: PlacePhotoProps & { style?: StyleProp<ViewStyle>; fallbackColor?: string }) {
   const language = useAppLanguage();
   const key = `${name}|${location}|${latitude ?? ""}|${longitude ?? ""}|${sourceUrl ?? ""}`;
   const [result, setResult] = useState<{ key: string; photo: PlacePhoto | null } | null>(null);
@@ -62,8 +62,8 @@ export function PlaceThumbnail({ name, location, latitude, longitude, sourceUrl 
     }).catch(() => undefined);
     return () => { active = false; };
   }, [key, name, location, latitude, longitude, sourceUrl, failedUrls]);
-  return <View style={{ width: 54, height: 54, borderRadius: 5, overflow: "hidden", backgroundColor: p.greenSoft, alignItems: "center", justifyContent: "center" }}>
-    {photo && !failedUrls.includes(photo.url) ? <Image source={{ uri: photo.url }} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: 54, height: 54 }} />
-      : <Icon name="camera" size={18} color={p.green} />}
+  return <View style={[{ width: 54, height: 54, borderRadius: 5, overflow: "hidden", backgroundColor: p.greenSoft, alignItems: "center", justifyContent: "center" }, style]}>
+    {photo && !failedUrls.includes(photo.url) ? <Image source={{ uri: photo.url }} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />
+      : <Icon name="camera" size={18} color={fallbackColor} />}
   </View>;
 }

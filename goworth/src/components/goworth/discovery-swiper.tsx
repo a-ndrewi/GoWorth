@@ -34,9 +34,9 @@ function Radar({ title, detail }: { title: string; detail: string }) {
   }, [pulse]);
   return <View style={styles.radarWrap}>
     <View style={styles.radar}>
-      {[70, 114, 158].map((size) => <View key={size} style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 1, borderColor: "#B5DBD3", position: "absolute" }} />)}
-      <Animated.View style={{ width: 152, height: 152, borderRadius: 76, borderWidth: 2, borderColor: p.green, position: "absolute", opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.8, 0] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1.2] }) }] }} />
-      <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: p.green, alignItems: "center", justifyContent: "center" }}><Icon name="compass" color={p.white} size={25} /></View>
+      {[70, 114, 158].map((size) => <View key={size} style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 1, borderColor: "#B6C8FA", position: "absolute" }} />)}
+      <Animated.View style={{ width: 152, height: 152, borderRadius: 76, borderWidth: 2, borderColor: p.blue, position: "absolute", opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.8, 0] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1.2] }) }] }} />
+      <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: p.blue, alignItems: "center", justifyContent: "center" }}><Icon name="compass" color={p.white} size={25} /></View>
     </View>
     <Heading style={{ fontSize: 19, textAlign: "center" }}>{title}</Heading>
     <Copy muted style={{ textAlign: "center", fontSize: 13, lineHeight: 19 }}>{detail}</Copy>
@@ -109,7 +109,7 @@ function SwipeCard({ item, nextItem, onChoice, onRefresh }: {
         <LinearGradient colors={["rgba(0,0,0,0.2)", "rgba(0,0,0,0.55)"]} style={StyleSheet.absoluteFill} />
       </View>}
       <GestureDetector gesture={gesture}>
-        <Animated.View style={[styles.card, { height: cardHeight, backgroundColor: p.green, transform: [...position.getTranslateTransform(), { rotate: rotation }] }]}>
+        <Animated.View style={[styles.card, { height: cardHeight, backgroundColor: p.blue, transform: [...position.getTranslateTransform(), { rotate: rotation }] }]}>
           {destination && <DestinationPhoto destination={destination} style={StyleSheet.absoluteFill} />}
           {placePhoto && !failedUrls.includes(placePhoto.url) && <Image source={{ uri: placePhoto.url }} contentFit="cover" transition={250} accessibilityLabel={translateAccessibility(`Photo of ${placeName}`, language)} onError={() => setFailedUrls((urls) => [...urls, placePhoto.url])} style={StyleSheet.absoluteFill} />}
           <LinearGradient colors={["rgba(0,0,0,0.14)", "rgba(0,0,0,0.06)", "rgba(0,0,0,0.82)"]} style={StyleSheet.absoluteFill} />
@@ -223,7 +223,7 @@ export function DiscoverySwiper() {
       <IconButton name="settings" label="Discovery settings" onPress={() => router.push("/preferences" as Href)} color={p.blue} />
     </Row>
     {!center && locationStatus === "unavailable" && <Pressable accessibilityRole="button" onPress={() => router.push("/preferences" as Href)}><Copy style={{ color: p.blue, fontSize: 12 }}>Choose a city in settings to search within your radius.</Copy></Pressable>}
-    {loading || nearbyLoading || (!center && locationStatus === "checking") ? <Radar title={loading ? "Looking for more places" : "Finding places near you"} detail={loading ? "Fresh suggestions are loading for you…" : "Checking your search area…"} /> : item ? <SwipeCard key={item.key} item={item} nextItem={nextItem} onChoice={(choice) => choose(item, choice)} onRefresh={refresh} /> : exhausted ? <View style={{ alignItems: "center", gap: 10, paddingVertical: 28 }}><Icon name="compass" color={p.green} size={36} /><Heading style={{ fontSize: 19, textAlign: "center" }}>{allItems.length ? "You have seen nearby picks" : "No places in this area yet"}</Heading><Copy muted style={{ textAlign: "center", fontSize: 13 }}>{allItems.length ? "Expand your radius for more places, or refresh to revisit suggestions." : "Try a wider radius or a different city for more suggestions."}</Copy><Row style={{ gap: 10 }}><IconButton name="refresh" label="Refresh suggestions" onPress={refresh} color={p.blue} /><IconButton name="settings" label="Change discovery radius" onPress={() => router.push("/preferences" as Href)} color={p.blue} /></Row></View> : null}
+    {loading || nearbyLoading || (!center && locationStatus === "checking") ? <Radar title={loading ? "Looking for more places" : "Finding places near you"} detail={loading ? "Fresh suggestions are loading for you…" : "Checking your search area…"} /> : item ? <SwipeCard key={item.key} item={item} nextItem={nextItem} onChoice={(choice) => choose(item, choice)} onRefresh={refresh} /> : exhausted ? <View style={{ alignItems: "center", gap: 10, paddingVertical: 28 }}><Icon name="compass" color={p.blue} size={36} /><Heading style={{ fontSize: 19, textAlign: "center" }}>{allItems.length ? "You have seen nearby picks" : "No places in this area yet"}</Heading><Copy muted style={{ textAlign: "center", fontSize: 13 }}>{allItems.length ? "Expand your radius for more places, or refresh to revisit suggestions." : "Try a wider radius or a different city for more suggestions."}</Copy><Row style={{ gap: 10 }}><IconButton name="refresh" label="Refresh suggestions" onPress={refresh} color={p.blue} /><IconButton name="settings" label="Change discovery radius" onPress={() => router.push("/preferences" as Href)} color={p.blue} /></Row></View> : null}
   </View>;
 }
 
@@ -264,10 +264,10 @@ export function DiscoveryCommunity() {
 }
 
 const styles = StyleSheet.create({
-  eyebrow: { color: p.green, fontSize: 10, fontWeight: "800", lineHeight: 14 },
+  eyebrow: { color: p.blue, fontSize: 10, fontWeight: "800", lineHeight: 14 },
   sectionTitle: { fontSize: 29, lineHeight: 34 },
   deckStage: { position: "relative" },
-  card: { position: "absolute", top: 0, left: 0, right: 0, borderRadius: 8, overflow: "hidden", backgroundColor: p.greenSoft },
+  card: { position: "absolute", top: 0, left: 0, right: 0, borderRadius: 8, overflow: "hidden", backgroundColor: p.blueSoft },
   peekCard: { top: 10, left: 10, right: -10 },
   cardContent: { flex: 1, justifyContent: "space-between", padding: 19 },
   typeBadge: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 5, backgroundColor: "rgba(0,0,0,0.42)", borderRadius: 4, paddingHorizontal: 9, paddingVertical: 6 },

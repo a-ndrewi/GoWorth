@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 
-export type Membership = { plan: "free" | "premium" | "lifetime"; validUntil: string | null; managementUrl: string | null };
+export type Membership = { plan: "free" | "premium" | "lifetime"; validUntil: string | null; cancelAtPeriodEnd: boolean; managementUrl: string | null };
 
 export async function syncStoreEntitlement(): Promise<Membership> {
   if (!supabase) throw new Error("Account service is not configured.");

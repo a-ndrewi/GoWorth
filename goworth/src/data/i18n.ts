@@ -26,6 +26,7 @@ const ro: Record<string, string> = {
   "Destinations": "Destinații", "Places": "Locuri", "Trips": "Călătorii", "Journal": "Jurnal",
   "One city": "Un oraș", "Multi-city route": "Traseu cu mai multe orașe", "Starting city": "Orașul de plecare",
   "Destination": "Destinație", "Departure": "Plecare", "Return": "Întoarcere", "Route by day": "Traseu pe zile",
+  "Select country": "Alege o țară", "Select a country and city for your trip.": "Alege o țară și un oraș pentru călătoria ta.",
   "Travel companions": "Însoțitori", "Interests": "Interese", "Budget (per person)": "Buget (de persoană)",
   "Solo": "Singur", "Couple": "Cuplu", "Friends": "Prieteni", "Family": "Familie",
   "Create Trip": "Creează călătoria", "Saving your trip...": "Se salvează călătoria...",
@@ -68,6 +69,7 @@ const ro: Record<string, string> = {
   "Privacy notice": "Notă de confidențialitate", "Try again": "Încearcă din nou",
   "Discover": "Descoperă", "Save": "Salvează", "Pass": "Treci peste", "Refresh": "Reîncarcă",
   "Where to next?": "Unde mergem?", "YOUR DISCOVERY DECK": "PENTRU TINE",
+  "Recently viewed": "Vizualizate recent", "Based on your search for {query}": "Pe baza căutării „{query}”",
 };
 
 Object.assign(ro, {

@@ -25,7 +25,6 @@ import {
   dateLabel,
   destinations,
   expenseCategories,
-  findDestination,
   interests,
   money,
   places,
@@ -38,7 +37,7 @@ import {
   type RouteStop,
 } from "@/data/travel";
 import { searchTripCities, searchTripCountries, type TripCountry } from "@/data/trip-geography";
-import { countryFlag, usStates } from "@/data/geography";
+import { cityForId, countryFlag, countryForCode, usStates } from "@/data/geography";
 import { routeStop, routeStopForDay, routeTitle, uniqueRouteStops } from "@/data/trip-route";
 import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
@@ -47,21 +46,32 @@ import { mapsRouteUrl, wazeRouteUrl } from "@/utils/trip-place";
 
 export function PlannerScreen() {
   const language = useAppLanguage();
-  const params = useLocalSearchParams<{ destination?: string }>();
+  const params = useLocalSearchParams<{ destination?: string; country?: string; city?: string; stopId?: string; stopName?: string; stopCountry?: string; stopLatitude?: string; stopLongitude?: string }>();
   const { trip, preferences, generateTrip } = useTravel();
-  const [draft, setDraft] = useState<Trip>({
-    destinationId: params.destination
-      ? findDestination(params.destination).id
-      : trip?.destinationId || destinations[0].id,
-    start: trip?.start || "",
-    end: trip?.end || "",
-    companions: trip?.companions || "Solo",
-    budget: preferences.budget,
-    interests: preferences.interests,
-    dayDestinations: trip?.dayDestinations,
-    routeStops: trip?.routeStops,
+  const [draft, setDraft] = useState<Trip>(() => {
+    const catalog = destinations.find((item) => item.id === params.destination);
+    const city = cityForId(params.country ?? "", params.city ?? "");
+    const country = countryForCode(city?.countryCode);
+    const latitude = Number(params.stopLatitude);
+    const longitude = Number(params.stopLongitude);
+    const stop = city && country ? {
+      id: city.id, name: city.name, country: country.name, countryCode: country.code,
+      latitude: city.latitude, longitude: city.longitude,
+    } : params.stopId && params.stopName && params.stopCountry && params.stopLatitude && params.stopLongitude &&
+      Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
+      ? { id: params.stopId, name: params.stopName, country: params.stopCountry, countryCode: "", latitude, longitude }
+      : null;
+    return {
+      destinationId: stop?.id ?? catalog?.id ?? "",
+      start: "",
+      end: "",
+      companions: "Solo",
+      budget: preferences.budget,
+      interests: preferences.interests,
+      routeStops: stop ? [stop] : undefined,
+    };
   });
-  const [routeMode, setRouteMode] = useState(!!trip?.dayDestinations && new Set(trip.dayDestinations).size > 1);
+  const [routeMode, setRouteMode] = useState(false);
   const [selectingDay, setSelectingDay] = useState<number | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [country, setCountry] = useState<TripCountry | null>(null);
@@ -79,8 +89,8 @@ export function PlannerScreen() {
   const chooseDate = (value: string) => {
     if (dateField === "start") {
       const end = draft.end && (draft.end < value || tripDays(value, draft.end) > 14) ? "" : draft.end;
-      patch({ start: value, end, dayDestinations: routeMode && end ? Array.from({ length: tripDays(value, end) }, (_, i) => draft.dayDestinations?.[i] || draft.destinationId) : undefined });
-    } else if (dateField === "end") patch({ end: value, dayDestinations: routeMode && draft.start ? Array.from({ length: tripDays(draft.start, value) }, (_, i) => draft.dayDestinations?.[i] || draft.destinationId) : undefined });
+      patch({ start: value, end, dayDestinations: routeMode && end && draft.destinationId ? Array.from({ length: tripDays(value, end) }, (_, i) => draft.dayDestinations?.[i] || draft.destinationId) : undefined });
+    } else if (dateField === "end") patch({ end: value, dayDestinations: routeMode && draft.start && draft.destinationId ? Array.from({ length: tripDays(draft.start, value) }, (_, i) => draft.dayDestinations?.[i] || draft.destinationId) : undefined });
   };
   const maxEnd = draft.start
     ? new Date(Date.parse(draft.start) + 13 * 86_400_000).toISOString().slice(0, 10)
@@ -162,7 +172,7 @@ export function PlannerScreen() {
         <Chip selected={!routeMode} onPress={() => { setRouteMode(false); patch({ dayDestinations: undefined, routeStops: draft.routeStops?.filter((stop) => stop.id === draft.destinationId) }); }}>One city</Chip>
         <Chip selected={routeMode} onPress={() => {
           setRouteMode(true);
-          if (draft.start && draft.end) patch({ dayDestinations: Array.from({ length: tripDays(draft.start, draft.end) }, (_, i) => draft.dayDestinations?.[i] || draft.destinationId) });
+          if (draft.start && draft.end && draft.destinationId) patch({ dayDestinations: Array.from({ length: tripDays(draft.start, draft.end) }, (_, i) => draft.dayDestinations?.[i] || draft.destinationId) });
         }}>Multi-city route</Chip>
       </Row>
       <View style={{ gap: 7 }}>
@@ -173,9 +183,8 @@ export function PlannerScreen() {
           onPress={() => openDestinationSelector(null)}
           style={[s.input, s.row, { justifyContent: "space-between" }]}
         >
-          <Copy style={{ fontSize: 14 }}>
-            {routeStop(draft).name},{" "}
-            {routeStop(draft).country}
+          <Copy style={{ fontSize: 14, color: draft.destinationId ? p.ink : p.muted }}>
+            {draft.destinationId ? `${routeStop(draft).name}, ${routeStop(draft).country}` : "Select country"}
           </Copy>
           <Icon name="pin" size={19} color={p.blue} />
         </Pressable>
@@ -190,8 +199,8 @@ export function PlannerScreen() {
           </Pressable>
         </View>)}
       </Row>
-      {!!draft.start && !!draft.end && <Copy muted style={{ fontSize: 12 }}>{routeMode ? formatMessage("{days} days · Choose a city for each day", { days: tripDays(draft.start, draft.end) }, language) : formatMessage("{days} days · In {city}", { days: tripDays(draft.start, draft.end), city: routeStop(draft).name }, language)}</Copy>}
-      {routeMode && !!draft.start && !!draft.end && <View style={{ gap: 7 }}>
+      {!!draft.start && !!draft.end && !!draft.destinationId && <Copy muted style={{ fontSize: 12 }}>{routeMode ? formatMessage("{days} days · Choose a city for each day", { days: tripDays(draft.start, draft.end) }, language) : formatMessage("{days} days · In {city}", { days: tripDays(draft.start, draft.end), city: routeStop(draft).name }, language)}</Copy>}
+      {routeMode && !!draft.start && !!draft.end && !!draft.destinationId && <View style={{ gap: 7 }}>
         <Copy style={s.label}>Route by day</Copy>
         {Array.from({ length: tripDays(draft.start, draft.end) }, (_, index) => <Pressable key={index} accessibilityRole="button" onPress={() => openDestinationSelector(index)} style={[s.input, s.row, { justifyContent: "space-between" }]}>
           <Copy>Day {index + 1} · {routeStopForDay(draft, index + 1).name}, {routeStopForDay(draft, index + 1).country}</Copy><Icon name="right" size={17} color={p.blue} />

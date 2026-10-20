@@ -9,6 +9,7 @@ import { useAuth } from "@/state/auth-context";
 import { placeFitsTripDay } from "@/utils/trip-place";
 import { describeSyncFailure, isFreeLimitFailure, SyncFailure } from "@/utils/sync-error";
 import { destinationForDay, tripDays, validateTrip } from "@/utils/trip";
+import { emptyExploreHistory, parseExploreHistory, rememberCountry, rememberPlace, type ExploreHistory } from "@/utils/explore-history";
 import { loadUsdRate, setDisplaySettings, type AppCurrency, type AppLanguage } from "@/data/formatting";
 import {
   archiveCurrentTrip,
@@ -44,6 +45,7 @@ export type TravelProfile = { name: string; username: string; language: AppLangu
 export type DiscoverySettings = { radiusKm: number; centerId: string | null };
 const defaultDiscoverySettings: DiscoverySettings = { radiusKm: 500, centerId: null };
 const externalPlacesKey = (userId: string) => `external-places:${userId}`;
+const exploreHistoryKey = (userId: string) => `explore-history:${userId}`;
 
 function parseLocalExternalPlaces(value: string | null): NearbyPlace[] {
   if (!value) return [];
@@ -71,6 +73,7 @@ function useTravelState() {
   const [saved, setSaved] = useState<string[]>([]);
   const [savedPlaces, setSavedPlaces] = useState<string[]>([]);
   const [externalPlaces, setExternalPlaces] = useState<NearbyPlace[]>([]);
+  const [exploreHistoryState, setExploreHistoryState] = useState<{ owner: string | null; history: ExploreHistory }>({ owner: null, history: emptyExploreHistory });
   const [trip, setTrip] = useState<Trip | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -90,9 +93,40 @@ function useTravelState() {
   const [syncError, setSyncError] = useState("");
   const [reload, setReload] = useState(0);
   const writeQueue = useRef<Promise<void>>(Promise.resolve());
+  const exploreHistoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     if (!userId) setDisplaySettings({ language: "en", currency: "EUR" });
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    let current = true;
+    AsyncStorage.getItem(exploreHistoryKey(userId))
+      .then((value) => { if (current) setExploreHistoryState({ owner: userId, history: parseExploreHistory(value) }); })
+      .catch(() => { if (current) setExploreHistoryState({ owner: userId, history: emptyExploreHistory }); });
+    return () => { current = false; };
+  }, [userId]);
+
+  useEffect(() => {
+    if (userId && exploreHistoryState.owner === userId) {
+      const value = JSON.stringify(exploreHistoryState.history);
+      exploreHistoryWriteQueue.current = exploreHistoryWriteQueue.current
+        .then(() => AsyncStorage.setItem(exploreHistoryKey(userId), value))
+        .catch(() => undefined);
+    }
+  }, [userId, exploreHistoryState]);
+
+  const recordCountryVisit = useCallback((code: string, searchTerm = "") => {
+    if (!userId) return;
+    setExploreHistoryState((current) => current.owner === userId
+      ? { owner: userId, history: rememberCountry(current.history, code, searchTerm) } : current);
+  }, [userId]);
+
+  const recordPlaceVisit = useCallback((countryCode: string, cityId: string, place: NearbyPlace, searchTerm = "") => {
+    if (!userId) return;
+    setExploreHistoryState((current) => current.owner === userId
+      ? { owner: userId, history: rememberPlace(current.history, countryCode, cityId, place, searchTerm) } : current);
   }, [userId]);
 
   useEffect(() => {
@@ -391,6 +425,9 @@ function useTravelState() {
 
   return {
     saved, toggleSaved, savedPlaces, togglePlace, externalPlaces, toggleExternalPlace, favoriteDiscoveryItem,
+    exploreHistory: exploreHistoryState.owner === userId ? exploreHistoryState.history : emptyExploreHistory,
+    exploreHistoryReady: !!userId && exploreHistoryState.owner === userId,
+    recordCountryVisit, recordPlaceVisit,
     trip, hasTrip: !!trip, generateTrip, clearTrip, finishTrip,
     activities, addActivity, updateActivity, removeActivity,
     expenses, addExpense, updateExpense, removeExpense,

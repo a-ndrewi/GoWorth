@@ -10,6 +10,7 @@ export function validateTrip(trip: {
   dayDestinations?: string[];
   routeStops?: { id: string; name: string; country: string; countryCode: string; latitude: number; longitude: number }[];
 }): string | null {
+  if (!trip.destinationId) return "Select a country and city for your trip.";
   const validDate = (value: string) =>
     /^\d{4}-\d{2}-\d{2}$/.test(value) &&
     Number.isFinite(Date.parse(value)) &&

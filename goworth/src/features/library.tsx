@@ -8,7 +8,7 @@ import {
   Button, Chip, Copy, DestinationCard, EmptyState, Field, Header, Heading,
   Icon, IconButton, Row, Screen, Sheet, s,
 } from "@/components/goworth/ui";
-import { palette as p } from "@/constants/design";
+import { palette as p, photos } from "@/constants/design";
 import { dateLabel, destinations, findDestination, places, type Trip } from "@/data/travel";
 import { routeStop, routeTitle, uniqueRouteStops } from "@/data/trip-route";
 import { useTravel } from "@/state/travel-context";
@@ -36,16 +36,16 @@ export function SavedScreen() {
   const openMap = (place: (typeof places)[number]) =>
     router.push({ pathname: "/map", params: { destination: place.destinationId, place: place.id } } as Href);
   return (
-    <Screen active="saved" style={{ gap: 18 }}>
-      <Header title="Saved" back={false} right={<IconButton name="plus" label="Plan a trip" color={p.blue} onPress={() => router.push("/planner" as Href)} />} />
-      <Row style={{ gap: 6 }}>
-        {["Destinations", "Places", "Current trip"].map((item) => <Chip key={item} selected={tab === item} onPress={() => setTab(item)} style={{ flex: 1, paddingHorizontal: 4 }}>{item}</Chip>)}
+    <Screen active="saved" style={{ gap: 18 }} bodyStyle={{ flexGrow: 1 }}>
+      <Header title="Saved" back={false} centered />
+      <Row style={{ gap: 6, width: "100%", maxWidth: 440, alignSelf: "center", justifyContent: "center" }}>
+        {["Destinations", "Places", "Current trip"].map((item) => <Chip key={item} selected={tab === item} onPress={() => setTab(item)} style={{ flex: 1, minWidth: 0, maxWidth: 140, paddingHorizontal: 4 }}>{item}</Chip>)}
       </Row>
-      {tab === "Destinations" && <>
+      {tab === "Destinations" && <View style={{ flexGrow: 1, justifyContent: savedDestinations.length ? "flex-start" : "center" }}>
         <View style={s.grid}>{savedDestinations.map((destination) => <DestinationCard key={destination.id} destination={destination} />)}</View>
         {!savedDestinations.length && <EmptyState title="No destinations saved" detail="Keep interesting destinations here while you plan." action="Explore destinations" onPress={() => router.navigate("/home" as Href)} />}
-      </>}
-      {tab === "Places" && <>
+      </View>}
+      {tab === "Places" && <View style={{ flexGrow: 1, justifyContent: savedPlaceRecords.length || externalPlaces.length ? "flex-start" : "center" }}>
         {savedPlaceRecords.map((place) => <Row key={place.id} style={{ paddingVertical: 10, gap: 12, borderBottomWidth: 1, borderColor: p.line }}>
           <View style={{ width: 46, height: 46, borderRadius: 6, backgroundColor: p.greenSoft, justifyContent: "center", alignItems: "center" }}><Icon name="pin" color={p.green} /></View>
           <Pressable accessibilityRole="button" accessibilityLabel={translateAccessibility(`View ${place.name}`, language)} onPress={() => router.push({ pathname: "/explore", params: { id: place.destinationId, place: place.id } } as Href)} style={{ flex: 1 }}>
@@ -65,13 +65,15 @@ export function SavedScreen() {
           <IconButton name="heartFill" label={`Unsave ${place.name}`} color={p.pink} onPress={() => void toggleExternalPlace(place)} />
         </Row>)}
         {!!unavailablePlaces && <Copy muted>{formatMessage(unavailablePlaces === 1 ? "{count} saved place is unavailable on this device." : "{count} saved places are unavailable on this device.", { count: unavailablePlaces }, language)}</Copy>}
-        {!savedPlaces.length && <EmptyState title="No places saved" detail="Save a landmark, trail, or market to find it here." action="Explore places" onPress={() => router.push("/explore" as Href)} />}
-      </>}
-      {tab === "Current trip" && (trip ? <>
+        {!savedPlaceRecords.length && !externalPlaces.length && <EmptyState title="No places saved" detail="Save a landmark, trail, or market to find it here." action="Explore places" onPress={() => router.push("/home" as Href)} />}
+      </View>}
+      {tab === "Current trip" && <View style={{ flexGrow: 1, justifyContent: trip ? "flex-start" : "center", gap: 12 }}>
+        {trip ? <>
         <TripSummary trip={trip} />
         <Copy muted>{dateLabel(trip.start)} - {dateLabel(trip.end)}</Copy>
         <Button onPress={() => router.push("/itinerary" as Href)}>Open itinerary</Button>
-      </> : <EmptyState title="No trip planned" detail="Choose a destination and dates to start your trip." action="Plan a trip" onPress={() => router.push("/planner" as Href)} />)}
+        </> : <EmptyState title="No trip planned" detail="Choose a destination and dates to start your trip." action="Plan a trip" onPress={() => router.push("/planner" as Href)} />}
+      </View>}
     </Screen>
   );
 }
@@ -140,8 +142,9 @@ export function ProfileScreen() {
     <Screen active="profile" style={{ gap: 22 }}>
       <Header title="Profile" back={false} right={<IconButton name="settings" label="Account settings" onPress={() => setDialog("Account settings")} />} />
       <View style={{ alignItems: "center", gap: 8 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={translate("Change profile photo", language)} accessibilityState={{ disabled: avatarBusy, busy: avatarBusy }} disabled={avatarBusy} onPress={() => void changeAvatar()} style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: p.greenSoft, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-          {avatarBusy ? <ActivityIndicator color={p.green} /> : avatarUrl ? <Image source={{ uri: avatarUrl }} contentFit="cover" style={{ width: 84, height: 84 }} /> : <Icon name="person" size={38} color={p.green} />}
+        <Pressable accessibilityRole="button" accessibilityLabel={translate("Change profile photo", language)} accessibilityState={{ disabled: avatarBusy, busy: avatarBusy }} disabled={avatarBusy} onPress={() => void changeAvatar()} style={{ width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: p.white, backgroundColor: p.greenSoft, alignItems: "center", justifyContent: "center", shadowColor: p.ink, shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } }}>
+          {avatarBusy ? <ActivityIndicator color={p.green} /> : <Image source={avatarUrl ? { uri: avatarUrl } : photos.avatar} contentFit="cover" transition={200} style={{ width: 84, height: 84, borderRadius: 42 }} />}
+          {!avatarBusy && <View style={{ position: "absolute", right: -3, bottom: -2, width: 27, height: 27, borderRadius: 14, backgroundColor: p.blue, borderWidth: 2, borderColor: p.white, alignItems: "center", justifyContent: "center" }}><Icon name="camera" size={13} color={p.white} /></View>}
         </Pressable>
         {!!avatarError && <View accessibilityLiveRegion="polite"><Copy style={[s.error, { textAlign: "center" }]}>{avatarError}</Copy></View>}
         <Heading style={{ fontSize: 22, lineHeight: 28, textAlign: "center", maxWidth: "100%", flexShrink: 1 }}>{profile.name}</Heading>
@@ -206,7 +209,8 @@ export function ProfileScreen() {
         <Pressable accessibilityRole="button" onPress={() => router.push("/legal" as Href)} style={[s.row, { paddingVertical: 15 }]}><Icon name="book" color={p.blue} /><Copy style={{ flex: 1 }}>Legal & privacy</Copy><Icon name="right" color={p.muted} /></Pressable>
         <Pressable accessibilityRole="button" onPress={() => setDialog("Log out")} style={[s.row, { paddingVertical: 15 }]}><Icon name="logout" color={p.danger} /><Copy style={{ color: p.danger }}>Log out</Copy></Pressable>
       </View>
-      <View style={{ alignItems: "center", gap: 3, paddingTop: 4, paddingBottom: 6 }}>
+      <View style={{ alignItems: "center", gap: 5, paddingTop: 12, paddingBottom: 8 }}>
+        <Image source={photos.brandMark} contentFit="contain" accessibilityLabel="GoWorth" style={{ width: 48, height: 36 }} />
         <Copy muted style={{ fontSize: 11 }}>GoWorth v{appVersion}</Copy>
         <Copy muted style={{ fontSize: 11 }}>© {currentYear} {translate("GoWorth. All rights reserved.", language)}</Copy>
       </View>

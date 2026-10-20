@@ -1,6 +1,7 @@
 import { Image } from "expo-image";
 import { router, type Href } from "expo-router";
 import { SymbolView } from "expo-symbols";
+import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
 import { Children, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
@@ -50,6 +51,7 @@ const symbols = {
   star: ["star.fill", "star"],
   sparkle: ["sparkles", "auto_awesome"],
   compass: ["safari", "explore"],
+  compassFill: ["safari.fill", "explore"],
   bag: ["suitcase.rolling", "luggage"],
   bell: ["bell", "notifications"],
   camera: ["camera", "photo_camera"],
@@ -67,6 +69,7 @@ const symbols = {
   crown: ["crown", "diamond"],
   chat: ["bubble.left", "chat_bubble"],
   map: ["map", "map"],
+  mapFill: ["map.fill", "map"],
   leaf: ["leaf", "eco"],
   book: ["book", "menu_book"],
   eye: ["eye", "visibility"],
@@ -203,7 +206,8 @@ export function Button({
         s.button,
         secondary && s.secondaryButton,
         dark && { backgroundColor: p.ink },
-        (pressed || disabled) && { opacity: 0.65 },
+        pressed && { opacity: 0.78, transform: [{ scale: 0.985 }] },
+        disabled && { opacity: 0.52 },
         style,
       ]}
     >
@@ -305,11 +309,13 @@ export function Header({
   subtitle,
   back = true,
   right,
+  centered = false,
 }: {
   title?: string;
   subtitle?: string;
   back?: boolean;
   right?: ReactNode;
+  centered?: boolean;
 }) {
   return (
     <Row style={{ justifyContent: "space-between", minHeight: 46, gap: 5 }}>
@@ -322,10 +328,10 @@ export function Header({
           }
         />
       )}
-      <View style={{ flex: 1 }}>
-        <Heading style={{ fontSize: 24, lineHeight: 30 }}>{title}</Heading>
+      <View style={{ flex: 1, alignItems: centered ? "center" : "flex-start" }}>
+        <Heading style={{ fontSize: 24, lineHeight: 30, textAlign: centered ? "center" : "left" }}>{title}</Heading>
         {subtitle && (
-          <Copy muted style={{ fontSize: 13 }}>
+          <Copy muted style={{ fontSize: 13, textAlign: centered ? "center" : "left" }}>
             {subtitle}
           </Copy>
         )}
@@ -336,10 +342,11 @@ export function Header({
 }
 export function BottomNav({ active }: { active: string }) {
   const language = useAppLanguage();
+  const { avatarUrl } = useTravel();
   const items = [
     ["home", "Explore", "compass", "/home"],
     ["map", "Map", "map", "/map"],
-    ["planner", "Plan", "calendar", "/planner"],
+    ["planner", "Plan", "plus", "/planner"],
     ["saved", "Saved", "heart", "/saved"],
     ["profile", "Profile", "person", "/profile"],
   ] as const;
@@ -348,16 +355,21 @@ export function BottomNav({ active }: { active: string }) {
       <View style={s.nav}>{items.map(([id, label, icon, href]) => (
         <Pressable
           key={id}
-          onPress={() => router.navigate(href as Href)}
+          onPress={() => id === "planner" ? router.push(href as Href) : router.navigate(href as Href)}
           accessibilityRole="button"
           accessibilityLabel={translate(label, language)}
           accessibilityState={{ selected: active === id }}
-          style={({ pressed }) => [s.navItem, pressed && { opacity: 0.65 }]}
+          style={({ pressed }) => [s.navItem, pressed && { opacity: 0.78, transform: [{ scale: 0.93 }] }]}
         >
-          <View style={[s.navIcon, active === id && s.navIconActive]}>
-            <Icon name={active === "saved" && id === "saved" ? "heartFill" : icon} size={22} color={active === id ? p.blue : p.muted} />
+          <View style={[s.navIcon, id === "planner" && s.navCreate, active === id && id !== "planner" && s.navIconActive]}>
+            {id === "profile" ? (
+              <Image source={avatarUrl ? { uri: avatarUrl } : photos.avatar} contentFit="cover" transition={200} style={[s.navAvatar, active === id && s.navAvatarActive]} />
+            ) : (
+              <Icon name={active === id && id === "saved" ? "heartFill" : active === id && id === "home" ? "compassFill" : active === id && id === "map" ? "mapFill" : icon} size={id === "planner" ? 20 : 22} color={id === "planner" ? p.white : active === id && id === "saved" ? p.danger : active === id ? p.blue : p.muted} />
+            )}
           </View>
           <Text style={[s.navLabel, active === id && s.navLabelActive]}>{translate(label, language)}</Text>
+          {active === id && <Animated.View entering={ZoomIn.duration(240)} style={s.navIndicator} />}
         </Pressable>
       ))}</View>
     </View>
@@ -368,15 +380,18 @@ export function Screen({
   active,
   footer,
   style,
+  bodyStyle,
   scroll = true,
 }: {
   children: ReactNode;
   active?: string;
   footer?: ReactNode;
   style?: StyleProp<ViewStyle>;
+  bodyStyle?: StyleProp<ViewStyle>;
   scroll?: boolean;
 }) {
   const { syncError } = useTravel();
+  const contentGap = StyleSheet.flatten(style)?.gap ?? 20;
   return (
     <SafeAreaView style={s.screen} edges={active ? ["top"] : ["top", "bottom"]}>
       <KeyboardAvoidingView
@@ -387,20 +402,20 @@ export function Screen({
           <ScrollView
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[s.content, style, active || footer ? { paddingBottom: 28 } : null]}
+            contentContainerStyle={[s.content, style, active ? { paddingBottom: 90 } : null, footer ? { paddingBottom: 112 } : null]}
           >
             {!!syncError && (
               <View style={{ backgroundColor: "#FFF1F2", borderRadius: 6, padding: 10 }}>
                 <Copy style={{ color: p.danger, fontSize: 12 }}>{syncError}</Copy>
               </View>
             )}
-            {children}
+            <Animated.View entering={FadeInDown.duration(360).springify()} style={[{ gap: contentGap }, bodyStyle]}>{children}</Animated.View>
           </ScrollView>
         ) : (
-          <View style={[s.content, { flex: 1 }, style]}>
+          <Animated.View entering={FadeInDown.duration(360).springify()} style={[s.content, { flex: 1 }, style, bodyStyle]}>
             {!!syncError && <Copy style={{ color: p.danger }}>{syncError}</Copy>}
             {children}
-          </View>
+          </Animated.View>
         )}
         {footer && <View style={s.footer}>{footer}</View>}
       </KeyboardAvoidingView>
@@ -609,7 +624,7 @@ export const s = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 12,
     backgroundColor: p.blue,
-    borderRadius: 28,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -632,13 +647,13 @@ export const s = StyleSheet.create({
     height: 44,
     minWidth: 44,
     minHeight: 44,
-    borderRadius: 24,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
   chip: {
     minHeight: 38,
-    borderRadius: 24,
+    borderRadius: 8,
     paddingHorizontal: 17,
     paddingVertical: 8,
     alignItems: "center",
@@ -657,7 +672,7 @@ export const s = StyleSheet.create({
     minHeight: 49,
     borderWidth: 1,
     borderColor: p.line,
-    borderRadius: 13,
+    borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 13,
     fontSize: 14,
@@ -669,35 +684,53 @@ export const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: p.line,
     backgroundColor: p.white,
+    shadowColor: p.ink,
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.035,
+    shadowRadius: 14,
   },
   nav: {
     width: "100%",
     maxWidth: 600,
     alignSelf: "center",
     flexDirection: "row",
-    paddingTop: 5,
-    paddingBottom: Platform.OS === "web" ? 8 : 3,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "web" ? 7 : 2,
     paddingHorizontal: 4,
   },
   navItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 60,
-    gap: 1,
+    minHeight: 62,
+    gap: 3,
   },
   navIcon: {
-    width: 42,
-    height: 34,
-    borderRadius: 17,
+    width: 40,
+    height: 37,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   navIconActive: { backgroundColor: p.blueSoft },
-  navLabel: { color: p.muted, fontSize: 11, lineHeight: 16, fontWeight: "600", textAlign: "center" },
+  navCreate: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: p.blue,
+    shadowColor: p.blue,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.16,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  navAvatar: { width: 29, height: 29, borderRadius: 15, borderWidth: 1, borderColor: p.line },
+  navAvatarActive: { borderWidth: 2, borderColor: p.blue },
+  navIndicator: { width: 13, height: 2, borderRadius: 1, backgroundColor: p.blue, position: "absolute", bottom: 0 },
+  navLabel: { color: p.muted, fontSize: 10, lineHeight: 14, fontWeight: "600", textAlign: "center" },
   navLabelActive: { color: p.blue, fontWeight: "700" },
   destinationCard: {
-    borderRadius: 16,
+    borderRadius: 8,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: p.line,

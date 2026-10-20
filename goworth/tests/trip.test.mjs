@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { tripDays, validateTrip } from "../src/utils/trip.ts";
 
-const valid = { start: "2026-11-12", end: "2026-11-15", budget: 2500 };
+const valid = { destinationId: "positano", start: "2026-11-12", end: "2026-11-15", budget: 2500 };
 test("trip duration includes both departure and return", () => {
   assert.equal(tripDays(valid.start, valid.end), 4);
   assert.equal(tripDays(valid.start, valid.start), 1);
@@ -12,6 +12,8 @@ test("duration is stable across daylight-saving boundaries", () => {
 });
 test("a well-formed trip is accepted", () =>
   assert.equal(validateTrip(valid), null));
+test("a trip cannot be created without choosing a destination", () =>
+  assert.match(validateTrip({ ...valid, destinationId: "" }), /country and city/));
 test("missing and impossible calendar dates are rejected", () => {
   for (const start of [
     "",

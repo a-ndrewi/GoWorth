@@ -7,7 +7,7 @@ import { MapSurface } from "@/components/goworth/map-surface";
 import { palette as p } from "@/constants/design";
 import { destinations, places, tripDays } from "@/data/travel";
 import { destinationPins, worldCityPins, usStatePins, searchCatalogPlace, searchMap, type MapPin, type SearchResult } from "@/data/map";
-import { countries, countryFlag, usStates } from "@/data/geography";
+import { cityForId, countries, countryFlag, countryForCode, usStates } from "@/data/geography";
 import { loadNearbyPlaces, type NearbyPlace } from "@/data/nearby-places";
 import { useTravel } from "@/state/travel-context";
 import { placeFitsTripDay } from "@/utils/trip-place";
@@ -39,7 +39,7 @@ function externalPlace(place: SearchResult | NearbyPlace, location?: string): Ne
 export function MapScreen() {
   const language = useAppLanguage();
   const { width } = useWindowDimensions();
-  const { destination, place, external, q, lat, lon, name, pinKind } = useLocalSearchParams<{ destination?: string; place?: string; external?: string; q?: string; lat?: string; lon?: string; name?: string; pinKind?: string }>();
+  const { destination, place, external, q, lat, lon, name, pinKind, country: routeCountry, city: routeCity } = useLocalSearchParams<{ destination?: string; place?: string; external?: string; q?: string; lat?: string; lon?: string; name?: string; pinKind?: string; country?: string; city?: string }>();
   const { saved, savedPlaces, toggleSaved, externalPlaces, toggleExternalPlace, trip, addActivity } = useTravel();
   const initialExternal = externalPlaces.find((item) => item.id === external);
   const initialPlace = places.find((item) => item.id === place);
@@ -184,9 +184,23 @@ export function MapScreen() {
     try { await Linking.openURL(url); }
     catch { setError("Could not open directions on this device."); }
   };
+  const planPlace = (item: SearchResult | NearbyPlace) => {
+    const linkedCity = cityForId(routeCountry ?? "", routeCity ?? "");
+    const centerCity = nearbyCenter?.countryCode ? cityForId(nearbyCenter.countryCode, nearbyCenter.id) : undefined;
+    const city = linkedCity ?? centerCity;
+    const catalogCenter = destinations.find((entry) => entry.id === nearbyCenter?.id);
+    setPreview(null);
+    if (city) router.push({ pathname: "/planner", params: { country: city.countryCode, city: city.id } } as Href);
+    else if (catalogCenter) router.push({ pathname: "/planner", params: { destination: catalogCenter.id } } as Href);
+    else router.push({ pathname: "/planner", params: {
+      stopId: item.id, stopName: item.name,
+      stopCountry: countryForCode(item.countryCode)?.name ?? "Worldwide",
+      stopLatitude: String(item.latitude), stopLongitude: String(item.longitude),
+    } } as Href);
+  };
 
   return <Screen active="map" style={{ gap: 16 }}>
-    <Header title="Map" back={false} />
+    <Header title="Map" back={false} centered />
     <Row style={{ gap: 8 }}>
       <Row style={{ flex: 1, minWidth: 0, borderWidth: 1, borderColor: p.line, borderRadius: 6, paddingHorizontal: 12, gap: 8 }}>
         <Icon name="search" color={p.muted} size={18} />
@@ -271,7 +285,7 @@ export function MapScreen() {
           </View>
           <Button icon={addedDays.includes(selectedDay) ? "check" : "plus"} busy={actionBusy} disabled={addedDays.includes(selectedDay)} onPress={() => void addPlaceToTrip(preview)}>{addedDays.includes(selectedDay) ? formatMessage("Added to Day {day}", { day: selectedDay }, language) : "Add to itinerary"}</Button>
           {!!addedDays.length && <Button secondary onPress={() => { setPreview(null); router.push("/itinerary" as Href); }}>View itinerary</Button>}
-        </> : <>{trip && <Copy muted>This place is outside the cities assigned to your trip. Create a route with this city to add it.</Copy>}<Button onPress={() => { setPreview(null); router.push("/planner" as Href); }}>{trip ? "Plan a new route" : "Plan a trip"}</Button></>}
+        </> : <>{trip && <Copy muted>This place is outside the cities assigned to your trip. Create a route with this city to add it.</Copy>}<Button onPress={() => planPlace(preview)}>{trip ? "Plan a new route" : "Plan a trip"}</Button></>}
         <Button secondary icon="map" onPress={() => void openDirections(preview)}>Google Maps directions</Button>
         <Button secondary icon="globe" onPress={() => void Linking.openURL(preview.sourceUrl)}>Open source</Button>
         {!!actionError && <Copy style={{ color: p.danger }}>{actionError}</Copy>}
