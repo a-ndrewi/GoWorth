@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react
 import { useIsFocused } from "expo-router";
 import { GestureDetector, useExclusiveGestures, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from "react-native-gesture-handler";
 import Animated, {
-  Easing, Extrapolation, cancelAnimation, interpolate, useAnimatedStyle, useSharedValue,
+  Easing, Extrapolation, cancelAnimation, interpolate, useAnimatedReaction, useAnimatedStyle, useSharedValue,
   withDecay, withRepeat, withSpring, withTiming, type SharedValue,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
@@ -120,12 +120,12 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
   const pressed = useSharedValue(-1);
   const markerPulse = useSharedValue(0);
 
-  // Only the largest countries show at the starting zoom; the rest mount a moment later so the globe appears quickly.
+  // Only the largest countries show at the starting zoom. The other ~200 bubbles stay invisible until the globe is
+  // zoomed in, so they mount then: mounting them on a timer stalled the first scroll past the globe.
   const [allBubbles, setAllBubbles] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setAllBubbles(true), 700);
-    return () => clearTimeout(timer);
-  }, []);
+  useAnimatedReaction(() => zoom.value > 1.35, (zoomedIn, wasZoomedIn) => {
+    if (zoomedIn && !wasZoomedIn) scheduleOnRN(setAllBubbles, true);
+  });
   const focused = useIsFocused();
   useEffect(() => {
     // One short turn when the globe appears; it then only redraws while it is touched or animating.

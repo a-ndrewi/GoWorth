@@ -3,7 +3,9 @@ import { router, useLocalSearchParams, type Href } from "expo-router";
 import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
+import { destinationPins } from "@/data/map";
+import { prefetchPlacePhotos } from "@/data/place-photo";
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button, Chip, Copy, Field, Header, Heading, Icon, IconButton, Row, Screen, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
 import { TripHero, heroStylesSheet } from "@/components/goworth/trip-hero";
@@ -79,15 +81,29 @@ export function SavedScreen() {
     ...savedPlaceRecords.map((place) => {
       const destination = findDestination(place.destinationId);
       return { key: place.id, name: place.name, category: place.category, location: `${destination.name}, ${destination.country}`,
-        latitude: undefined, longitude: undefined, sourceUrl: undefined,
+        latitude: undefined, longitude: undefined, sourceUrl: undefined, near: destinationPins.find((pin) => pin.id === place.destinationId),
         onOpen: () => router.push({ pathname: "/explore", params: { id: place.destinationId, place: place.id } } as Href),
         onUnsave: () => togglePlace(place.id) };
     }),
     ...externalPlaces.map((place) => ({ key: place.id, name: place.name, category: place.category, location: place.location || place.detail,
-      latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl,
+      latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl, near: undefined,
       onOpen: () => router.navigate({ pathname: "/map", params: { external: place.id } } as Href),
       onUnsave: () => void toggleExternalPlace(place) })),
   ], [savedPlaceRecords, externalPlaces, togglePlace, toggleExternalPlace]);
+  // Photos for the whole list are looked up in bulk, a page at a time, before the cards each search on their own.
+  const placesOpened = opened.has("Places");
+  useEffect(() => {
+    if (!placesOpened || !placeItems.length) return;
+    let active = true;
+    void (async () => {
+      for (let start = 0; start < placeItems.length && active; start += 50) {
+        await prefetchPlacePhotos(placeItems.slice(start, start + 50).map((item) => ({ name: item.name, location: item.location,
+          latitude: item.latitude, longitude: item.longitude, sourceUrl: item.sourceUrl,
+          ...(item.near ? { near: { latitude: item.near.latitude, longitude: item.near.longitude, radiusKm: 60 } } : {}) }))).catch(() => undefined);
+      }
+    })();
+    return () => { active = false; };
+  }, [placesOpened, placeItems]);
   const unavailablePlaces = Math.max(0, savedPlaces.length - savedPlaceRecords.length - externalPlaces.length);
   const spent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const tabs = [{ id: "Places", count: placeCount }, { id: "Trips", count: (trip ? 1 : 0) + journalEntries.length }];

@@ -84,8 +84,9 @@ function resolveCardPhoto(item: SwipeItem): Promise<string | null> {
         if (photo?.url && !await Image.prefetch(photo.url, "memory-disk").catch(() => false)) return null;
         return photo?.url ?? null;
       })
-      .catch(() => null)
-      .then((url) => { photoCache.set(item.key, url); return url; });
+      .then((url) => { photoCache.set(item.key, url); return url; })
+      // A failed search is not remembered as "no photo": the card asks again the next time it comes up.
+      .catch(() => { photoRequests.delete(item.key); return null; });
     photoRequests.set(item.key, request);
   }
   return request;

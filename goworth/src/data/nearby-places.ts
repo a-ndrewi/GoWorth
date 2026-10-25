@@ -1,5 +1,5 @@
 import type { MapPin } from "./map";
-import { findPlacePhoto } from "./place-photo.ts";
+import { findPlacePhoto, prefetchPlacePhotos } from "./place-photo.ts";
 
 export type VenueKind = "restaurant" | "bar" | "cafe" | "nightclub";
 /** What the Explore deck can show besides attractions; "terrace" means any venue with outdoor seating. */
@@ -66,15 +66,24 @@ function hasVerifiedPhoto(place: NearbyPlace) {
   return request;
 }
 
+/**
+ * Keeps the places that have a photo. Most are confirmed in bulk from their Wikipedia articles; only when that leaves
+ * too few does each remaining place get its own (slower) search, and only until there are enough or time runs out.
+ */
 async function keepPhotoBackedPlaces(places: NearbyPlace[]) {
   const candidates = places.slice(0, 60);
-  const verified: NearbyPlace[] = [];
-  for (let start = 0; start < candidates.length && verified.length < 30; start += 8) {
-    const batch = candidates.slice(start, start + 8);
-    const results = await Promise.all(batch.map(async (place) => ({ place, ready: await hasVerifiedPhoto(place) })));
-    verified.push(...results.filter((result) => result.ready).map((result) => result.place));
+  const bulk = await prefetchPlacePhotos(candidates.map((place) => ({ name: place.name, location: place.location ?? "", latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl })))
+    .catch(() => candidates.map(() => false));
+  const ready = new Set(candidates.filter((_, index) => bulk[index]));
+  const deadline = Date.now() + 6000;
+  const rest = candidates.filter((place) => !ready.has(place));
+  for (let start = 0; start < rest.length && ready.size < 12 && Date.now() < deadline; start += 6) {
+    const batch = rest.slice(start, start + 6);
+    const results = await Promise.all(batch.map(async (place) => ({ place, ok: await hasVerifiedPhoto(place) })));
+    for (const result of results) if (result.ok) ready.add(result.place);
   }
-  return verified.slice(0, 30);
+  // Keep the source's order (nearest or best-known first) rather than the order the photos were confirmed in.
+  return candidates.filter((place) => ready.has(place)).slice(0, 30);
 }
 
 export function isExplorePlace(properties: { osm_key?: string; osm_value?: string } | undefined): boolean {

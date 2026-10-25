@@ -241,8 +241,94 @@ async function limited<T>(task: () => Promise<T>): Promise<T> {
 }
 
 const resolved = new Map<string, PlacePhoto[]>();
+/**
+ * With coordinates the place is already pinned down, so the location label is left out of the key: a list and its
+ * thumbnails describe the same city differently ("Rome, IT" or "Rome, Italy") and should share one lookup.
+ */
 const lookupKey = (name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string) =>
-  `${name}|${location}|${latitude ?? ""}|${longitude ?? ""}|${sourceUrl ?? ""}`.toLowerCase();
+  (latitude !== undefined && longitude !== undefined && Number.isFinite(latitude) && Number.isFinite(longitude)
+    ? `${name}|@${latitude.toFixed(4)}|${longitude.toFixed(4)}|${sourceUrl ?? ""}`
+    : `${name}|${location}|||${sourceUrl ?? ""}`).toLowerCase();
+
+/** Records a photo found outside `findPlacePhoto`, so later lookups for the place answer at once. */
+function settle(key: string, photos: PlacePhoto[]) {
+  const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  cache.set(key, { photos: Promise.resolve(photos), expiresAt });
+  resolved.set(key, photos);
+  remember(key, { expiresAt, photos });
+}
+
+/** `near` stands in for the place's own coordinates when it has none: the article must then lie within `radiusKm` of it. */
+export type PhotoRequest = { name: string; location: string; latitude?: number; longitude?: number; sourceUrl?: string;
+  near?: { latitude: number; longitude: number; radiusKm: number } };
+/** Bulk lookups in flight, by place key; a single lookup for one of these places waits for it instead of racing it. */
+const prefetching = new Map<string, Promise<unknown>>();
+type WikiLeadPage = { pageid?: number; title?: string; pageimage?: string; coordinates?: { lat: number; lon: number }[] };
+
+/**
+ * Finds the Wikipedia lead photo of many places at once: one Wikipedia request and one Commons request per 50 places,
+ * instead of several requests for each. Local names usually redirect to the English article. Places found here are
+ * settled in the cache; the result tells which ones have a photo, and `false` only means "not found this way".
+ */
+export function prefetchPlacePhotos(places: PhotoRequest[]): Promise<boolean[]> {
+  const keys = places.map((place) => lookupKey(place.name, place.location, place.latitude, place.longitude, place.sourceUrl));
+  const run = bulkPhotos(places);
+  for (const key of keys) if (!prefetching.has(key)) prefetching.set(key, run);
+  void run.catch(() => undefined).finally(() => { for (const key of keys) if (prefetching.get(key) === run) prefetching.delete(key); });
+  return run;
+}
+
+async function bulkPhotos(places: PhotoRequest[]): Promise<boolean[]> {
+  await storeReady;
+  const found = places.map((place) => !!peekPlacePhoto(place.name, place.location, place.latitude, place.longitude, place.sourceUrl));
+  const pending = places.map((place, index) => ({ place, index })).filter(({ place, index }) => !found[index] &&
+    peekPlacePhoto(place.name, place.location, place.latitude, place.longitude, place.sourceUrl) === undefined &&
+    ((place.latitude !== undefined && place.longitude !== undefined) || !!place.near));
+  for (let start = 0; start < pending.length; start += 50) {
+    const chunk = pending.slice(start, start + 50);
+    const byPageId = chunk.filter(({ place }) => /^https:\/\/en\.wikipedia\.org\/\?curid=\d+$/.test(place.sourceUrl ?? ""));
+    const byTitle = chunk.filter((item) => !byPageId.includes(item));
+    const lead = new Map<number, string>();
+    for (const [group, param] of [[byTitle, "titles"], [byPageId, "pageids"]] as const) {
+      if (!group.length) continue;
+      const params = new URLSearchParams({ action: "query", prop: "pageimages|coordinates", piprop: "name", redirects: "1", format: "json", origin: "*" });
+      params.set(param, group.map(({ place }) => param === "pageids" ? place.sourceUrl!.split("curid=")[1] : place.name).join("|"));
+      const data = await wikimediaJson<{ query?: { normalized?: { from: string; to: string }[]; redirects?: { from: string; to: string }[]; pages?: Record<string, WikiLeadPage> } }>(`https://en.wikipedia.org/w/api.php?${params}`).catch(() => null);
+      const pages = Object.values(data?.query?.pages ?? {});
+      const follow = (title: string) => {
+        const normalized = data?.query?.normalized?.find((item) => item.from === title)?.to ?? title;
+        return data?.query?.redirects?.find((item) => item.from === normalized)?.to ?? normalized;
+      };
+      for (const { place, index } of group) {
+        const page = param === "pageids" ? pages.find((item) => String(item.pageid) === place.sourceUrl!.split("curid=")[1]) : pages.find((item) => item.title === follow(place.name));
+        const point = page?.coordinates?.[0];
+        if (!page?.pageimage) continue;
+        // A title lookup can land on a namesake elsewhere; the article must sit within 5 km of the place.
+        if (param === "titles") {
+          const anchor = place.latitude !== undefined && place.longitude !== undefined
+            ? { latitude: place.latitude, longitude: place.longitude, radiusKm: 5 } : place.near!;
+          if (!point) continue;
+          const latKm = (point.lat - anchor.latitude) * 111;
+          const lonKm = (point.lon - anchor.longitude) * 111 * Math.cos(anchor.latitude * Math.PI / 180);
+          if (Math.hypot(latKm, lonKm) > anchor.radiusKm) continue;
+        }
+        lead.set(index, page.pageimage);
+      }
+    }
+    if (!lead.size) continue;
+    const files = await queryCommons(new URLSearchParams({ action: "query", titles: [...new Set(lead.values())].map((file) => `File:${file}`).join("|"), ...imageProps })).catch(() => []);
+    const fileKey = (title: string) => normalize(title.replace(/^File:/, ""));
+    for (const [index, file] of lead) {
+      const page = files.find((item) => item.title && fileKey(item.title) === fileKey(file));
+      const place = places[index];
+      const photo = page ? photoFromPage(page, place.name, place.location, true) : null;
+      if (!photo) continue;
+      settle(lookupKey(place.name, place.location, place.latitude, place.longitude, place.sourceUrl), [photo]);
+      found[index] = true;
+    }
+  }
+  return found;
+}
 
 /** The photo if it was already looked up (this session or a previous one), so a list can draw it on its first frame. `undefined` means unknown yet. */
 export function peekPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string): PlacePhoto | null | undefined {
@@ -253,6 +339,10 @@ export function peekPlacePhoto(name: string, location: string, latitude?: number
 
 export async function findPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string, excludedUrls: string[] = []): Promise<PlacePhoto | null> {
   const key = lookupKey(name, location, latitude, longitude, sourceUrl);
+  // Let the effects of the same render start their bulk lookups first (a list's effect runs after its cards' effects).
+  await Promise.resolve();
+  const bulk = prefetching.get(key);
+  if (bulk) await bulk.catch(() => undefined);
   let entry = cache.get(key);
   if (!entry || entry.expiresAt < Date.now()) {
     const photos = (async () => {
