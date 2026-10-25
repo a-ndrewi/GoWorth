@@ -463,6 +463,6 @@ const stylesSheet = themedStyles((p) => ({
   inspiration: { borderTopWidth: 1, borderColor: p.line, paddingTop: 20, gap: 12 },
   activityRow: { flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 8, borderColor: p.line },
   activityPhoto: { width: 48, height: 48, borderRadius: 5 },
-  ideaCard: { flex: 1, minWidth: 0, height: 146, borderRadius: 6, overflow: "hidden", backgroundColor: p.greenSoft },
+  ideaCard: { flex: 1, minWidth: 0, height: 146, borderRadius: 6, overflow: "hidden", backgroundColor: p.blueSoft },
   ideaContent: { flex: 1, justifyContent: "flex-end", padding: 11 },
 }));

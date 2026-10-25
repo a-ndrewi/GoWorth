@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
 import { Button, Chip, Copy, EmptyState, Header, Icon, Row, Screen } from "@/components/goworth/ui";
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
+import { Shimmer, SkeletonRows } from "@/components/goworth/loading";
 import { usePalette } from "@/state/theme-context";
 import { citiesForCountry, citiesForUsState, cityForId, countryFlag, countryForCode, usStates } from "@/data/geography";
 import { loadNearbyPlaces, searchWikipediaPlaces, venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
@@ -141,7 +142,7 @@ export function CityScreen() {
       {searching && <ActivityIndicator size="small" color={p.blue} />}
     </Row>
     <Row style={{ flexWrap: "wrap", gap: 6 }}>{categories.map((item) => <Chip key={item} selected={category === item} onPress={() => { setCategory(item); setVisibleCount(20); }}>{translate(item, language)}</Chip>)}</Row>
-    {status === "loading" && <ActivityIndicator color={p.green} />}
+    {status === "loading" && <SkeletonRows count={6} />}
     {status === "error" && <EmptyState title={translate("Places unavailable", language)} detail={translate("Check your connection and try again.", language)} action={translate("Retry", language)} onPress={() => { setResult({ key: city.id, places: [], status: "loading" }); loadNearbyPlaces(city, 10).then((items) => setResult({ key: city.id, places: items, status: "ready" })).catch(() => setResult({ key: city.id, places: [], status: "error" })); }} />}
     {status === "ready" && !filtered.length && !searchResults.length && !searching && (!query.trim() || remote?.query === query.trim()) && <EmptyState title={translate(query ? "No matching places" : "No places found nearby", language)} detail={translate("Try another search.", language)} />}
     <View style={{ gap: 1 }}>
@@ -190,7 +191,11 @@ export function PlaceScreen() {
   if (!country || !city) return <Screen><Header title={translate("Place unavailable", language)} /><EmptyState title={translate("Place not found", language)} detail={translate("Choose a city to explore.", language)} action={translate("Explore countries", language)} onPress={() => router.dismissTo("/home" as Href)} /></Screen>;
   return <Screen active="home" style={{ gap: 16 }}>
     <Header title={place?.name ?? "Place"} subtitle={`${translate(city.name, language)} · ${countryFlag(country.code)} ${translate(country.name, language)}`} />
-    {status === "loading" && <ActivityIndicator color={p.green} />}
+    {status === "loading" && <View style={{ gap: 12 }}>
+      <Shimmer style={{ height: 215, borderRadius: 6 }} />
+      <Shimmer style={{ height: 48, borderRadius: 12 }} />
+      <Shimmer style={{ height: 48, borderRadius: 12 }} />
+    </View>}
     {status === "error" && <Copy muted>Places are unavailable right now. Try again from the city page.</Copy>}
     {status === "ready" && !place && <EmptyState title={translate("Place unavailable", language)} detail={translate("This place may have changed in the source data.", language)} action={translate("Back to city", language)} onPress={() => router.back()} />}
     {place && <>

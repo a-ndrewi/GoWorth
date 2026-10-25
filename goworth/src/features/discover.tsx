@@ -1,10 +1,11 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect, useLocalSearchParams, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button, Chip, Copy, DestinationPhoto, EmptyState, Header, Heading, Icon, IconButton, Row, Screen, SectionTitle, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
 import { DiscoverySwiper } from "@/components/goworth/discovery-swiper";
+import { Shimmer, SkeletonRows } from "@/components/goworth/loading";
 import { themedStyles } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
 import { tipsForDestination, type DestinationTip } from "@/data/tips";
@@ -52,7 +53,7 @@ function PlaceRow({ place, location, onPress, saved, onSave, onPhotoAvailable }:
         onPress={onPress}
         style={[s.row, { flex: 1, minWidth: 0, gap: 12 }]}
       >
-        <PlaceThumbnail name={place.name} location={location} style={{ width: 54, height: 54 }} fallbackColor={p.green} onPhotoAvailable={onPhotoAvailable} />
+        <PlaceThumbnail name={place.name} location={location} style={{ width: 54, height: 54 }} onPhotoAvailable={onPhotoAvailable} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Copy style={{ fontWeight: "600", fontSize: 14 }}>{place.name}</Copy>
           <Copy muted style={{ fontSize: 12 }}>{place.detail}</Copy>
@@ -183,7 +184,7 @@ export function HomeScreen() {
             </View>
           </Pressable>;
         })() : <Pressable key={`place:${entry.visit.place.id}`} accessibilityRole="button" accessibilityLabel={`${translate("Place", language)}: ${entry.visit.place.name}`} onPress={() => router.push(placeRoute(entry.visit))} style={({ pressed }) => [styles.recentCard, pressed && styles.personalCardPressed]}>
-          <PlaceThumbnail name={entry.visit.place.name} location={entry.visit.place.location || countryForCode(entry.visit.countryCode)?.name || ""} latitude={entry.visit.place.latitude} longitude={entry.visit.place.longitude} sourceUrl={entry.visit.place.sourceUrl} style={styles.photoFill} fallbackColor={p.blue} thumbWidth={330} venue={venueFromCategory(entry.visit.place.category)} />
+          <PlaceThumbnail name={entry.visit.place.name} location={entry.visit.place.location || countryForCode(entry.visit.countryCode)?.name || ""} latitude={entry.visit.place.latitude} longitude={entry.visit.place.longitude} sourceUrl={entry.visit.place.sourceUrl} style={styles.photoFill} thumbWidth={330} venue={venueFromCategory(entry.visit.place.category)} />
           <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.05)", "rgba(10,20,40,0.82)"]} style={StyleSheet.absoluteFill} />
           <View style={styles.recentBody}>
             <View style={styles.recentPill}><Icon name={placeIcon(entry.visit.place.category)} size={12} color={p.onColor} /><Text numberOfLines={1} style={styles.recentPillText}>{translate(publicPlaceCategory(entry.visit.place.category) || "Place", language)}</Text></View>
@@ -198,13 +199,13 @@ export function HomeScreen() {
           <Text style={styles.eyebrow}>{formatMessage("BECAUSE YOU LOOKED AT {query}", { query: recommendationSeed.label.toLocaleUpperCase() }, language)}</Text>
           <Heading style={styles.personalHeading}>{formatMessage("More to see near {place}", { place: translateLocation(recommendationSeed.location, language).split(",")[0] }, language)}</Heading>
         </View>
-        {nearbyResult?.key !== recommendationSeed.key && <View style={{ gap: 10 }}><View style={[styles.featured, { backgroundColor: p.soft }]} /><Row style={{ gap: 10 }}><View style={[styles.tile, { backgroundColor: p.soft }]} /><View style={[styles.tile, { backgroundColor: p.soft }]} /></Row></View>}
+        {nearbyResult?.key !== recommendationSeed.key && <View style={{ gap: 10 }}><Shimmer style={styles.featured} /><Row style={{ gap: 10 }}><Shimmer style={styles.tile} /><Shimmer style={styles.tile} /></Row></View>}
         {!!suggestions.length && (() => {
           const [first, ...rest] = suggestions;
           const open = (place: NearbyPlace) => router.push(placeRoute({ countryCode: recommendationSeed.countryCode, cityId: recommendationSeed.cityId, place, viewedAt: 0 }));
           return <>
             <Pressable accessibilityRole="button" accessibilityLabel={`${translate("Place", language)}: ${first.name}`} onPress={() => open(first)} style={({ pressed }) => [styles.featured, pressed && styles.personalCardPressed]}>
-              <PlaceThumbnail name={first.name} location={recommendationSeed.location} latitude={first.latitude} longitude={first.longitude} sourceUrl={first.sourceUrl} style={styles.photoFill} fallbackColor={p.blue} thumbWidth={500} venue={venueFromCategory(first.category)} />
+              <PlaceThumbnail name={first.name} location={recommendationSeed.location} latitude={first.latitude} longitude={first.longitude} sourceUrl={first.sourceUrl} style={styles.photoFill} thumbWidth={500} venue={venueFromCategory(first.category)} />
               <LinearGradient colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0)", "rgba(10,20,40,0.85)"]} style={StyleSheet.absoluteFill} />
               <View style={styles.featuredTop}>
                 <View style={styles.recentPill}><Text style={styles.recentPillText}>{translate("Top pick", language)}</Text></View>
@@ -218,7 +219,7 @@ export function HomeScreen() {
             </Pressable>
             {!!rest.length && <View style={styles.tiles}>
               {rest.slice(0, rest.length > 1 ? Math.min(6, rest.length - (rest.length % 2)) : 1).map((place) => <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`${translate("Place", language)}: ${place.name}`} onPress={() => open(place)} style={({ pressed }) => [styles.tile, pressed && styles.personalCardPressed]}>
-                <PlaceThumbnail name={place.name} location={recommendationSeed.location} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} style={styles.photoFill} fallbackColor={p.blue} thumbWidth={330} venue={venueFromCategory(place.category)} />
+                <PlaceThumbnail name={place.name} location={recommendationSeed.location} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} style={styles.photoFill} thumbWidth={330} venue={venueFromCategory(place.category)} />
                 <LinearGradient colors={["rgba(0,0,0,0)", "rgba(10,20,40,0.8)"]} style={StyleSheet.absoluteFill} />
                 <View style={styles.recentBody}>
                   <Text numberOfLines={1} style={styles.tileCategory}>{translate(publicPlaceCategory(place.category) || place.category, language)}</Text>
@@ -412,7 +413,7 @@ export function ExploreScreen() {
       <View>
         {photoFiltered.map((place) => <PlaceRow key={place.id} place={place} location={`${destination.name}, ${destination.country}`} saved={savedPlaces.includes(place.id)} onSave={() => togglePlace(place.id)} onPhotoAvailable={(available) => setPhotoAvailability((current) => current[place.id] === available ? current : { ...current, [place.id]: available })} onPress={() => { setSelected(place); setSelectedDay(matchingDays[0] || 1); setAddedDays([]); setNotice(""); }} />)}
       </View>
-      {!photoFiltered.length && checkingPhotos && <ActivityIndicator color={p.green} />}
+      {!photoFiltered.length && checkingPhotos && <SkeletonRows count={4} />}
       {!photoFiltered.length && !filtered.length && <EmptyState title="No places found" detail="Try another name or category." action="Reset search" onPress={() => { setQuery(""); setFilter("All"); }} />}
       <Sheet visible={!!selected} title={selected?.name || ""} onClose={() => setSelected(null)}>
         {selected && <>

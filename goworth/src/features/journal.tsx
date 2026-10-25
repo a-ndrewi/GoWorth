@@ -159,7 +159,7 @@ export function JournalTripScreen() {
       {[...localPlaces.map((place): PreviewPlace => ({ id: place.id, name: place.name, category: place.category, location: `${findDestination(place.destinationId).name}, ${findDestination(place.destinationId).country}` })),
         ...linkedExternalPlaces.map((place): PreviewPlace => ({ id: place.id, name: place.name, category: publicPlaceCategory(place.category), location: place.location || "", latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl }))]
         .map((place) => <Pressable key={place.id} accessibilityRole="button" onPress={() => setPlacePreview(place)} style={({ pressed }) => [styles.placeRow, pressed && { backgroundColor: p.soft }]}>
-          <PlaceThumbnail name={place.name} location={place.location} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} style={styles.placeThumb} fallbackColor={p.blue} venue={venueFromCategory(place.category)} />
+          <PlaceThumbnail name={place.name} location={place.location} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} style={styles.placeThumb} venue={venueFromCategory(place.category)} />
           <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "600", fontSize: 14 }}>{place.name}</Copy>{!!place.category && <Copy muted style={{ fontSize: 12 }}>{translate(place.category, language)}</Copy>}</View>
         </Pressable>)}
     </View>}

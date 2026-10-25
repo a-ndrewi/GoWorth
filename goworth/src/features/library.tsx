@@ -36,7 +36,7 @@ const SavedPlaceCard = memo(function SavedPlaceCard({ name, category, location, 
   return <View style={[styles.card, { height: savedCardHeight }]}>
     <Pressable accessibilityRole="button" accessibilityLabel={translateAccessibility(`View ${name}`, language)} onPress={onOpen}
       style={({ pressed }) => [styles.cardBody, pressed && { opacity: 0.7 }]}>
-    <PlaceThumbnail name={name} location={location} latitude={latitude} longitude={longitude} sourceUrl={sourceUrl} style={styles.thumb} fallbackColor={p.blue} thumbWidth={250} venue={venueFromCategory(category)} />
+    <PlaceThumbnail name={name} location={location} latitude={latitude} longitude={longitude} sourceUrl={sourceUrl} style={styles.thumb} thumbWidth={250} venue={venueFromCategory(category)} />
     <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
       <Text numberOfLines={2} style={styles.cardName}>{name}</Text>
       {!!category && <Text numberOfLines={1} style={styles.cardCategory}>{translate(category, language)}</Text>}

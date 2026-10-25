@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { Keyboard, Linking, Pressable, ScrollView, TextInput, View } from "react-native";
 import { Button, Chip, Copy, DestinationPhoto, Header, Icon, Row, Screen, Sheet } from "@/components/goworth/ui";
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
+import { SkeletonRows } from "@/components/goworth/loading";
 import { usePalette } from "@/state/theme-context";
 import { destinations, places, tripDays } from "@/data/travel";
 import { destinationPins, usStatePins, searchCatalogPlace, searchMap, type MapPin, type SearchResult } from "@/data/map";
@@ -327,7 +328,7 @@ export function MapScreen() {
     </View>}
     {nearbyStatus !== "idle" && <View style={{ gap: 7 }}>
       <Copy style={{ fontSize: 17, fontWeight: "700" }}>{formatMessage("Near {city}", { city: nearbyCenter?.name.split(",")[0] || "" }, language)}</Copy>
-      {nearbyStatus === "loading" && <Copy muted>Finding nearby places...</Copy>}
+      {nearbyStatus === "loading" && <SkeletonRows count={4} />}
       {nearbyStatus === "error" && <Copy muted>Nearby places are unavailable right now.</Copy>}
       {nearbyStatus === "ready" && !nearby.length && <Copy muted>No nearby places found in this area.</Copy>}
       <View>{nearby.slice(0, nearbyVisibleCount).map((item) => <ResultRow key={item.id} label={translateAccessibility(`Preview ${item.name}`, language)}

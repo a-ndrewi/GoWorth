@@ -1,7 +1,8 @@
 import { Image } from "expo-image";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { Copy } from "@/components/goworth/ui";
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Copy, Icon } from "@/components/goworth/ui";
+import { Shimmer } from "@/components/goworth/loading";
 import { usePalette } from "@/state/theme-context";
 import { findPlacePhoto, peekPlacePhoto, sizedPhotoUrl, type PlacePhoto } from "@/data/place-photo";
 import type { Venue } from "@/data/nearby-places";
@@ -31,6 +32,7 @@ function PlaceSearchPhoto({ name, location, latitude, longitude, sourceUrl, badg
   const status = result?.key === key ? result.status : "loading";
   const photo = result?.key === key ? result.photo : null;
   const imageFailed = !!photo && failedUrls.includes(photo.url);
+  const [loadedUrl, setLoadedUrl] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -41,14 +43,18 @@ function PlaceSearchPhoto({ name, location, latitude, longitude, sourceUrl, badg
     return () => { active = false; };
   }, [key, name, location, latitude, longitude, sourceUrl, failedUrls]);
 
+  const showPhoto = status === "ready" && !!photo && !imageFailed;
+  // The shimmer stays under the photo until it has downloaded, so the frame never flashes empty.
+  const shimmering = status === "loading" || (showPhoto && loadedUrl !== photo.url);
   return <View style={{ gap: 7 }}>
-    <View style={{ height: 215, borderRadius: 6, overflow: "hidden", backgroundColor: p.greenSoft, alignItems: "center", justifyContent: "center" }}>
-      {status === "ready" && photo && !imageFailed
-        ? <Image source={{ uri: photo.url }} cachePolicy="memory-disk" transition={160} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />
-        : <View style={{ alignItems: "center", gap: 8, padding: 20 }}>
-          {status === "loading" && <ActivityIndicator color={p.green} />}
-          <Copy style={{ color: p.green, textAlign: "center", fontSize: 13 }}>
-            {status === "loading" || imageFailed ? "Finding a photo of this place…" : status === "error" ? "Photo search is unavailable right now" : "No verified photo for this place"}
+    <View style={{ height: 215, borderRadius: 6, overflow: "hidden", backgroundColor: p.blueSoft, alignItems: "center", justifyContent: "center" }}>
+      {shimmering && <Shimmer style={StyleSheet.absoluteFill} />}
+      {showPhoto
+        ? <Image source={{ uri: photo.url }} cachePolicy="memory-disk" transition={160} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onLoad={() => setLoadedUrl(photo.url)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />
+        : status !== "loading" && <View style={{ alignItems: "center", gap: 8, padding: 20 }}>
+          <Icon name="camera" size={26} color={p.blue} />
+          <Copy muted style={{ textAlign: "center", fontSize: 13 }}>
+            {imageFailed ? "Finding a photo of this place…" : status === "error" ? "Photo search is unavailable right now" : "No verified photo for this place"}
           </Copy>
         </View>}
       {!!badge && status === "ready" && photo && !imageFailed && <View pointerEvents="none" style={{ position: "absolute", left: 10, bottom: 10, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "rgba(16, 28, 48, 0.86)" }}><Text style={{ color: p.onColor, fontSize: 12, fontWeight: "700" }}>{badge}</Text></View>}
@@ -56,14 +62,14 @@ function PlaceSearchPhoto({ name, location, latitude, longitude, sourceUrl, badg
   </View>;
 }
 
-type ThumbnailProps = PlacePhotoProps & { style?: StyleProp<ViewStyle>; fallbackColor?: string; thumbWidth?: 120 | 250 | 330 | 500; onPhotoAvailable?: (available: boolean) => void };
+type ThumbnailProps = PlacePhotoProps & { style?: StyleProp<ViewStyle>; thumbWidth?: 120 | 250 | 330 | 500; onPhotoAvailable?: (available: boolean) => void };
 
 export function PlaceThumbnail({ venue, ...props }: ThumbnailProps & { venue?: Venue }) {
   if (venue) return <View style={[{ width: 54, height: 54, borderRadius: 5, overflow: "hidden" }, props.style]}><VenueTile venue={venue} large={(props.thumbWidth ?? 120) >= 330} /></View>;
   return <PlaceSearchThumbnail {...props} />;
 }
 
-function PlaceSearchThumbnail({ name, location, latitude, longitude, sourceUrl, style, fallbackColor, thumbWidth = 120, onPhotoAvailable }: ThumbnailProps) {
+function PlaceSearchThumbnail({ name, location, latitude, longitude, sourceUrl, style, thumbWidth = 120, onPhotoAvailable }: ThumbnailProps) {
   const p = usePalette();
   const language = useAppLanguage();
   const onPhotoAvailableRef = useRef(onPhotoAvailable);
@@ -77,6 +83,7 @@ function PlaceSearchThumbnail({ name, location, latitude, longitude, sourceUrl, 
   const failedUrls = failed.key === key ? failed.urls : noFailedUrls;
   const photo = result?.key === key ? result.photo : null;
   const loading = result?.key !== key;
+  const [loadedUrl, setLoadedUrl] = useState("");
   useEffect(() => {
     let active = true;
     findPlacePhoto(name, location, latitude, longitude, sourceUrl, failedUrls).then((photo) => {
@@ -92,9 +99,12 @@ function PlaceSearchThumbnail({ name, location, latitude, longitude, sourceUrl, 
     });
     return () => { active = false; };
   }, [key, name, location, latitude, longitude, sourceUrl, failedUrls]);
-  return <View style={[{ width: 54, height: 54, borderRadius: 5, overflow: "hidden", backgroundColor: p.greenSoft, alignItems: "center", justifyContent: "center" }, style]}>
-    {photo && !failedUrls.includes(photo.url)
-      ? <Image source={{ uri: sizedPhotoUrl(photo.url, thumbWidth) }} recyclingKey={key} cachePolicy="memory-disk" transition={120} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />
-      : loading ? <View style={{ width: "42%", height: "42%", borderRadius: 999, backgroundColor: fallbackColor ?? p.green, opacity: 0.18 }} /> : null}
+  const showPhoto = !!photo && !failedUrls.includes(photo.url);
+  const url = showPhoto ? sizedPhotoUrl(photo.url, thumbWidth) : "";
+  return <View style={[{ width: 54, height: 54, borderRadius: 5, overflow: "hidden", backgroundColor: p.blueSoft, alignItems: "center", justifyContent: "center" }, style]}>
+    {(loading || (showPhoto && loadedUrl !== url)) && <Shimmer style={StyleSheet.absoluteFill} />}
+    {showPhoto
+      ? <Image source={{ uri: url }} recyclingKey={key} cachePolicy="memory-disk" transition={120} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onLoad={() => setLoadedUrl(url)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />
+      : !loading && <Icon name="pin" size={thumbWidth >= 330 ? 28 : 18} color={p.blue} />}
   </View>;
 }

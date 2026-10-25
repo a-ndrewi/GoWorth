@@ -5,6 +5,7 @@ import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
 import { Button, Copy, EmptyState, Heading, Icon, IconButton, Row, Screen, Sheet } from "@/components/goworth/ui";
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
 import { venueFilterIcons, venueFilterLabels } from "@/components/goworth/venue-art";
+import { SkeletonRows } from "@/components/goworth/loading";
 import { TripMap } from "@/components/goworth/trip-map";
 import { themedStyles, type Palette } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
@@ -240,7 +241,7 @@ export function TripPlacesScreen() {
     </ScrollView>
 
     <Heading style={{ fontSize: 17, lineHeight: 23 }}>{searchResults ? formatMessage("Results for “{query}”", { query: query.trim() }, language) : venueFilter ? formatMessage("{venues} near your stops", { venues: translate(venueFilterLabels[venueFilter], language) }, language) : translate("Ideas for this day", language)}</Heading>
-    {loading && !searchResults ? <View style={{ gap: 10 }}>{[0, 1, 2].map((item) => <View key={item} style={styles.skeleton} />)}</View>
+    {loading && !searchResults ? <SkeletonRows count={3} thumbSize={64} card />
       : visible.length ? visible.map((place) => {
         const tone = colorFor(publicPlaceCategory(place.category) || place.category, p, place);
         const venueDetail = place.venue ? [place.venue.cuisine, place.venue.terrace ? translate("Terrace", language) : ""].filter(Boolean).join(" · ") : "";
@@ -249,7 +250,7 @@ export function TripPlacesScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel={formatMessage("Preview {place}", { place: place.name }, language)}
             onPress={() => { setSelectedId(place.id); setPreview(place); }}
             style={({ pressed }) => [styles.cardBody, pressed && { opacity: 0.7 }]}>
-          <PlaceThumbnail name={place.name} location={place.city} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} style={styles.thumb} fallbackColor={tone} thumbWidth={250} venue={place.venue} />
+          <PlaceThumbnail name={place.name} location={place.city} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} style={styles.thumb} thumbWidth={250} venue={place.venue} />
           <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
             <Text numberOfLines={2} style={styles.cardName}>{place.name}</Text>
             <Row style={{ gap: 5 }}>
@@ -311,7 +312,6 @@ const stylesSheet = themedStyles((p) => ({
   add: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 14, backgroundColor: p.blueSoft },
   added: { backgroundColor: p.blue },
   addText: { color: p.blue, fontSize: 13, fontWeight: "800" },
-  skeleton: { height: 86, borderRadius: 18, backgroundColor: p.soft },
   empty: { alignItems: "center", gap: 8, paddingVertical: 26, paddingHorizontal: 20, borderRadius: 18, borderWidth: 1.5, borderStyle: "dashed", borderColor: p.blueLine, backgroundColor: p.blueTint },
   toast: { position: "absolute", left: 22, right: 22, bottom: 16, flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 16, backgroundColor: p.night,
     shadowColor: p.shadow, shadowOpacity: 0.25, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
