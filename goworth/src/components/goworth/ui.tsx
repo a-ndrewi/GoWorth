@@ -417,6 +417,7 @@ export function Screen({
           <ScrollView
             scrollEnabled={scrollEnabled}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[s.content, style, active ? { paddingBottom: 90 } : null, footer ? { paddingBottom: 112 } : null]}
           >

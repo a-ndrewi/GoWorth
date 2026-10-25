@@ -110,3 +110,11 @@ test("a saved day plan reads back into stops for editing", () => {
   assert.deepEqual(stopsFromDayCities([["florence"], ["florence", "pisa"], ["rome"]]), { ids: ["florence", "pisa", "rome"], days: [2, 0, 1], exact: true });
   assert.equal(stopsFromDayCities([["rome"], ["naples"], ["rome"]]).exact, false);
 });
+
+test("activities after the suggested slots follow the latest one instead of repeating 19:00", async () => {
+  const { nextActivitySlot } = await import("../src/utils/trip.ts");
+  const day = ["09:00", "11:30", "14:00", "16:30", "19:00"].map((time) => ({ day: 1, time }));
+  assert.deepEqual(nextActivitySlot(day, 1), { time: "20:30", period: "Evening" });
+  assert.deepEqual(nextActivitySlot([...day, { day: 1, time: "23:00" }], 1), { time: "23:30", period: "Evening" });
+  assert.deepEqual(nextActivitySlot(day, 2), { time: "09:00", period: "Morning" });
+});

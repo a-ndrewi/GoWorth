@@ -265,6 +265,6 @@ const stylesSheet = themedStyles((p) => ({
     alignItems: "center", justifyContent: "center",
     shadowColor: p.shadow, shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4,
   },
-  hint: { position: "absolute", bottom: 10, alignSelf: "center", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.86)" },
+  hint: { position: "absolute", bottom: 10, alignSelf: "center", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, backgroundColor: p.white, opacity: 0.92 },
   hintText: { color: p.muted, fontSize: 11, fontWeight: "600" },
 }));

@@ -284,7 +284,7 @@ const stylesSheet = themedStyles((p) => ({
   bubbleEmphasized: { borderColor: p.orange, borderWidth: 3 },
   flag: { fontSize: 22, lineHeight: 27 },
   label: { position: "absolute", top: BUBBLE + 3, width: 110, alignItems: "center" },
-  labelText: { color: p.ink, fontSize: 11, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.94)" },
+  labelText: { color: p.ink, fontSize: 11, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, overflow: "hidden", backgroundColor: p.white, borderWidth: 1, borderColor: p.line },
   marker: { position: "absolute", width: 18, height: 18, alignItems: "center", justifyContent: "center" },
   markerPulse: { position: "absolute", width: 18, height: 18, borderRadius: 9, backgroundColor: p.pink },
   markerDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: p.pink, borderWidth: 2, borderColor: p.white },

@@ -30,16 +30,19 @@ const SavedPlaceCard = memo(function SavedPlaceCard({ name, category, location, 
   const styles = useStyles(stylesSheet);
   const p = usePalette();
   const language = useAppLanguage();
-  return <Pressable accessibilityRole="button" accessibilityLabel={translateAccessibility(`View ${name}`, language)} onPress={onOpen}
-    style={({ pressed }) => [styles.card, { height: savedCardHeight }, pressed && { backgroundColor: p.soft }]}>
+  // The unsave button sits beside the card's pressable area, not inside it: nested buttons are invalid on the web.
+  return <View style={[styles.card, { height: savedCardHeight }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={translateAccessibility(`View ${name}`, language)} onPress={onOpen}
+      style={({ pressed }) => [styles.cardBody, pressed && { opacity: 0.7 }]}>
     <PlaceThumbnail name={name} location={location} latitude={latitude} longitude={longitude} sourceUrl={sourceUrl} style={styles.thumb} fallbackColor={p.blue} thumbWidth={250} venue={venueFromCategory(category)} />
     <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
       <Text numberOfLines={2} style={styles.cardName}>{name}</Text>
       {!!category && <Text numberOfLines={1} style={styles.cardCategory}>{translate(category, language)}</Text>}
       <Row style={{ gap: 4 }}><Icon name="pin" size={13} color={p.muted} /><Text numberOfLines={1} style={styles.cardMeta}>{translate(location, language)}</Text></Row>
     </View>
+    </Pressable>
     <IconButton name="heartFill" label={`Unsave ${name}`} color={p.pink} onPress={onUnsave} style={styles.cardAction} />
-  </Pressable>;
+  </View>;
 });
 
 function QuickAction({ icon, label, detail, onPress }: { icon: IconName; label: string; detail: string; onPress: () => void }) {
@@ -273,6 +276,7 @@ export function ProfileScreen() {
         {([
           { icon: "compass", tone: p.blue, soft: p.blueSoft, label: "Travel preferences", detail: "Destinations, budget, nearby discovery", onPress: () => router.push("/preferences" as Href) },
           { icon: "globe", tone: p.teal, soft: p.tealSoft, label: "Language, currency & appearance", detail: `${profile.language === "ro" ? "Română" : "English"} · ${profile.currency} · ${translate(themePreference === "system" ? "System" : themePreference === "dark" ? "Dark" : "Light", language)}`, onPress: () => setDialog("Account settings") },
+          { icon: "help", tone: p.orange, soft: p.orangeSoft, label: "Help & support", detail: "Report a problem or send feedback", onPress: () => router.push("/support" as Href) },
           { icon: "lock", tone: p.purple, soft: p.purpleSoft, label: "Legal & privacy", detail: "Terms, privacy, your data", onPress: () => router.push("/legal" as Href) },
         ] as const).map((row, index) => <Pressable key={row.label} accessibilityRole="button" onPress={row.onPress} style={({ pressed }) => [styles.row, index > 0 && styles.rowDivider, pressed && { backgroundColor: p.soft }]}>
           <View style={[styles.rowIcon, { backgroundColor: row.soft }]}><Icon name={row.icon} size={19} color={row.tone} /></View>
@@ -377,6 +381,7 @@ const stylesSheet = themedStyles((p) => ({
   segmentCount: { minWidth: 20, height: 20, paddingHorizontal: 6, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: p.line },
   segmentCountText: { color: p.muted, fontSize: 11, fontWeight: "800" },
   card: { flexDirection: "row", alignItems: "center", gap: 12, padding: 10, borderRadius: 18, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
+  cardBody: { flex: 1, minWidth: 0, alignSelf: "stretch", flexDirection: "row", alignItems: "center", gap: 12 },
   thumb: { width: 72, height: 72, borderRadius: 14, backgroundColor: p.blueSoft },
   cardName: { color: p.ink, fontSize: 15, lineHeight: 19, fontWeight: "700" },
   cardCategory: { color: p.blue, fontSize: 12, fontWeight: "700" },

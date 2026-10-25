@@ -25,6 +25,11 @@ export function publicActivityNote(note: string) {
   return value;
 }
 
+/** A public note split into its " · " parts, each passed through `translate`, so venue kinds and "Terrace" read in the app language. */
+export function translatedActivityNote(note: string, translate: (value: string) => string) {
+  return publicActivityNote(note).split(" · ").map((part) => translate(part)).join(" · ");
+}
+
 export function publicPlaceCategory(category: string) {
   const value = category
     .replace(/\b(?:https?:\/\/|www\.)\S+/gi, "")

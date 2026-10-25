@@ -21,7 +21,7 @@ import { useTravel } from "@/state/travel-context";
 import { TripHero, heroStylesSheet, localToday, tripStatus } from "@/components/goworth/trip-hero";
 import { citiesForDay, nextActivitySlot } from "@/utils/trip";
 import { dayRoutePoints, MAX_ROUTE_STOPS, mapsRouteUrl } from "@/utils/trip-place";
-import { publicActivityNote } from "@/utils/public-activity";
+import { publicActivityNote, translatedActivityNote } from "@/utils/public-activity";
 
 const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
@@ -187,15 +187,17 @@ export function ItineraryScreen() {
               <View style={[styles.timelineDot, located && { backgroundColor: p.blue }]} />
               {index < dayActivities.length - 1 && <View style={styles.timelineLine} />}
             </View>
+            <View style={styles.activity}>
             <Pressable accessibilityRole="button" accessibilityLabel={translateAccessibility(`Edit ${activity.name}`, language)} onPress={() => openEditor(activity)}
-              style={({ pressed }) => [styles.activity, pressed && { backgroundColor: p.soft }]}>
-              <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+              style={({ pressed }) => [{ flex: 1, minWidth: 0, alignSelf: "stretch", justifyContent: "center" }, pressed && { opacity: 0.7 }]}>
+              <View style={{ flex: 1, minWidth: 0, gap: 3, justifyContent: "center" }}>
                 <Text style={styles.activityName}>{activity.name}</Text>
-                {!!publicActivityNote(activity.note) && <Copy muted style={{ fontSize: 12, lineHeight: 17 }}>{publicActivityNote(activity.note)}</Copy>}
+                {!!publicActivityNote(activity.note) && <Copy muted style={{ fontSize: 12, lineHeight: 17 }}>{translatedActivityNote(activity.note, (part) => translate(part, language))}</Copy>}
                 {located && <Row style={{ gap: 4 }}><Icon name="pin" size={13} color={p.blue} /><Copy style={{ fontSize: 11, color: p.blue, fontWeight: "600" }}>On the map</Copy></Row>}
               </View>
-              {located && <IconButton name="map" label={`Open ${activity.name} on map`} color={p.blue} onPress={() => router.navigate({ pathname: "/itinerary-places", params: { day: String(day), activity: activity.id } } as Href)} style={{ width: 38, minWidth: 38, height: 38, minHeight: 38 }} />}
             </Pressable>
+              {located && <IconButton name="map" label={`Open ${activity.name} on map`} color={p.blue} onPress={() => router.navigate({ pathname: "/itinerary-places", params: { day: String(day), activity: activity.id } } as Href)} style={{ width: 38, minWidth: 38, height: 38, minHeight: 38 }} />}
+            </View>
           </Row>;
         })}
       </View> : <View style={styles.emptyDay}>

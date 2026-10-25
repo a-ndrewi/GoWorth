@@ -51,29 +51,34 @@ export function countryAnchor(country: Country) {
   return country.anchor ? { latitude: country.anchor[0], longitude: country.anchor[1] } : null;
 }
 
-type CitySearchEntry = { row: CityRow; countryCode: string; text: string };
+type CitySearchEntry = { row: CityRow; countryCode: string; text: string; name: string };
 let citySearchIndex: CitySearchEntry[] | null = null;
 
 /** Every city with its search text normalised once, largest first, built on the first search. */
 function cityIndex() {
   if (!citySearchIndex) {
     citySearchIndex = countryRows.flatMap((country) => (citiesByCountry()[country.code] ?? [])
-      .map((row) => ({ row, countryCode: country.code, text: normalizeSearchText(`${row[1]} ${country.name}`) })))
+      .map((row) => ({ row, countryCode: country.code, text: normalizeSearchText(`${row[1]} ${country.name}`), name: normalizeSearchText(row[1]) })))
       .sort((a, b) => b.row[4] - a.row[4]);
   }
   return citySearchIndex;
 }
 
-/** The largest cities matching the query; an empty query returns the largest cities overall. */
+/**
+ * The largest cities matching the query; an empty query returns the largest cities overall. Cities whose own name
+ * matches come before cities that only match through their country, so "rom" finds Rome before Bucharest.
+ */
 export function searchCities(query: string, limit = 25): City[] {
   const needle = normalizeSearchText(query.trim());
-  const matches: City[] = [];
+  const byName: City[] = [];
+  const byCountry: City[] = [];
   for (const entry of cityIndex()) {
     if (needle && !entry.text.includes(needle)) continue;
-    matches.push(cityFromRow(entry.row, entry.countryCode));
-    if (matches.length >= limit) break;
+    if (!needle || entry.name.includes(needle)) byName.push(cityFromRow(entry.row, entry.countryCode));
+    else if (byCountry.length < limit) byCountry.push(cityFromRow(entry.row, entry.countryCode));
+    if (byName.length >= limit) break;
   }
-  return matches;
+  return [...byName, ...byCountry].slice(0, limit);
 }
 
 /**

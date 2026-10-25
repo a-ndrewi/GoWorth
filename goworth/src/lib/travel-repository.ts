@@ -225,6 +225,16 @@ export async function uploadProfileAvatar(userId: string, base64: string) {
   }
 }
 
+export type SupportTopic = "bug" | "account" | "billing" | "feedback" | "other";
+
+export async function sendSupportMessage(message: { topic: SupportTopic; subject: string; message: string; email: string; name: string; device: string }) {
+  const result = await client().functions.invoke("contact-support", { body: message });
+  if (!result.error) return;
+  const response = result.error.context;
+  if (response instanceof Response && response.status === 404) throw new Error("Support messages are unavailable right now. Please try again later.");
+  throw new Error(await profileFunctionError(result.error, "Your message could not be sent. Please try again later."));
+}
+
 export async function removeProfileAvatar() {
   const result = await client().functions.invoke("moderate-profile", { body: { action: "remove-avatar" } });
   if (result.error) throw new Error(await profileFunctionError(result.error, "Could not remove the photo."));

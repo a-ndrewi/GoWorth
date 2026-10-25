@@ -69,7 +69,12 @@ const suggestedSlots = ["09:00", "11:30", "14:00", "16:30", "19:00"] as const;
 
 export function nextActivitySlot(activities: { day: number; time: string }[], day: number) {
   const used = new Set(activities.filter((activity) => activity.day === day).map((activity) => activity.time));
-  const time = suggestedSlots.find((slot) => !used.has(slot)) ?? suggestedSlots[suggestedSlots.length - 1];
+  // Once the suggested slots are taken, each new stop follows the latest one by an hour and a half, up to 23:30.
+  const minutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
+  const latest = Math.max(...[...used].filter((value) => /^\d{2}:\d{2}$/.test(value)).map(minutes), 0);
+  const next = Math.min(latest + 90, 23 * 60 + 30);
+  const time = suggestedSlots.find((slot) => !used.has(slot))
+    ?? `${String(Math.floor(next / 60)).padStart(2, "0")}:${String(next % 60).padStart(2, "0")}`;
   const hour = Number(time.slice(0, 2));
   return {
     time,

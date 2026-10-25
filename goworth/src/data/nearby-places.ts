@@ -113,7 +113,8 @@ function isAttraction(key: string, value: string) {
 }
 
 export function parseOsmPlaces(elements: OsmElement[], center: Center, radiusKm: number): NearbyPlace[] {
-  const seen = new Set<string>();
+  // One landmark is often mapped several times (a node, its outline, its ruins); the same name within a kilometre is the same place.
+  const seen = new Map<string, Center[]>();
   return elements.flatMap((element) => {
     const latitude = element.lat ?? element.center?.lat;
     const longitude = element.lon ?? element.center?.lon;
@@ -121,9 +122,10 @@ export function parseOsmPlaces(elements: OsmElement[], center: Center, radiusKm:
     if (!name || latitude === undefined || longitude === undefined || !validCoordinates(latitude, longitude)) return [];
     const distance = distanceKm(center, { latitude, longitude });
     if (distance > radiusKm) return [];
-    const key = `${name.toLocaleLowerCase()}|${latitude.toFixed(3)}|${longitude.toFixed(3)}`;
-    if (seen.has(key)) return [];
-    seen.add(key);
+    const key = name.toLocaleLowerCase();
+    const point = { latitude, longitude };
+    if (seen.get(key)?.some((other) => distanceKm(other, point) < 1)) return [];
+    seen.set(key, [...(seen.get(key) ?? []), point]);
     const category = osmCategory(element.tags!);
     return [{
       id: `osm:${element.type}:${element.id}`, name, latitude, longitude, kind: "place" as const,

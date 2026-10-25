@@ -1,12 +1,12 @@
 import { router, useLocalSearchParams, type Href } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Linking, Pressable, ScrollView, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Keyboard, Linking, Pressable, ScrollView, TextInput, View } from "react-native";
 import { Button, Chip, Copy, DestinationPhoto, Header, Icon, Row, Screen, Sheet } from "@/components/goworth/ui";
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
 import { usePalette } from "@/state/theme-context";
 import { destinations, places, tripDays } from "@/data/travel";
 import { destinationPins, usStatePins, searchCatalogPlace, searchMap, type MapPin, type SearchResult } from "@/data/map";
-import { cityForId, countries, countryAnchor, countryFlag, countryForCode, usStates } from "@/data/geography";
+import { cityForId, countries, countryAnchor, countryFlag, countryForCode, searchCities, usStates } from "@/data/geography";
 import { loadNearbyPlaces, venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
 import { useTravel } from "@/state/travel-context";
 import { placeFitsTripDay } from "@/utils/trip-place";
@@ -39,6 +39,20 @@ function placeDetail(detail: string, language: AppLanguage) {
 function placeBadge(category: string, detail: string, language: AppLanguage) {
   const distance = detail.match(/(?:·|,)\s*(\d+(?:\.\d+)?)\s*km away/i)?.[1];
   return distance ? `${translate(category, language)} · ${distance.replace(".", ",")} km` : translate(category, language);
+}
+
+/** One row of a search list, laid out like the city list of a country and the place list of a city. */
+function ResultRow({ label, title, subtitle, leading, onPress }: { label: string; title: string; subtitle?: string; leading: ReactNode; onPress: () => void }) {
+  const p = usePalette();
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
+    style={({ pressed }) => ({ minHeight: 58, paddingVertical: 8, borderBottomWidth: 1, borderColor: p.line, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}>
+    {leading}
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <Copy style={{ fontSize: 15, fontWeight: "600" }}>{title}</Copy>
+      {!!subtitle && <Copy muted style={{ fontSize: 12 }}>{subtitle}</Copy>}
+    </View>
+    <Icon name="right" color={p.muted} size={17} />
+  </Pressable>;
 }
 
 function externalPlace(place: SearchResult | NearbyPlace, location?: string): NearbyPlace {
@@ -87,6 +101,7 @@ export function MapScreen() {
   const countryQuery = normalizeSearchText(query.trim());
   const queryCountries = useMemo(() => countryQuery.length < 2 ? [] : countries.filter((item) =>
     normalizeSearchText(`${item.name} ${translate(item.name, language)}`).includes(countryQuery)), [countryQuery, language]);
+  const queryCities = useMemo(() => countryQuery.length < 2 ? [] : searchCities(countryQuery, 8), [countryQuery]);
   const highlighted = useMemo(() => queryCountries.length ? queryCountries.map((item) => item.code)
     : region === "Worldwide" ? null : visibleCountries.map((item) => item.code), [queryCountries, region, visibleCountries]);
   const topCountry = queryCountries[0];
@@ -97,6 +112,8 @@ export function MapScreen() {
     const center = regionCenters[region];
     return center ? { key: `region:${region}`, ...center } : null;
   }, [selected, topCountry, queryCountries.length, region]);
+  // Cities and countries have their own lists above; the place list keeps only what those lists cannot open.
+  const placeResults = results.filter((item) => item.category !== "Country" && !(item.category === "City" && queryCities.length));
   const globeDots = useMemo(() => [...results, ...nearby].map((item) => ({ id: item.id, latitude: item.latitude, longitude: item.longitude })), [results, nearby]);
   const openCountry = useCallback((code: string) => router.push({ pathname: "/country", params: { code } } as Href), []);
   const compatibleDays = (item: MapPin) => trip ? Array.from({ length: tripDays(trip.start, trip.end) }, (_, index) => index + 1)
@@ -173,7 +190,8 @@ export function MapScreen() {
     const timer = setTimeout(() => {
       loadNearbyPlaces(nearbyCenter).then((places) => {
         if (!current) return;
-        setNearby(places);
+        // The searched place is the centre of the list, not one of its neighbours.
+        setNearby(places.filter((item) => item.id !== nearbyCenter.id && item.name !== nearbyCenter.name));
         setNearbyStatus("ready");
       }).catch(() => { if (current) setNearbyStatus("error"); });
     }, 350);
@@ -205,6 +223,7 @@ export function MapScreen() {
   }, [place, q]);
 
   const search = async () => {
+    Keyboard.dismiss();
     if (!query.trim() || busy) return;
     const state = usStatePins.find((pin) => normalizeSearchText(pin.name.split(",")[0]) === normalizeSearchText(query.trim()));
     if (state) {
@@ -273,9 +292,23 @@ export function MapScreen() {
       onInteraction={setGlobeActive}
       onSelect={openCountry}
     />
-    {!!queryCountries.length && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
-      {queryCountries.slice(0, 12).map((item) => <Chip key={item.code} onPress={() => router.push({ pathname: "/country", params: { code: item.code } } as Href)}>{`${countryFlag(item.code)} ${translate(item.name, language)}`}</Chip>)}
-    </ScrollView>}
+    {!!queryCountries.length && <View>
+      <Copy style={{ fontSize: 17, fontWeight: "700", marginBottom: 2 }}>{translate("Countries", language)}</Copy>
+      {queryCountries.slice(0, 5).map((item) => <ResultRow key={item.code} label={`${translate("Country", language)}: ${translate(item.name, language)}`}
+        leading={<Copy style={{ fontSize: 24, width: 28, textAlign: "center" }}>{countryFlag(item.code)}</Copy>}
+        title={translate(item.name, language)}
+        subtitle={`${item.cityCount.toLocaleString(language === "ro" ? "ro-RO" : "en-US")} ${language === "ro" ? "orașe" : "cities"}`}
+        onPress={() => { Keyboard.dismiss(); openCountry(item.code); }} />)}
+    </View>}
+    {!!queryCities.length && <View>
+      <Copy style={{ fontSize: 17, fontWeight: "700", marginBottom: 2 }}>{translate("Cities", language)}</Copy>
+      {queryCities.map((city) => <ResultRow key={city.id} label={translateAccessibility(`Explore ${city.name}`, language)}
+        leading={<View style={{ width: 28, alignItems: "center" }}><Icon name="city" color={p.green} size={19} /></View>}
+        title={translate(city.name, language)}
+        subtitle={[`${countryFlag(city.countryCode)} ${translate(countryForCode(city.countryCode)?.name ?? city.countryCode, language)}`,
+          city.population > 0 ? `${translate("Population", language)} ${city.population.toLocaleString(language === "ro" ? "ro-RO" : "en-US")}` : ""].filter(Boolean).join(" · ")}
+        onPress={() => { Keyboard.dismiss(); router.push({ pathname: "/city", params: { country: city.countryCode, city: city.id } } as Href); }} />)}
+    </View>}
     {selected && <Row style={{ gap: 11, justifyContent: "space-between" }}>
       <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "700" }}>{selected.name}</Copy><Copy muted style={{ fontSize: 11 }}>{selected.kind === "place" ? "Place" : selected.kind === "city" ? "City" : selected.kind === "state" ? translate("State", language) : selected.kind === "destination" ? "Destination" : "Search result"}</Copy></View>
       {selected.kind === "city" && selected.countryCode && <Button secondary icon="city" onPress={() => router.push({ pathname: "/city", params: { country: selected.countryCode, city: selected.id } } as Href)}>Explore</Button>}
@@ -283,23 +316,23 @@ export function MapScreen() {
       {selected.kind !== "state" && <Button secondary icon="map" onPress={() => void openDirections(selected)} style={{ minWidth: 115 }}>Directions</Button>}
     </Row>}
     {!!error && <Copy style={{ color: p.danger }}>{error}</Copy>}
-    {searched && !busy && !error && !results.length && <Copy muted>No locations found. Try a more specific search.</Copy>}
-    {!!results.length && <View style={{ gap: 3 }}>
-      <Copy style={{ fontSize: 17, fontWeight: "700" }}>Search results</Copy>
-      {results.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={translateAccessibility(`Preview ${item.detail}`, language)} onPress={() => { selectCenter(item); openPreview(item); }} style={{ paddingVertical: 9, borderBottomWidth: 1, borderColor: p.line }}>
-        <Copy style={{ fontWeight: "600" }}>{item.name}</Copy>
-        <Copy muted style={{ fontSize: 12 }}>{placeDetail(item.detail, language)}</Copy>
-      </Pressable>)}
+    {searched && !busy && !error && !results.length && !queryCities.length && !queryCountries.length && <Copy muted>No locations found. Try a more specific search.</Copy>}
+    {!!placeResults.length && <View>
+      <Copy style={{ fontSize: 17, fontWeight: "700", marginBottom: 2 }}>{translate("Places", language)}</Copy>
+      {placeResults.map((item) => <ResultRow key={item.id} label={translateAccessibility(`Preview ${item.detail}`, language)}
+        leading={<PlaceThumbnail name={item.name} location={item.detail.split(",").slice(1).join(",").trim()} latitude={item.latitude} longitude={item.longitude} sourceUrl={item.sourceUrl} venue={venueFromCategory(item.category)} />}
+        title={item.name}
+        subtitle={[translate(item.category === "Location" ? "Place" : item.category.replace(/^\w/, (letter) => letter.toUpperCase()), language), item.detail.split(",").slice(1).join(",").trim()].filter(Boolean).join(" · ")}
+        onPress={() => { Keyboard.dismiss(); selectCenter(item); openPreview(item); }} />)}
     </View>}
     {nearbyStatus !== "idle" && <View style={{ gap: 7 }}>
       <Copy style={{ fontSize: 17, fontWeight: "700" }}>{formatMessage("Near {city}", { city: nearbyCenter?.name.split(",")[0] || "" }, language)}</Copy>
       {nearbyStatus === "loading" && <Copy muted>Finding nearby places...</Copy>}
       {nearbyStatus === "error" && <Copy muted>Nearby places are unavailable right now.</Copy>}
       {nearbyStatus === "ready" && !nearby.length && <Copy muted>No nearby places found in this area.</Copy>}
-      {nearby.slice(0, nearbyVisibleCount).map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={translateAccessibility(`Preview ${item.name}`, language)} onPress={() => { setSelected(item); openPreview(item); }} style={{ paddingVertical: 9, borderBottomWidth: 1, borderColor: p.line }}>
-        <Row style={{ justifyContent: "space-between", gap: 9 }}><PlaceThumbnail name={item.name} location={nearbyCenter?.name ?? ""} latitude={item.latitude} longitude={item.longitude} sourceUrl={item.sourceUrl} /><View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "600" }}>{item.name}</Copy><Copy muted style={{ fontSize: 12 }}>{placeDetail(item.detail, language)}</Copy></View>
-          <Icon name="right" color={p.blue} size={16} /></Row>
-      </Pressable>)}
+      <View>{nearby.slice(0, nearbyVisibleCount).map((item) => <ResultRow key={item.id} label={translateAccessibility(`Preview ${item.name}`, language)}
+        leading={<PlaceThumbnail name={item.name} location={nearbyCenter?.name ?? ""} latitude={item.latitude} longitude={item.longitude} sourceUrl={item.sourceUrl} />}
+        title={item.name} subtitle={placeDetail(item.detail, language)} onPress={() => { setSelected(item); openPreview(item); }} />)}</View>
       {nearbyVisibleCount < nearby.length && <Button secondary icon="plus" onPress={() => setNearbyVisibleCount((count) => count + 12)}>Show more places</Button>}
     </View>}
     <>

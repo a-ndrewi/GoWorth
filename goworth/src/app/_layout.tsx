@@ -34,6 +34,7 @@ const tabByPath: Record<string, string> = {
   "/saved": "saved",
   "/profile": "profile",
   "/membership": "profile",
+  "/support": "profile",
 };
 
 function AppNavigator() {
@@ -107,6 +108,7 @@ function AppNavigator() {
               <Stack.Screen name="journal-trip" />
               <Stack.Screen name="membership" />
               <Stack.Screen name="preferences" />
+              <Stack.Screen name="support" />
             </Stack.Protected>
           </Stack>
           {!!user && activeTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.white }}><BottomNav active={activeTab} /></SafeAreaView>}

@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { router, useLocalSearchParams, type Href } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams, type Href } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button, Chip, Copy, DestinationPhoto, EmptyState, Header, Heading, Icon, IconButton, Row, Screen, SectionTitle, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
@@ -77,26 +77,28 @@ export function HomeScreen() {
   const [searchFocused, setSearchFocused] = useState(false);
   const [gridActive, setGridActive] = useState(false);
   const [nearbyResult, setNearbyResult] = useState<{ key: string; status: "ready" | "error"; places: NearbyPlace[] } | null>(null);
+  const [nearbyAttempt, setNearbyAttempt] = useState(0);
   const filtered = useMemo(() => countries.filter((country) =>
     normalizeSearchText(`${country.name} ${translate(country.name, language)}`).includes(normalizeSearchText(query.trim()))), [query, language]);
   const browsing = !query.trim() && !searchFocused;
-  const showPersonalized = browsing && !!exploreHistory.countries.length && !!exploreHistory.places.length;
   const recent = [
     ...exploreHistory.countries.slice(0, 2).map((visit) => ({ kind: "country" as const, visit })),
     ...exploreHistory.places.slice(0, 2).map((visit) => ({ kind: "place" as const, visit })),
   ].sort((a, b) => b.visit.viewedAt - a.visit.viewedAt);
+  // Each section stands on its own: places opened from the discovery deck are remembered without a country visit.
+  const showRecent = browsing && recent.length > 0;
   const recommendationSeed = useMemo(() => {
     const countryVisit = exploreHistory.countries[0];
     const placeVisit = exploreHistory.places[0];
-    if (!countryVisit || !placeVisit) return null;
-    const country = countryForCode(countryVisit.code);
+    const country = countryVisit ? countryForCode(countryVisit.code) : undefined;
     const countryCities = country ? citiesForCountry(country.code) : [];
     const countryCity = countryCities.find((city) => city.name.toLocaleLowerCase() === country?.capital.toLocaleLowerCase()) ?? countryCities[0];
-    if (country && countryCity && countryVisit.viewedAt > placeVisit.viewedAt) {
+    if (countryVisit && country && countryCity && (!placeVisit || countryVisit.viewedAt > placeVisit.viewedAt)) {
       return { key: `country:${country.code}`, latitude: countryCity.latitude, longitude: countryCity.longitude,
         countryCode: country.code, cityId: countryCity.id, location: `${countryCity.name}, ${country.name}`,
         label: countryVisit.searchTerm || country.name };
     }
+    if (!placeVisit) return null;
     const countryName = countryForCode(placeVisit.countryCode)?.name ?? placeVisit.countryCode;
     const cityName = cityForId(placeVisit.countryCode, placeVisit.cityId)?.name ?? placeVisit.place.name;
     return { key: `place:${placeVisit.place.id}`, latitude: placeVisit.place.latitude, longitude: placeVisit.place.longitude,
@@ -104,20 +106,32 @@ export function HomeScreen() {
       location: `${cityName}, ${countryName}`,
       label: placeVisit.searchTerm || placeVisit.place.name };
   }, [exploreHistory]);
+  const showMore = browsing && !!recommendationSeed;
+  const seedKey = recommendationSeed?.key ?? "";
   useEffect(() => {
-    if (!showPersonalized || !recommendationSeed) return;
+    if (!showMore || !recommendationSeed) return;
     let active = true;
     loadNearbyPlaces(recommendationSeed, 10)
       .then((places) => { if (active) setNearbyResult({ key: recommendationSeed.key, status: "ready", places }); })
       .catch(() => { if (active) setNearbyResult({ key: recommendationSeed.key, status: "error", places: [] }); });
     return () => { active = false; };
-  }, [showPersonalized, recommendationSeed]);
+    // The seed object changes with every history write; only a new key needs a new lookup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMore, seedKey, nearbyAttempt]);
+  // A lookup that failed (offline, a slow provider) is tried again whenever Explore comes back into view.
+  useFocusEffect(useCallback(() => {
+    if (nearbyResult?.status === "error") setNearbyAttempt((count) => count + 1);
+  }, [nearbyResult?.status]));
   const suggestions = recommendationSeed && nearbyResult?.key === recommendationSeed.key
     ? unseenNearbyPlaces(nearbyResult.places, exploreHistory) : [];
   const placeRoute = (visit: PlaceVisit) => ({ pathname: "/place", params: {
     country: visit.countryCode, city: visit.cityId, place: visit.place.id,
     name: visit.place.name, latitude: String(visit.place.latitude), longitude: String(visit.place.longitude),
     category: visit.place.category, detail: visit.place.detail, sourceUrl: visit.place.sourceUrl,
+    ...(visit.place.venue ? {
+      terrace: visit.place.venue.terrace ? "1" : "", cuisine: visit.place.venue.cuisine ?? "",
+      hours: visit.place.venue.openingHours ?? "", address: visit.place.venue.address ?? "",
+    } : {}),
   } } as Href);
 
   return (
@@ -150,7 +164,7 @@ export function HomeScreen() {
         onSelect={(code) => router.push({ pathname: "/country", params: { code, ...(query.trim() ? { search: query.trim() } : {}) } } as Href)}
       />}
       {!filtered.length && <EmptyState title={translate("No countries found", language)} detail={translate("Try another country name.", language)} action={translate("Clear search", language)} onPress={() => setQuery("")} />}
-      {showPersonalized && <View style={styles.personalSection}>
+      {showRecent && <View style={styles.personalSection}>
         <View style={{ gap: 2 }}>
           <Text style={styles.eyebrow}>{translate("JUMP BACK IN", language)}</Text>
           <Heading style={styles.personalHeading}>{translate("Recently viewed", language)}</Heading>
@@ -179,7 +193,7 @@ export function HomeScreen() {
         </Pressable>)}
         </ScrollView>
       </View>}
-      {showPersonalized && recommendationSeed && <View style={styles.personalSection}>
+      {showMore && recommendationSeed && <View style={styles.personalSection}>
         <View style={{ gap: 2 }}>
           <Text style={styles.eyebrow}>{formatMessage("BECAUSE YOU LOOKED AT {query}", { query: recommendationSeed.label.toLocaleUpperCase() }, language)}</Text>
           <Heading style={styles.personalHeading}>{formatMessage("More to see near {place}", { place: translateLocation(recommendationSeed.location, language).split(",")[0] }, language)}</Heading>
@@ -217,6 +231,7 @@ export function HomeScreen() {
         {nearbyResult?.key === recommendationSeed.key && !suggestions.length && <View style={styles.personalEmpty}>
           <Icon name="compass" size={24} color={p.blue} />
           <Copy muted style={{ textAlign: "center", fontSize: 13 }}>{translate(nearbyResult.status === "error" ? "Nearby places are unavailable right now." : "No places found nearby", language)}</Copy>
+          {nearbyResult.status === "error" && <Pressable accessibilityRole="button" onPress={() => setNearbyAttempt((count) => count + 1)} hitSlop={8}><Copy style={{ color: p.blue, fontWeight: "700", fontSize: 13 }}>{translate("Retry", language)}</Copy></Pressable>}
         </View>}
       </View>}
     </Screen>
