@@ -6,7 +6,7 @@ import { Image } from "expo-image";
 import { memo, useEffect, useMemo, useState } from "react";
 import { destinationPins } from "@/data/map";
 import { prefetchPlacePhotos } from "@/data/place-photo";
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button, Chip, Copy, Field, Header, Heading, Icon, IconButton, Row, Screen, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
 import { TripHero, heroStylesSheet } from "@/components/goworth/trip-hero";
 import { PastTripCard } from "@/components/goworth/past-trip-card";
@@ -16,9 +16,18 @@ import { findDestination, money, places } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
 import { useAuth } from "@/state/auth-context";
 import { currentExchangeRate, useAppLanguage } from "@/data/formatting";
-import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
-import { PlaceThumbnail } from "@/components/goworth/place-preview";
-import { venueFromCategory } from "@/data/nearby-places";
+import { formatMessage, translate, translateAccessibility, translateLocation } from "@/data/i18n";
+import { publicActivityNote, publicPlaceCategory } from "@/utils/public-activity";
+import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
+import { venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
+
+type SavedPreview = {
+  id: string; name: string; category: string; detail: string; location: string;
+  latitude?: number; longitude?: number; sourceUrl?: string;
+  /** Set for places saved from the map or Explore, which are re-saved from this record. */
+  external?: NearbyPlace;
+  mapParams: Record<string, string>;
+};
 
 // Saved place cards have one fixed height, so the list can place them without measuring each one; measuring left it
 // unsure of their size, and it then rendered every saved place at once.
@@ -71,6 +80,22 @@ export function SavedScreen() {
   // A tab stays mounted once opened, so switching back does not rebuild its cards and reload their photos.
   const [opened, setOpened] = useState(() => new Set([tab]));
   const openTab = (next: string) => { setTab(next); setOpened((current) => current.has(next) ? current : new Set([...current, next])); };
+  // A saved place opens in a sheet over the list; leaving it returns to Saved exactly as it was.
+  const [preview, setPreview] = useState<SavedPreview | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+  const previewSaved = !!preview && (preview.external ? externalPlaces.some((place) => place.id === preview.id) : savedPlaces.includes(preview.id));
+  const togglePreviewSaved = async () => {
+    if (!preview) return;
+    setPreviewBusy(true);
+    setPreviewError("");
+    try {
+      if (preview.external) await toggleExternalPlace(preview.external);
+      else await togglePlace(preview.id);
+    } catch (caught) {
+      setPreviewError(caught instanceof Error ? caught.message : translate("Could not update this place.", language));
+    } finally { setPreviewBusy(false); }
+  };
   const savedPlaceRecords = useMemo(() => {
     const ids = new Set(savedPlaces);
     return places.filter((place) => ids.has(place.id));
@@ -82,14 +107,17 @@ export function SavedScreen() {
       const destination = findDestination(place.destinationId);
       return { key: place.id, name: place.name, category: place.category, location: `${destination.name}, ${destination.country}`,
         latitude: undefined, longitude: undefined, sourceUrl: undefined, near: destinationPins.find((pin) => pin.id === place.destinationId),
-        onOpen: () => router.push({ pathname: "/explore", params: { id: place.destinationId, place: place.id } } as Href),
+        onOpen: () => setPreview({ id: place.id, name: place.name, category: place.category, detail: translate(place.detail, language),
+          location: `${destination.name}, ${destination.country}`, mapParams: { place: place.id } }),
         onUnsave: () => togglePlace(place.id) };
     }),
     ...externalPlaces.map((place) => ({ key: place.id, name: place.name, category: place.category, location: place.location || place.detail,
       latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl, near: undefined,
-      onOpen: () => router.navigate({ pathname: "/map", params: { external: place.id } } as Href),
+      onOpen: () => setPreview({ id: place.id, name: place.name, category: place.category, detail: publicActivityNote(place.detail),
+        location: place.location || "", latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl,
+        external: place, mapParams: { external: place.id } }),
       onUnsave: () => void toggleExternalPlace(place) })),
-  ], [savedPlaceRecords, externalPlaces, togglePlace, toggleExternalPlace]);
+  ], [savedPlaceRecords, externalPlaces, togglePlace, toggleExternalPlace, language]);
   // Photos for the whole list are looked up in bulk, a page at a time, before the cards each search on their own.
   const placesOpened = opened.has("Places");
   useEffect(() => {
@@ -187,6 +215,22 @@ export function SavedScreen() {
         </View>}
         {!journalAvailable && <Copy style={s.error}>Trip history needs the latest database migration.</Copy>}
       </ScrollView>}
+      <Sheet visible={!!preview} title={preview?.name ?? ""} onClose={() => { setPreview(null); setPreviewError(""); }}>
+        {preview && <>
+          <PlacePreviewPhoto name={preview.name} location={preview.location} latitude={preview.latitude} longitude={preview.longitude} sourceUrl={preview.sourceUrl}
+            badge={translate(publicPlaceCategory(preview.category), language)} venue={venueFromCategory(preview.category)} />
+          {!!preview.detail && <Copy muted>{preview.detail}</Copy>}
+          {!!preview.location && <Row style={{ gap: 6 }}><Icon name="pin" size={15} color={p.muted} /><Copy muted style={{ flex: 1 }}>{translateLocation(preview.location, language)}</Copy></Row>}
+          <Row style={{ gap: 9 }}>
+            <Button secondary icon={previewSaved ? "heartFill" : "heart"} busy={previewBusy} onPress={() => void togglePreviewSaved()} style={{ flex: 1 }}>{previewSaved ? "Saved" : "Save"}</Button>
+            <Button secondary icon="road" style={{ flex: 1 }} onPress={() => void Linking.openURL(preview.latitude !== undefined && preview.longitude !== undefined
+              ? `https://www.google.com/maps/dir/?api=1&destination=${preview.latitude},${preview.longitude}`
+              : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${preview.name}, ${preview.location}`)}`)}>Directions</Button>
+          </Row>
+          <Button secondary icon="map" onPress={() => { const params = preview.mapParams; setPreview(null); router.navigate({ pathname: "/map", params } as Href); }}>Show on map</Button>
+          {!!previewError && <Copy style={s.error}>{previewError}</Copy>}
+        </>}
+      </Sheet>
     </Screen>
   );
 }

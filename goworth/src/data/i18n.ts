@@ -208,7 +208,7 @@ const ro: Record<string, string> = {
   "Add activity": "Adaugă activitate", "Add Activity": "Adaugă activitate", "Edit activity": "Editează activitatea",
   "Activity": "Activitate", "Notes": "Notițe", "Save Activity": "Salvează activitatea",
   "Delete activity": "Șterge activitatea", "Confirm delete activity": "Confirmă ștergerea activității",
-  "Google Maps directions": "Indicații în Google Maps", "Directions": "Indicații",
+  "Google Maps directions": "Indicații în Google Maps", "Directions": "Indicații", "Show on map": "Arată pe hartă", "Could not update this place.": "Nu am putut actualiza acest loc.",
   "Search": "Caută", "Search results": "Rezultatele căutării", "Finding nearby places...": "Căutăm locuri din apropiere...",
   "Nearby places are unavailable right now.": "Locurile din apropiere nu sunt disponibile acum.",
   "No nearby places found in this area.": "Nu am găsit locuri în apropiere.",
