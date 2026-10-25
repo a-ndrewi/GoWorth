@@ -325,11 +325,28 @@ export function DiscoverySwiper() {
     return [...deck, ...venues.slice(next), ...worldItems.filter(notSaved)].filter((value) => !keys.has(value.key) && !!keys.add(value.key));
   }, [center, discoverySettings.radiusKm, discoverySettings.venues, preferences.region, liveKey, venueResult, venueKey, manualPin, tripPin, savedPlaces, externalPlaces, cycle, worldPlaces]);
   const nearbyLoading = !!centerKey && liveResult?.key !== centerKey;
-  const unseen = useMemo(() => ordered.filter((value) => !seenKeys.includes(value.key)), [ordered, seenKeys]);
+  // A card is dealt only once its photo has been found and downloaded; cards whose photo cannot be found are left
+  // out instead of showing a placeholder. Destinations (bundled photos) and venues (their own art) need no search.
+  const [cardPhotos, setCardPhotos] = useState<Record<string, string | null>>({});
+  const needsPhoto = (value: SwipeItem) => value.kind === "nearby" ? !value.place.venue : !!value.place;
+  const remaining = useMemo(() => ordered.filter((value) => !seenKeys.includes(value.key) && !(needsPhoto(value) && cardPhotos[value.key] === null)),
+    [ordered, seenKeys, cardPhotos]);
+  const unseen = useMemo(() => remaining.filter((value) => !needsPhoto(value) || typeof cardPhotos[value.key] === "string"),
+    [remaining, cardPhotos]);
+  const pendingKeys = remaining.filter((value) => needsPhoto(value) && cardPhotos[value.key] === undefined).slice(0, 8);
+  const pendingKey = pendingKeys.map((value) => value.key).join("|");
+  useEffect(() => {
+    let active = true;
+    for (const value of pendingKeys) void resolveCardPhoto(value).then((url) => {
+      if (active) setCardPhotos((current) => current[value.key] === url ? current : { ...current, [value.key]: url });
+    });
+    return () => { active = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingKey]);
   useEffect(() => { seenCount.current = seenKeys.length; }, [seenKeys]);
   const item = unseen[0];
   const worldwide = discoverySettings.radiusKm === 20000 || !center;
-  const wantsMoreWorld = worldwide && !nearbyLoading && unseen.length < 6 && worldMissCount < worldMisses && worldCursor < worldCities().length;
+  const wantsMoreWorld = worldwide && !nearbyLoading && remaining.length < 6 && worldMissCount < worldMisses && worldCursor < worldCities().length;
 
   useEffect(() => {
     if (!wantsMoreWorld || worldRequest.current !== null) return;
@@ -345,13 +362,6 @@ export function DiscoverySwiper() {
         worldRequest.current = null;
       });
   }, [wantsMoreWorld, worldCursor]);
-  const upcomingKeys = unseen.slice(0, 3).map((value) => value.key).join("|");
-
-  useEffect(() => {
-    // Look up and download the next photos while the current card is on screen.
-    for (const value of unseen.slice(0, 3)) void resolveCardPhoto(value);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [upcomingKeys]);
 
   const refresh = () => { setWorldMissCount(0); setCommand(null); setSeenKeys([]); setCycle((value) => value + 1); setSaveError(""); setFreeLimitReached(false); };
   const swiped = (swipedItem: SwipeItem, choice: "skip" | "favorite") => {
@@ -383,7 +393,7 @@ export function DiscoverySwiper() {
       <IconButton name="settings" label="Discovery settings" onPress={() => router.push("/preferences" as Href)} color={p.blue} />
     </Row>
     {!center && locationStatus === "unavailable" && <Pressable accessibilityRole="button" onPress={() => router.push("/preferences" as Href)}><Copy style={{ color: p.blue, fontSize: 12 }}>Choose a city in settings to search within your radius.</Copy></Pressable>}
-    {nearbyLoading || (!center && locationStatus === "checking") ? <Radar title="Finding places near you" detail="Checking your search area…" /> : !item && wantsMoreWorld ? <Radar title="Finding places around the world" detail="Looking in another city…" /> : item ? <View style={{ gap: 15 }}>
+    {nearbyLoading || (!center && locationStatus === "checking") ? <Radar title="Finding places near you" detail="Checking your search area…" /> : !item && pendingKeys.length ? <Radar title="Getting photos ready" detail="Loading the next places…" /> : !item && wantsMoreWorld ? <Radar title="Finding places around the world" detail="Looking in another city…" /> : item ? <View style={{ gap: 15 }}>
       <View style={[styles.deckStage, { height: cardHeight + 20, marginRight: 10 }]}>
         {unseen.slice(0, 3).map((value, depth) => <SwipeCard key={value.key} item={value} depth={depth} height={cardHeight} command={depth === 0 && command?.key === value.key ? command : null} onSwiped={swiped} />).reverse()}
       </View>

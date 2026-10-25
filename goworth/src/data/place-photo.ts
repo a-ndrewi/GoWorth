@@ -1,3 +1,5 @@
+import { catalogPhotos } from "./catalog-photos.ts";
+
 export type PlacePhoto = {
   url: string;
   pageUrl: string;
@@ -348,12 +350,17 @@ async function bulkPhotos(places: PhotoRequest[]): Promise<boolean[]> {
 
 /** The photo if it was already looked up (this session or a previous one), so a list can draw it on its first frame. `undefined` means unknown yet. */
 export function peekPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string): PlacePhoto | null | undefined {
+  const bundled = catalogPhotos[`${name}|${location}`.toLowerCase()];
+  if (bundled) return bundled;
   const key = lookupKey(name, location, latitude, longitude, sourceUrl);
   const photos = resolved.get(key) ?? (stored[key]?.expiresAt > Date.now() ? stored[key].photos : undefined);
   return photos ? photos[0] ?? null : undefined;
 }
 
 export async function findPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string, excludedUrls: string[] = []): Promise<PlacePhoto | null> {
+  // The app's own catalog places come with a photo chosen ahead of time; there is nothing to search for.
+  const bundled = catalogPhotos[`${name}|${location}`.toLowerCase()];
+  if (bundled && !excludedUrls.includes(bundled.url)) return bundled;
   const key = lookupKey(name, location, latitude, longitude, sourceUrl);
   // Let the effects of the same render start their bulk lookups first (a list's effect runs after its cards' effects).
   await Promise.resolve();

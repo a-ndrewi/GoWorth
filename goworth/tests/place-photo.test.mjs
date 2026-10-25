@@ -89,3 +89,14 @@ test("a search by name alone does not borrow a same-named place from another cit
     assert.equal(await findPlacePhoto("Museo Civico Romano", "Smalltown, Italy"), null);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+test("catalog places use their bundled photo without searching", async () => {
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => { requests++; throw new Error("no network"); };
+  try {
+    const photo = await findPlacePhoto("Spiaggia Grande", "Positano, Italy");
+    assert.match(photo?.url ?? "", /^https:\/\/(upload|thumb)\.wikimedia\.org\//);
+    assert.equal(requests, 0);
+  } finally { globalThis.fetch = originalFetch; }
+});
