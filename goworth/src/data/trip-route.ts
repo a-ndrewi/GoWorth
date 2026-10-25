@@ -1,6 +1,6 @@
 import { destinationPins } from "@/data/map";
 import { destinations, type RouteStop, type Trip } from "@/data/travel";
-import { destinationForDay } from "@/utils/trip";
+import { citiesForDay, destinationForDay, tripDays } from "@/utils/trip";
 
 export function routeStop(trip: Pick<Trip, "destinationId" | "routeStops">, id = trip.destinationId): RouteStop {
   const stored = trip.routeStops?.find((stop) => stop.id === id);
@@ -18,11 +18,13 @@ export function routeStopForDay(trip: Trip, day: number) {
 }
 
 export function uniqueRouteStops(trip: Trip) {
-  const ids = trip.dayDestinations || [trip.destinationId];
-  return ids.filter((id, index) => index === 0 || id !== ids[index - 1]).map((id) => routeStop(trip, id));
+  const ids = Array.from({ length: tripDays(trip.start, trip.end) }, (_, index) => citiesForDay(trip, index + 1)).flat();
+  return [...new Set(ids)].map((id) => routeStop(trip, id));
 }
 
-export function routeTitle(trip: Trip) {
+export function routeTitle(trip: Trip, language: "en" | "ro" = "en") {
   const stops = uniqueRouteStops(trip);
-  return stops.length > 1 ? `${stops[0].name} + ${stops.length - 1} stops` : stops[0].name;
+  const extra = stops.length - 1;
+  if (!extra) return stops[0].name;
+  return `${stops[0].name} + ${extra} ${language === "ro" ? extra === 1 ? "oprire" : "opriri" : extra === 1 ? "stop" : "stops"}`;
 }

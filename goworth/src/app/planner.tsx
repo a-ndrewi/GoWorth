@@ -1,1 +1,1 @@
-export { PlannerScreen as default } from "@/features/trip";
+export { PlannerScreen as default } from "@/features/planner";

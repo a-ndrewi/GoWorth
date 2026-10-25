@@ -1,4 +1,11 @@
 import type { MapPin } from "./map";
+import { findPlacePhoto } from "./place-photo.ts";
+
+export type VenueKind = "restaurant" | "bar" | "cafe" | "nightclub";
+/** What the Explore deck can show besides attractions; "terrace" means any venue with outdoor seating. */
+export type VenueFilter = VenueKind | "terrace";
+export const venueFilters: VenueFilter[] = ["restaurant", "bar", "cafe", "nightclub", "terrace"];
+export type Venue = { kind: VenueKind; terrace: boolean; cuisine?: string; openingHours?: string; address?: string };
 
 export type NearbyPlace = MapPin & {
   kind: "place";
@@ -7,6 +14,8 @@ export type NearbyPlace = MapPin & {
   source: "OpenStreetMap" | "Wikipedia";
   sourceUrl: string;
   location?: string;
+  /** Set for restaurants, bars, cafés and clubs, which rarely have a free photo and get their own card. */
+  venue?: Venue;
 };
 
 type Center = { latitude: number; longitude: number };
@@ -21,13 +30,16 @@ type OsmElement = {
 type WikiPlace = { pageid: number; title: string; lat?: number; lon?: number; dist?: number; index?: number;
   coordinates?: { lat: number; lon: number }[]; pageprops?: { page_image_free?: string; "wikibase-shortdesc"?: string } };
 type PhotonFeature = {
-  properties: { osm_type: "N" | "W" | "R"; osm_id: number; osm_key: string; osm_value: string; name?: string; city?: string; country?: string };
+  properties: { osm_type: "N" | "W" | "R"; osm_id: number; osm_key: string; osm_value: string; name?: string; city?: string; country?: string; street?: string; housenumber?: string };
   geometry: { coordinates: [number, number] };
 };
 
 const cache = new Map<string, { expiresAt: number; places: NearbyPlace[] }>();
 const pending = new Map<string, Promise<NearbyPlace[]>>();
+const venueCache = new Map<string, { expiresAt: number; places: NearbyPlace[] }>();
+const venuePending = new Map<string, Promise<NearbyPlace[]>>();
 const wikipediaSearchCache = new Map<string, { expiresAt: number; places: NearbyPlace[] }>();
+const photoReadyCache = new Map<string, Promise<boolean>>();
 const photonCategories = [
   "osm.tourism.attraction", "osm.tourism.museum", "osm.tourism.gallery", "osm.tourism.viewpoint",
   "osm.tourism.zoo", "osm.tourism.theme_park", "osm.tourism.aquarium",
@@ -37,6 +49,32 @@ const photonCategories = [
   "osm.leisure.park", "osm.leisure.nature_reserve", "osm.amenity.marketplace",
 ];
 export const photonSearchCategories = photonCategories;
+
+function photoKey(place: NearbyPlace) {
+  return `${place.name}|${place.location ?? ""}|${place.latitude.toFixed(4)}|${place.longitude.toFixed(4)}|${place.sourceUrl}`.toLowerCase();
+}
+
+function hasVerifiedPhoto(place: NearbyPlace) {
+  const key = photoKey(place);
+  const cached = photoReadyCache.get(key);
+  if (cached) return cached;
+  const request = findPlacePhoto(place.name, place.location ?? "", place.latitude, place.longitude, place.sourceUrl)
+    .then((photo) => !!photo)
+    .catch(() => false);
+  photoReadyCache.set(key, request);
+  return request;
+}
+
+async function keepPhotoBackedPlaces(places: NearbyPlace[]) {
+  const candidates = places.slice(0, 60);
+  const verified: NearbyPlace[] = [];
+  for (let start = 0; start < candidates.length && verified.length < 30; start += 8) {
+    const batch = candidates.slice(start, start + 8);
+    const results = await Promise.all(batch.map(async (place) => ({ place, ready: await hasVerifiedPhoto(place) })));
+    verified.push(...results.filter((result) => result.ready).map((result) => result.place));
+  }
+  return verified.slice(0, 30);
+}
 
 export function isExplorePlace(properties: { osm_key?: string; osm_value?: string } | undefined): boolean {
   if (!properties?.osm_key || !properties.osm_value) return false;
@@ -153,6 +191,9 @@ export async function searchWikipediaPlaces(query: string, center: Center, radiu
   }
 }
 
+/** Overpass turns away requests without an identifying User-Agent (browsers keep their own). */
+const overpassHeaders = { Accept: "application/json", "User-Agent": "GoWorth/1.0 (travel app)" };
+
 async function overpassPlaces(center: Center, radiusKm: number) {
   const radius = Math.round(radiusKm * 1000);
   const around = `around:${radius},${center.latitude},${center.longitude}`;
@@ -168,7 +209,7 @@ async function overpassPlaces(center: Center, radiusKm: number) {
   try {
     const url = new URL("https://overpass-api.de/api/interpreter");
     url.searchParams.set("data", query);
-    const response = await fetch(url.toString(), { headers: { Accept: "application/json" }, signal: controller.signal });
+    const response = await fetch(url.toString(), { headers: overpassHeaders, signal: controller.signal });
     if (!response.ok) throw new Error("OpenStreetMap attractions are unavailable.");
     const data: { elements?: OsmElement[] } = await response.json();
     return parseOsmPlaces(data.elements ?? [], center, radiusKm);
@@ -243,10 +284,156 @@ export async function loadNearbyPlaces(center: Center, radiusKm = 8): Promise<Ne
   const request = (async () => {
     const photon = await photonPlaces(center, radius).catch(() => []);
     const osm = photon.length ? photon : await overpassPlaces(center, radius).catch(() => []);
-    const places = osm.length ? osm : await wikipediaPlaces(center, radius);
+    const rawPlaces = osm.length ? osm : await wikipediaPlaces(center, radius);
+    const places = await keepPhotoBackedPlaces(rawPlaces);
     cache.set(key, { places, expiresAt: Date.now() + 30 * 60 * 1000 });
     return places;
   })().finally(() => pending.delete(key));
   pending.set(key, request);
   return request;
+}
+
+const venueCategories: Record<VenueKind, string> = {
+  restaurant: "Restaurants", bar: "Bars & Pubs", cafe: "Cafés", nightclub: "Nightlife",
+};
+const venueAmenities: Record<string, VenueKind> = { restaurant: "restaurant", bar: "bar", pub: "bar", cafe: "cafe", nightclub: "nightclub" };
+
+function titleCase(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+/**
+ * Restaurants, bars, cafés and clubs from OpenStreetMap. There are no ratings, so the best-described venues come first:
+ * opening hours, cuisine, a website or outdoor seating suggest a real, maintained place; chains sink to the bottom.
+ */
+export function parseOsmVenues(elements: OsmElement[], center: Center, radiusKm: number, { limit = 40, location }: { limit?: number; location?: (element: OsmElement) => string | undefined } = {}): NearbyPlace[] {
+  const seen = new Set<string>();
+  const ranked = elements.flatMap((element, order) => {
+    const tags = element.tags ?? {};
+    const kind = venueAmenities[tags.amenity ?? ""];
+    const latitude = element.lat ?? element.center?.lat;
+    const longitude = element.lon ?? element.center?.lon;
+    const name = tags.name?.trim();
+    if (!kind || !name || latitude === undefined || longitude === undefined || !validCoordinates(latitude, longitude)) return [];
+    const distance = distanceKm(center, { latitude, longitude });
+    if (distance > radiusKm) return [];
+    const key = `${name.toLocaleLowerCase()}|${latitude.toFixed(3)}|${longitude.toFixed(3)}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    const terrace = tags.outdoor_seating === "yes";
+    const cuisine = tags.cuisine?.split(";")[0]?.trim();
+    const address = [tags["addr:street"], tags["addr:housenumber"]].filter(Boolean).join(" ");
+    const category = venueCategories[kind];
+    const score = (tags.opening_hours ? 2 : 0) + (cuisine ? 2 : 0) + (tags.website || tags["contact:website"] ? 1 : 0)
+      + (tags.phone || tags["contact:phone"] ? 1 : 0) + (terrace ? 1 : 0) + (tags.wikidata && !tags.brand ? 2 : 0)
+      - (tags.brand || tags["brand:wikidata"] ? 4 : 0);
+    const place: NearbyPlace = {
+      id: `osm:${element.type}:${element.id}`, name, latitude, longitude, kind: "place",
+      category, detail: `${category} · ${distance.toFixed(1)} km away`, source: "OpenStreetMap",
+      sourceUrl: `https://www.openstreetmap.org/${element.type}/${element.id}`,
+      venue: { kind, terrace, ...(cuisine ? { cuisine: titleCase(cuisine) } : {}), ...(tags.opening_hours ? { openingHours: tags.opening_hours } : {}), ...(address ? { address } : {}) },
+    };
+    const where = location?.(element) ?? tags["addr:city"];
+    if (where) place.location = where;
+    return [{ place, score, order }];
+  });
+  // Equal scores keep the source's order: Photon lists the best-known venues first.
+  return ranked.sort((a, b) => b.score - a.score || a.order - b.order).slice(0, limit).map((item) => item.place);
+}
+
+/** The venues a set of discovery filters lets through: a matching kind, or outdoor seating when terraces are on. */
+export function filterVenues(places: NearbyPlace[], filters: VenueFilter[]) {
+  return places.filter((place) => place.venue && (filters.includes(place.venue.kind) || filters.includes("terrace") && place.venue.terrace));
+}
+
+/**
+ * Photon is quick and lists well-known venues first, but carries no tags such as cuisine or outdoor seating. Each kind
+ * is asked for separately and the results alternate, so famous restaurants do not crowd out bars, cafés and clubs.
+ */
+async function photonVenues(center: Center, radiusKm: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 7000);
+  const types = { N: "node", W: "way", R: "relation" } as const;
+  const locations = new Map<string, string>();
+  try {
+    const groups = await Promise.allSettled([["restaurant"], ["bar", "pub"], ["cafe"], ["nightclub"]].map(async (amenities) => {
+      const url = new URL("https://photon.komoot.io/api/");
+      for (const [key, value] of Object.entries({
+        lat: String(center.latitude), lon: String(center.longitude), bbox: photonBoundingBoxes(center, radiusKm)[0].join(","),
+        include: amenities.map((value) => `osm.amenity.${value}`).join(","), limit: "25",
+      })) url.searchParams.set(key, value);
+      const response = await fetch(url.toString(), { signal: controller.signal });
+      if (!response.ok) throw new Error("OpenStreetMap venues are unavailable.");
+      const data: { features?: PhotonFeature[] } = await response.json();
+      return (data.features ?? []).filter((feature) => feature.properties.osm_key === "amenity").map((feature): OsmElement => {
+        const element: OsmElement = {
+          type: types[feature.properties.osm_type], id: feature.properties.osm_id,
+          lat: feature.geometry.coordinates[1], lon: feature.geometry.coordinates[0],
+          tags: {
+            name: feature.properties.name ?? "", amenity: feature.properties.osm_value,
+            ...(feature.properties.street ? { "addr:street": feature.properties.street } : {}),
+            ...(feature.properties.housenumber ? { "addr:housenumber": feature.properties.housenumber } : {}),
+          },
+        };
+        if (feature.properties.city && feature.properties.country) locations.set(`${element.type}:${element.id}`, `${feature.properties.city}, ${feature.properties.country}`);
+        return element;
+      });
+    }));
+    if (groups.every((group) => group.status === "rejected")) throw new Error("OpenStreetMap venues are unavailable.");
+    const lists = groups.map((group) => group.status === "fulfilled" ? group.value : []);
+    const elements = Array.from({ length: Math.max(...lists.map((list) => list.length)) }, (_, index) => lists.flatMap((list) => list[index] ? [list[index]] : [])).flat();
+    const location = (element: OsmElement) => locations.get(`${element.type}:${element.id}`);
+    return { elements, location, places: parseOsmVenues(elements, center, radiusKm, { location }) };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** Fills in cuisine, opening hours and outdoor seating for known venues by ID; a quick lookup, skipped when Overpass is busy. */
+async function overpassVenueTags(places: NearbyPlace[]) {
+  const ids = { node: [] as string[], way: [] as string[], relation: [] as string[] };
+  for (const place of places) {
+    const [, type, id] = place.id.split(":") as [string, keyof typeof ids, string];
+    ids[type]?.push(id);
+  }
+  const query = `[out:json][timeout:8];(${Object.entries(ids).filter(([, list]) => list.length).map(([type, list]) => `${type}(id:${list.join(",")});`).join("")});out tags;`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const url = new URL("https://overpass-api.de/api/interpreter");
+    url.searchParams.set("data", query);
+    const response = await fetch(url.toString(), { headers: overpassHeaders, signal: controller.signal });
+    if (!response.ok) return new Map<string, Record<string, string>>();
+    const data: { elements?: OsmElement[] } = await response.json();
+    return new Map((data.elements ?? []).map((element) => [`osm:${element.type}:${element.id}`, element.tags ?? {}]));
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** Venues around a point, within walking distance of it however wide the discovery radius is. */
+export async function loadNearbyVenues(center: Center, radiusKm = 3): Promise<NearbyPlace[]> {
+  const radius = Math.max(0.5, Math.min(radiusKm, 3));
+  const key = `${center.latitude.toFixed(3)}|${center.longitude.toFixed(3)}|${radius}`;
+  const saved = venueCache.get(key);
+  if (saved && saved.expiresAt > Date.now()) return saved.places;
+  const current = venuePending.get(key);
+  if (current) return current;
+  const request = (async () => {
+    const { elements, location, places } = await photonVenues(center, radius);
+    const tags = places.length ? await overpassVenueTags(places).catch(() => new Map<string, Record<string, string>>()) : new Map();
+    const venues = tags.size
+      ? parseOsmVenues(elements.map((element) => ({ ...element, tags: { ...element.tags, ...tags.get(`osm:${element.type}:${element.id}`) } })), center, radius, { location })
+      : places;
+    venueCache.set(key, { places: venues, expiresAt: Date.now() + (tags.size ? 30 : 5) * 60 * 1000 });
+    return venues;
+  })().finally(() => venuePending.delete(key));
+  venuePending.set(key, request);
+  return request;
+}
+
+/** The venue a saved place is, from its category: saved places keep the category but not the venue details. */
+export function venueFromCategory(category: string | undefined, details: Partial<Omit<Venue, "kind">> = {}): Venue | undefined {
+  const kind = (Object.keys(venueCategories) as VenueKind[]).find((item) => venueCategories[item] === category);
+  return kind ? { terrace: false, ...details, kind } : undefined;
 }

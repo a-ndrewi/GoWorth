@@ -1,17 +1,28 @@
 import { Image } from "expo-image";
-import { router, type Href } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
-import { Copy, Icon } from "@/components/goworth/ui";
-import { palette as p } from "@/constants/design";
-import { findPlacePhoto, type PlacePhoto } from "@/data/place-photo";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Copy } from "@/components/goworth/ui";
+import { usePalette } from "@/state/theme-context";
+import { findPlacePhoto, peekPlacePhoto, sizedPhotoUrl, type PlacePhoto } from "@/data/place-photo";
+import type { Venue } from "@/data/nearby-places";
+import { VenueArt, VenueTile } from "@/components/goworth/venue-art";
 import { useAppLanguage } from "@/data/formatting";
-import { translate, translateAccessibility } from "@/data/i18n";
+import { translateAccessibility } from "@/data/i18n";
 
 type PlacePhotoProps = { name: string; location: string; latitude?: number; longitude?: number; sourceUrl?: string };
 const noFailedUrls: string[] = [];
 
-export function PlacePreviewPhoto({ name, location, latitude, longitude, sourceUrl }: PlacePhotoProps) {
+/** Restaurants, bars, cafés and clubs rarely have a free photo, so they show their venue art instead of searching for one. */
+export function PlacePreviewPhoto({ venue, ...props }: PlacePhotoProps & { badge?: string; venue?: Venue }) {
+  if (venue) return <View style={{ height: 215, borderRadius: 6, overflow: "hidden" }}>
+    <VenueArt venue={venue} compact />
+    {!!props.badge && <View pointerEvents="none" style={{ position: "absolute", left: 10, bottom: 10, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "rgba(16, 28, 48, 0.86)" }}><Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>{props.badge}</Text></View>}
+  </View>;
+  return <PlaceSearchPhoto {...props} />;
+}
+
+function PlaceSearchPhoto({ name, location, latitude, longitude, sourceUrl, badge }: PlacePhotoProps & { badge?: string }) {
+  const p = usePalette();
   const language = useAppLanguage();
   const key = `${name}|${location}|${latitude ?? ""}|${longitude ?? ""}|${sourceUrl ?? ""}`;
   const [result, setResult] = useState<{ key: string; photo: PlacePhoto | null; status: "ready" | "empty" | "error" } | null>(null);
@@ -33,37 +44,52 @@ export function PlacePreviewPhoto({ name, location, latitude, longitude, sourceU
   return <View style={{ gap: 7 }}>
     <View style={{ height: 215, borderRadius: 6, overflow: "hidden", backgroundColor: p.greenSoft, alignItems: "center", justifyContent: "center" }}>
       {status === "ready" && photo && !imageFailed
-        ? <Image source={{ uri: photo.url }} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />
+        ? <Image source={{ uri: photo.url }} cachePolicy="memory-disk" transition={160} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />
         : <View style={{ alignItems: "center", gap: 8, padding: 20 }}>
-          {status === "loading" ? <ActivityIndicator color={p.green} /> : <Icon name="camera" color={p.green} size={27} />}
+          {status === "loading" && <ActivityIndicator color={p.green} />}
           <Copy style={{ color: p.green, textAlign: "center", fontSize: 13 }}>
             {status === "loading" || imageFailed ? "Finding a photo of this place…" : status === "error" ? "Photo search is unavailable right now" : "No verified photo for this place"}
           </Copy>
         </View>}
+      {!!badge && status === "ready" && photo && !imageFailed && <View pointerEvents="none" style={{ position: "absolute", left: 10, bottom: 10, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "rgba(16, 28, 48, 0.86)" }}><Text style={{ color: p.onColor, fontSize: 12, fontWeight: "700" }}>{badge}</Text></View>}
     </View>
-    {status === "ready" && photo && !imageFailed &&
-      <Pressable accessibilityRole="link" accessibilityLabel={translateAccessibility(`Photo source and license for ${name}`, language)} onPress={() => router.push({ pathname: "/legal-document", params: { type: "credits", photoName: name, photoArtist: photo.artist, photoLicense: photo.license, photoPageUrl: photo.pageUrl, photoLicenseUrl: photo.licenseUrl } } as Href)}>
-        <Copy muted style={{ fontSize: 11, lineHeight: 16 }}>{translate("Photo details", language)} ↗</Copy>
-      </Pressable>}
   </View>;
 }
 
-export function PlaceThumbnail({ name, location, latitude, longitude, sourceUrl }: PlacePhotoProps) {
+type ThumbnailProps = PlacePhotoProps & { style?: StyleProp<ViewStyle>; fallbackColor?: string; thumbWidth?: 120 | 250 | 330 | 500; onPhotoAvailable?: (available: boolean) => void };
+
+export function PlaceThumbnail({ venue, ...props }: ThumbnailProps & { venue?: Venue }) {
+  if (venue) return <View style={[{ width: 54, height: 54, borderRadius: 5, overflow: "hidden" }, props.style]}><VenueTile venue={venue} large={(props.thumbWidth ?? 120) >= 330} /></View>;
+  return <PlaceSearchThumbnail {...props} />;
+}
+
+function PlaceSearchThumbnail({ name, location, latitude, longitude, sourceUrl, style, fallbackColor, thumbWidth = 120, onPhotoAvailable }: ThumbnailProps) {
+  const p = usePalette();
   const language = useAppLanguage();
+  const onPhotoAvailableRef = useRef(onPhotoAvailable);
+  useEffect(() => { onPhotoAvailableRef.current = onPhotoAvailable; }, [onPhotoAvailable]);
   const key = `${name}|${location}|${latitude ?? ""}|${longitude ?? ""}|${sourceUrl ?? ""}`;
-  const [result, setResult] = useState<{ key: string; photo: PlacePhoto | null } | null>(null);
+  const [result, setResult] = useState<{ key: string; photo: PlacePhoto | null } | null>(() => {
+    const known = peekPlacePhoto(name, location, latitude, longitude, sourceUrl);
+    return known === undefined ? null : { key, photo: known };
+  });
   const [failed, setFailed] = useState<{ key: string; urls: string[] }>({ key, urls: [] });
   const failedUrls = failed.key === key ? failed.urls : noFailedUrls;
   const photo = result?.key === key ? result.photo : null;
+  const loading = result?.key !== key;
   useEffect(() => {
     let active = true;
     findPlacePhoto(name, location, latitude, longitude, sourceUrl, failedUrls).then((photo) => {
-      if (active) setResult({ key, photo });
-    }).catch(() => undefined);
+      if (active) {
+        setResult({ key, photo });
+        onPhotoAvailableRef.current?.(!!photo);
+      }
+    }).catch(() => { if (active) onPhotoAvailableRef.current?.(false); });
     return () => { active = false; };
   }, [key, name, location, latitude, longitude, sourceUrl, failedUrls]);
-  return <View style={{ width: 54, height: 54, borderRadius: 5, overflow: "hidden", backgroundColor: p.greenSoft, alignItems: "center", justifyContent: "center" }}>
-    {photo && !failedUrls.includes(photo.url) ? <Image source={{ uri: photo.url }} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: 54, height: 54 }} />
-      : <Icon name="camera" size={18} color={p.green} />}
+  return <View style={[{ width: 54, height: 54, borderRadius: 5, overflow: "hidden", backgroundColor: p.greenSoft, alignItems: "center", justifyContent: "center" }, style]}>
+    {photo && !failedUrls.includes(photo.url)
+      ? <Image source={{ uri: sizedPhotoUrl(photo.url, thumbWidth) }} recyclingKey={key} cachePolicy="memory-disk" transition={120} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />
+      : loading ? <View style={{ width: "42%", height: "42%", borderRadius: 999, backgroundColor: fallbackColor ?? p.green, opacity: 0.18 }} /> : null}
   </View>;
 }

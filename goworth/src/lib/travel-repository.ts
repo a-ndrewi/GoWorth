@@ -33,12 +33,12 @@ export async function loadTravelData(userId: string) {
     await Promise.all([
       db.from("profiles").select("display_name,username,notifications_enabled,language,currency,avatar_path,avatar_status").eq("user_id", userId).maybeSingle(),
       db.from("travel_preferences").select("interests,region,budget,pace").eq("user_id", userId).maybeSingle(),
-      db.from("trips").select("destination_id,start_date,end_date,budget,companions,interests,day_destinations,route_stops").eq("user_id", userId).maybeSingle(),
+      db.from("trips").select("destination_id,start_date,end_date,budget,companions,interests,day_destinations,day_cities,route_stops").eq("user_id", userId).maybeSingle(),
       db.from("trip_activities").select("id,day,period,activity_time,name,note,place_id,latitude,longitude").eq("user_id", userId).order("position"),
       db.from("trip_expenses").select("id,label,category,amount").eq("user_id", userId).order("position"),
       db.from("saved_items").select("kind,item_id,details").eq("user_id", userId),
       db.from("travel_memories").select("journal").eq("user_id", userId).maybeSingle(),
-      db.from("trip_journal_entries").select("id,destination_id,start_date,end_date,budget,companions,interests,day_destinations,route_stops,activities,expenses,saved_place_ids,reflection,status,archived_at").eq("user_id", userId).order("archived_at", { ascending: false }),
+      db.from("trip_journal_entries").select("id,destination_id,start_date,end_date,budget,companions,interests,day_destinations,day_cities,route_stops,activities,expenses,saved_place_ids,reflection,status,archived_at").eq("user_id", userId).order("archived_at", { ascending: false }),
       db.from("user_entitlements").select("plan,valid_until").eq("user_id", userId).maybeSingle(),
       db.from("usage_events").select("kind").eq("user_id", userId).gte("created_at", monthStart.toISOString()),
     ]);
@@ -71,6 +71,7 @@ export async function loadTravelData(userId: string) {
       ? {
           destinationId: tripRow.destination_id,
           dayDestinations: "day_destinations" in tripRow ? tripRow.day_destinations || undefined : undefined,
+          dayCities: "day_cities" in tripRow ? tripRow.day_cities || undefined : undefined,
           routeStops: "route_stops" in tripRow ? tripRow.route_stops || undefined : undefined,
           start: tripRow.start_date,
           end: tripRow.end_date,
@@ -114,6 +115,7 @@ type JournalRow = {
   companions: string;
   interests: string[];
   day_destinations?: Trip["dayDestinations"];
+  day_cities?: Trip["dayCities"];
   route_stops?: Trip["routeStops"];
   activities: Activity[];
   expenses: Expense[];
@@ -129,6 +131,7 @@ function mapJournalEntries(rows: JournalRow[]): TripJournalEntry[] {
     trip: {
       destinationId: row.destination_id as Trip["destinationId"],
       dayDestinations: row.day_destinations,
+      dayCities: row.day_cities,
       routeStops: row.route_stops,
       start: row.start_date,
       end: row.end_date,
@@ -148,7 +151,7 @@ function mapJournalEntries(rows: JournalRow[]): TripJournalEntry[] {
 export async function loadTripJournal(userId: string): Promise<TripJournalEntry[]> {
   const db = client();
   const result = await db.from("trip_journal_entries")
-    .select("id,destination_id,start_date,end_date,budget,companions,interests,day_destinations,route_stops,activities,expenses,saved_place_ids,reflection,status,archived_at")
+    .select("id,destination_id,start_date,end_date,budget,companions,interests,day_destinations,day_cities,route_stops,activities,expenses,saved_place_ids,reflection,status,archived_at")
     .eq("user_id", userId).order("archived_at", { ascending: false });
   const rows = result.error
     ? await db.from("trip_journal_entries")
@@ -248,6 +251,7 @@ export async function replaceTrip(userId: string, trip: Trip, activities: Activi
     p_companions: trip.companions,
     p_interests: trip.interests,
     p_day_destinations: trip.dayDestinations || null,
+    p_day_cities: trip.dayCities || null,
     p_route_stops: trip.routeStops || null,
     p_activities: activities.map((activity, position) => ({
       id: activity.id,
@@ -263,13 +267,24 @@ export async function replaceTrip(userId: string, trip: Trip, activities: Activi
     })),
   };
   const result = await db.rpc("replace_trip", payload);
-  if (result.error && !trip.dayDestinations && !trip.routeStops && /function|schema cache/i.test(result.error.message)) {
-    const { p_day_destinations, p_route_stops, ...legacyPayload } = payload;
-    void p_day_destinations; void p_route_stops;
+  if (result.error && !trip.dayDestinations && !trip.dayCities && !trip.routeStops && /function|schema cache/i.test(result.error.message)) {
+    const { p_day_destinations, p_day_cities, p_route_stops, ...legacyPayload } = payload;
+    void p_day_destinations; void p_day_cities; void p_route_stops;
     requireData(await db.rpc("replace_trip", legacyPayload));
     return;
   }
   requireData(result);
+}
+
+/** Saves changes to the current trip in place: no archive, and activities on days that no longer exist are removed. */
+export async function updateTrip(userId: string, trip: Trip, removedActivityIds: string[]) {
+  const db = client();
+  requireData(await db.from("trips").update({
+    destination_id: trip.destinationId, start_date: trip.start, end_date: trip.end, budget: trip.budget,
+    companions: trip.companions, interests: trip.interests, day_destinations: trip.dayDestinations ?? null,
+    day_cities: trip.dayCities ?? null, route_stops: trip.routeStops ?? null,
+  }).eq("user_id", userId));
+  if (removedActivityIds.length) requireData(await db.from("trip_activities").delete().eq("user_id", userId).in("id", removedActivityIds));
 }
 
 export async function deleteTrip(userId: string) {

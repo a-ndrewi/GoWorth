@@ -8,28 +8,17 @@ import {
   Animated,
   Easing,
   Platform,
-  Pressable,
-  Text,
+  Pressable, Text,
   TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  Brand,
-  Button,
-  Chip,
-  Copy,
-  Field,
-  Header,
-  Heading,
-  IconButton,
-  Row,
-  Screen,
-  Sheet,
-  s,
-} from "@/components/goworth/ui";
-import { palette as p, photos } from "@/constants/design";
-import { destinations, interests, money } from "@/data/travel";
+import { Brand, Button, Copy, Field, Header, Heading, Icon, IconButton, Row, Screen, Sheet, sharedSheet } from "@/components/goworth/ui";
+import { photos, themedStyles } from "@/constants/design";
+import { usePalette, useStyles, useThemePreference } from "@/state/theme-context";
+import { venueFilters } from "@/data/nearby-places";
+import { venueFilterIcons, venueFilterLabels } from "@/components/goworth/venue-art";
+import { destinations, money } from "@/data/travel";
 import { cityForGlobalId, countryForCode, searchCities } from "@/data/geography";
 import { useTravel } from "@/state/travel-context";
 import { useAuth } from "@/state/auth-context";
@@ -54,11 +43,13 @@ export function SplashScreen() {
   }, []);
 
   useEffect(() => {
-    if (hold || !introDone || !ready || (user && !cloudReady) || actionsEnabled) return;
+    if (hold || !ready || (user && !cloudReady) || actionsEnabled) return;
     if (user) {
       router.replace((hasPreferences ? "/home" : "/preferences") as Href);
       return;
     }
+    // The short intro pause is for the welcome screen; signed-in users go straight in.
+    if (!introDone) return;
     const animation = Animated.timing(actionReveal, {
       toValue: 1,
       duration: 650,
@@ -75,6 +66,8 @@ export function SplashScreen() {
 }
 
 function WelcomeContent({ actionReveal, actionsEnabled = true }: { actionReveal?: Animated.Value; actionsEnabled?: boolean }) {
+  const p = usePalette();
+  const { scheme } = useThemePreference();
   return (
     <View style={{ flex: 1, backgroundColor: p.white }}>
       <StatusBar style="dark" />
@@ -90,6 +83,7 @@ function WelcomeContent({ actionReveal, actionsEnabled = true }: { actionReveal?
             <Image
               source={photos.brandName}
               style={{ width: 218, height: 54 }}
+              tintColor={scheme === "dark" ? p.ink : undefined}
               contentFit="contain"
               accessibilityLabel="GoWorth"
             />
@@ -124,6 +118,8 @@ export function WelcomeScreen() {
 }
 
 export function AuthScreen() {
+  const s = useStyles(sharedSheet);
+  const p = usePalette();
   const language = useAppLanguage();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const { user, passwordRecovery, finishPasswordRecovery } = useAuth();
@@ -331,6 +327,9 @@ export function AuthScreen() {
 }
 
 export function PreferencesScreen() {
+  const prefStyles = useStyles(prefStylesSheet);
+  const s = useStyles(sharedSheet);
+  const p = usePalette();
   const language = useAppLanguage();
   const {
     preferences: storedPreferences,
@@ -349,13 +348,6 @@ export function PreferencesScreen() {
   const center = selectedCity
     ? { id: selectedCity.id, name: selectedCity.name, country: countryForCode(selectedCity.countryCode)?.name ?? selectedCity.countryCode }
     : destinations.find((item) => item.id === discoverySettings.centerId);
-  const toggle = (interest: string) =>
-    setPreferences({
-      ...preferences,
-      interests: preferences.interests.includes(interest)
-        ? preferences.interests.filter((x) => x !== interest)
-        : [...preferences.interests, interest],
-    });
   return (
     <Screen
       footer={
@@ -374,7 +366,7 @@ export function PreferencesScreen() {
           }
         }}>Save preferences</Button>
       }
-      style={{ gap: 22 }}
+      style={{ gap: 16 }}
     >
       {hasPreferences ? <View style={{ gap: 8 }}>
         <Header title="Travel preferences" />
@@ -383,91 +375,61 @@ export function PreferencesScreen() {
         <Heading>Tell us about your travel style</Heading>
         <Copy muted>This helps GoWorth suggest destinations that fit you.</Copy>
       </View>}
-      <View style={{ gap: 10 }}>
-        <Copy style={s.label}>Trip style</Copy>
+      <View style={prefStyles.card}>
+        <Row style={{ gap: 10 }}><View style={prefStyles.cardIcon}><Icon name="globe" size={19} color={p.blue} /></View><Heading style={prefStyles.cardTitle}>Preferred destinations</Heading></Row>
         <View style={[s.grid, { gap: 8 }]}>
-          {interests.map((name, i) => (
-            <Chip
-              key={name}
-              selected={preferences.interests.includes(name)}
-              tint={[p.greenSoft, p.orangeSoft, p.blueSoft, "#F0EAFE"][i % 4]}
-              onPress={() => toggle(name)}
-            >
-              {name}
-            </Chip>
-          ))}
+          {(["Worldwide", "Europe", "Asia", "Americas", "Africa", "Oceania"] as const).map((region) => {
+            const selected = preferences.region === region;
+            return <Pressable key={region} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setPreferences({ ...preferences, region })}
+              style={({ pressed }) => [prefStyles.option, selected && prefStyles.optionSelected, pressed && { opacity: 0.8 }]}>
+              <Text style={[prefStyles.optionText, selected && { color: p.onColor }]}>{translate(region, language)}</Text>
+            </Pressable>;
+          })}
         </View>
       </View>
-      <View style={{ gap: 12 }}>
-        <Copy style={s.label}>Preferred destinations</Copy>
-        <View style={[s.grid, { gap: 8 }]}>
-          {(["Worldwide", "Europe", "Asia", "Americas", "Africa", "Oceania"] as const).map((region) => (
-            <Chip
-              key={region}
-              selected={preferences.region === region}
-              onPress={() => setPreferences({ ...preferences, region })}
-              style={{ minWidth: 94 }}
-            >
-              {region}
-            </Chip>
-          ))}
-        </View>
+      <View style={prefStyles.card}>
+        <Row style={{ gap: 10 }}><View style={prefStyles.cardIcon}><Icon name="wallet" size={19} color={p.blue} /></View><Heading style={prefStyles.cardTitle}>Budget range</Heading></Row>
+        <Text style={prefStyles.budget}>{money(preferences.budget)} <Text style={prefStyles.budgetHint}>{translate("per person", language)}</Text></Text>
+        <Slider accessibilityLabel="Travel budget" minimumValue={500} maximumValue={10000} step={100} value={preferences.budget}
+          onValueChange={(budget) => setPreferences({ ...preferences, budget })} minimumTrackTintColor={p.blue} maximumTrackTintColor={p.line} thumbTintColor={p.blue} />
+        <Row style={{ justifyContent: "space-between" }}><Copy muted style={{ fontSize: 12 }}>{money(500)}</Copy><Copy muted style={{ fontSize: 12 }}>{money(10000)}</Copy></Row>
+        <Copy muted style={{ fontSize: 12 }}>Used as the starting budget for new trips.</Copy>
       </View>
-      <View style={{ gap: 9 }}>
-        <Row style={{ justifyContent: "space-between" }}>
-          <Copy style={s.label}>Budget range (per person)</Copy>
-          <Copy style={{ color: p.blue, fontWeight: "600" }}>
-            {money(preferences.budget)}
-          </Copy>
-        </Row>
-        <Slider
-          accessibilityLabel="Travel budget"
-          minimumValue={500}
-          maximumValue={10000}
-          step={100}
-          value={preferences.budget}
-          onValueChange={(budget) => setPreferences({ ...preferences, budget })}
-          minimumTrackTintColor={p.blue}
-          maximumTrackTintColor={p.line}
-          thumbTintColor={p.blue}
-        />
-        <Row style={{ justifyContent: "space-between" }}>
-          <Copy muted style={{ fontSize: 12 }}>
-            {money(500)}
-          </Copy>
-          <Copy muted style={{ fontSize: 12 }}>
-            {money(10000)}
-          </Copy>
-        </Row>
-      </View>
-      <View style={{ gap: 9 }}>
-        <Copy style={s.label}>Travel pace</Copy>
-        <Row>
-          {["Relaxed", "Balanced", "Packed"].map((pace) => (
-            <Chip
-              key={pace}
-              selected={preferences.pace === pace}
-              onPress={() => setPreferences({ ...preferences, pace })}
-              style={{ flex: 1, paddingHorizontal: 8 }}
-            >
-              {pace}
-            </Chip>
-          ))}
-        </Row>
-      </View>
-      <View style={{ gap: 12, borderTopWidth: 1, borderColor: p.line, paddingTop: 20 }}>
-        <Heading style={{ fontSize: 20 }}>Nearby discovery</Heading>
+      <View style={prefStyles.card}>
+        <Row style={{ gap: 10 }}><View style={prefStyles.cardIcon}><Icon name="compass" size={19} color={p.blue} /></View><Heading style={prefStyles.cardTitle}>Nearby discovery</Heading></Row>
+        <Copy muted style={{ fontSize: 13 }}>Choose where the Explore deck looks for places and how far it goes.</Copy>
         <Copy style={s.label}>Search from</Copy>
-        <Button secondary icon="pin" onPress={() => setChoosingCenter(true)}>{center ? `${center.name}, ${center.country}` : "My current location"}</Button>
+        <Pressable accessibilityRole="button" onPress={() => setChoosingCenter(true)} style={({ pressed }) => [prefStyles.from, pressed && { backgroundColor: p.blueSoft }]}>
+          <Icon name={center ? "pin" : "target"} size={19} color={p.blue} />
+          <Text numberOfLines={1} style={prefStyles.fromText}>{center ? `${translate(center.name, language)}, ${translate(center.country, language)}` : translate("My current location", language)}</Text>
+          <Text style={prefStyles.change}>{translate("Change", language)}</Text>
+        </Pressable>
         <Copy style={s.label}>Search radius</Copy>
         <View style={[s.grid, { gap: 8 }]}>
-          {[25, 100, 500, 2000, 20000].map((radiusKm) => (
-            <Chip key={radiusKm} selected={discoverySettings.radiusKm === radiusKm} onPress={() => setDiscoverySettings({ ...discoverySettings, radiusKm })}>
-              {radiusKm === 20000 ? "Worldwide" : `${radiusKm.toLocaleString("en-US")} km`}
-            </Chip>
-          ))}
+          {[25, 100, 500, 2000, 20000].map((radiusKm) => {
+            const selected = discoverySettings.radiusKm === radiusKm;
+            return <Pressable key={radiusKm} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setDiscoverySettings({ ...discoverySettings, radiusKm })}
+              style={({ pressed }) => [prefStyles.option, selected && prefStyles.optionSelected, pressed && { opacity: 0.8 }]}>
+              <Text style={[prefStyles.optionText, selected && { color: p.onColor }]}>{radiusKm === 20000 ? translate("Worldwide", language) : `${radiusKm.toLocaleString(language === "ro" ? "ro-RO" : "en-US")} km`}</Text>
+            </Pressable>;
+          })}
         </View>
         <Copy muted style={{ fontSize: 12 }}>Distance is measured to each city center.</Copy>
+      </View>
+      <View style={prefStyles.card}>
+        <Row style={{ gap: 10 }}><View style={prefStyles.cardIcon}><Icon name="cocktail" size={19} color={p.blue} /></View><Heading style={prefStyles.cardTitle}>Food & nightlife</Heading></Row>
+        <Copy muted style={{ fontSize: 13 }}>Choose which venues join the Explore deck. Terraces are places with outdoor seating.</Copy>
+        <View style={[s.grid, { gap: 8 }]}>
+          {venueFilters.map((venue) => {
+            const selected = discoverySettings.venues.includes(venue);
+            return <Pressable key={venue} accessibilityRole="checkbox" accessibilityState={{ checked: selected }}
+              onPress={() => setDiscoverySettings((current) => ({ ...current, venues: current.venues.includes(venue) ? current.venues.filter((item) => item !== venue) : [...current.venues, venue] }))}
+              style={({ pressed }) => [prefStyles.option, prefStyles.venueOption, selected && prefStyles.optionSelected, pressed && { opacity: 0.8 }]}>
+              <Icon name={venueFilterIcons[venue]} size={16} color={selected ? p.onColor : p.blue} />
+              <Text style={[prefStyles.optionText, selected && { color: p.onColor }]}>{translate(venueFilterLabels[venue], language)}</Text>
+            </Pressable>;
+          })}
+        </View>
       </View>
       {!!error && <Copy style={s.error}>{error}</Copy>}
       <Sheet visible={choosingCenter} title="Search from" onClose={() => setChoosingCenter(false)}>
@@ -476,7 +438,7 @@ export function PreferencesScreen() {
           <Copy style={{ flex: 1, fontWeight: "600" }}>My current location</Copy>
           {!center && <Copy style={{ color: p.blue }}>Selected</Copy>}
         </Pressable>
-        {searchCities(cityQuery).map((item) => (
+        {choosingCenter && searchCities(cityQuery).map((item) => (
           <Pressable key={item.id} accessibilityRole="button" onPress={() => { setDiscoverySettings({ ...discoverySettings, centerId: item.id }); setChoosingCenter(false); setCityQuery(""); }} style={[s.row, { paddingVertical: 10, gap: 10, borderTopWidth: 1, borderColor: p.line }]}>
             <Copy style={{ flex: 1 }}>{item.name}, {countryForCode(item.countryCode)?.name ?? item.countryCode}</Copy>
             {center?.id === item.id && <Copy style={{ color: p.blue }}>Selected</Copy>}
@@ -486,3 +448,18 @@ export function PreferencesScreen() {
     </Screen>
   );
 }
+
+const prefStylesSheet = themedStyles((p) => ({
+  card: { gap: 12, padding: 16, borderRadius: 20, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
+  cardIcon: { width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: p.blueSoft },
+  cardTitle: { fontSize: 17, lineHeight: 23 },
+  option: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 14, backgroundColor: p.soft },
+  optionSelected: { backgroundColor: p.blue },
+  venueOption: { flexDirection: "row", alignItems: "center", gap: 6 },
+  optionText: { color: p.ink, fontSize: 13, fontWeight: "700" },
+  budget: { color: p.ink, fontSize: 28, fontWeight: "800" },
+  budgetHint: { color: p.muted, fontSize: 13, fontWeight: "600" },
+  from: { flexDirection: "row", alignItems: "center", gap: 10, padding: 13, borderRadius: 14, backgroundColor: p.soft },
+  fromText: { flex: 1, color: p.ink, fontSize: 14, fontWeight: "700" },
+  change: { color: p.blue, fontSize: 13, fontWeight: "700" },
+}));

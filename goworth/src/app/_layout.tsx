@@ -1,13 +1,28 @@
-import { DefaultTheme, Stack, ThemeProvider, usePathname } from "expo-router";
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useGlobalSearchParams, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect, type ReactNode } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { TravelProvider, useTravel } from "@/state/travel-context";
 import { AuthProvider, useAuth } from "@/state/auth-context";
-import { palette } from "@/constants/design";
+import { ThemeProvider as AppThemeProvider, usePalette, useThemePreference } from "@/state/theme-context";
+import { tripDays } from "@/data/travel";
 import { BottomNav, Button, Copy } from "@/components/goworth/ui";
+import { ItineraryNav } from "@/components/goworth/itinerary-nav";
+import { setPhotoStore } from "@/data/place-photo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import "@/global.css";
+
+// The native splash only knows the system theme; keep it up until the saved theme is read.
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+// Photo lookups take several Wikipedia requests each; keep the answers across launches.
+setPhotoStore({
+  load: () => AsyncStorage.getItem("place-photo-lookups"),
+  save: (value) => AsyncStorage.setItem("place-photo-lookups", value),
+});
 
 const tabByPath: Record<string, string> = {
   "/home": "home",
@@ -16,29 +31,32 @@ const tabByPath: Record<string, string> = {
   "/place": "home",
   "/explore": "home",
   "/map": "map",
-  "/planner": "planner",
   "/saved": "saved",
   "/profile": "profile",
   "/membership": "profile",
-  "/memories": "profile",
 };
 
 function AppNavigator() {
   const pathname = usePathname();
+  const { day: dayParam } = useGlobalSearchParams<{ day?: string }>();
   const activeTab = tabByPath[pathname];
+  const itineraryTab = pathname === "/itinerary" ? "overview" : pathname === "/itinerary-places" ? "places" : pathname === "/budget" ? "budget" : null;
   const isSplash = pathname === "/" || pathname === "/splash";
   const { user, ready, signOut } = useAuth();
-  const { cloudReady, loadError, retryLoad } = useTravel();
+  const palette = usePalette();
+  const { scheme } = useThemePreference();
+  const { cloudReady, loadError, retryLoad, trip } = useTravel();
+  const itineraryDay = trip ? Math.min(Math.max(1, Math.trunc(Number(dayParam)) || 1), tripDays(trip.start, trip.end)) : 1;
   if (!ready && !isSplash) {
     return <View style={{ flex: 1, justifyContent: "center" }}><ActivityIndicator color={palette.blue} /></View>;
   }
   return (
     <>
-      <StatusBar style="dark" />
+      <StatusBar style={scheme === "dark" ? "light" : "dark"} />
       <View
         style={{
           flex: 1,
-          backgroundColor: "#F0F3F6",
+          backgroundColor: palette.backdrop,
           alignItems: "center",
         }}
       >
@@ -78,25 +96,21 @@ function AppNavigator() {
               <Stack.Screen name="welcome" />
             </Stack.Protected>
             <Stack.Protected guard={!!user}>
-              <Stack.Screen name="home" />
+              <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
+              <Stack.Screen name="(itinerary)" />
               <Stack.Screen name="country" />
               <Stack.Screen name="city" />
               <Stack.Screen name="place" />
-              <Stack.Screen name="map" />
               <Stack.Screen name="trip" />
               <Stack.Screen name="explore" />
               <Stack.Screen name="planner" />
-              <Stack.Screen name="itinerary" />
-              <Stack.Screen name="budget" />
-              <Stack.Screen name="saved" />
-              <Stack.Screen name="memories" />
               <Stack.Screen name="journal-trip" />
-              <Stack.Screen name="profile" />
               <Stack.Screen name="membership" />
               <Stack.Screen name="preferences" />
             </Stack.Protected>
           </Stack>
           {!!user && activeTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.white }}><BottomNav active={activeTab} /></SafeAreaView>}
+          {!!user && !!trip && itineraryTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.white }}><ItineraryNav active={itineraryTab} day={itineraryDay} /></SafeAreaView>}
           </>}
         </View>
       </View>
@@ -115,23 +129,43 @@ function AppContent() {
   );
 }
 
+function NavigationTheme({ children }: { children: ReactNode }) {
+  const palette = usePalette();
+  const { scheme, ready } = useThemePreference();
+  useEffect(() => {
+    if (ready) SplashScreen.hide();
+  }, [ready]);
+  if (!ready) return null;
+  const base = scheme === "dark" ? DarkTheme : DefaultTheme;
+  return (
+    <ThemeProvider
+      value={{
+        ...base,
+        colors: {
+          ...base.colors,
+          background: palette.white,
+          card: palette.white,
+          border: palette.line,
+          text: palette.ink,
+          primary: palette.blue,
+        },
+      }}
+    >
+      {children}
+    </ThemeProvider>
+  );
+}
+
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <ThemeProvider
-        value={{
-          ...DefaultTheme,
-          colors: {
-            ...DefaultTheme.colors,
-            background: palette.white,
-            primary: palette.blue,
-          },
-        }}
-      >
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
-      </ThemeProvider>
+      <AppThemeProvider>
+        <NavigationTheme>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </NavigationTheme>
+      </AppThemeProvider>
     </SafeAreaProvider>
   );
 }

@@ -180,7 +180,7 @@ begin
 end;
 $$;
 
-create function public.replace_trip(
+create or replace function public.replace_trip(
   p_destination_id text,p_start_date date,p_end_date date,p_budget numeric,
   p_companions text,p_interests text[],p_activities jsonb,p_day_destinations text[],p_route_stops jsonb
 ) returns void language plpgsql security invoker set search_path = '' as $$
@@ -201,7 +201,7 @@ $$;
 revoke all on function public.replace_trip(text,date,date,numeric,text,text[],jsonb,text[],jsonb) from public;
 grant execute on function public.replace_trip(text,date,date,numeric,text,text[],jsonb,text[],jsonb) to authenticated;
 
-create table public.user_entitlements (
+create table if not exists public.user_entitlements (
   user_id uuid primary key references auth.users(id) on delete cascade,
   plan text not null default 'free' check (plan in ('free','premium','lifetime')),
   valid_until timestamptz,
@@ -213,24 +213,26 @@ create table public.user_entitlements (
 alter table public.user_entitlements enable row level security;
 revoke all on public.user_entitlements from anon, authenticated;
 grant select on public.user_entitlements to authenticated;
+drop policy if exists "Read own entitlement" on public.user_entitlements;
 create policy "Read own entitlement" on public.user_entitlements for select to authenticated
   using ((select auth.uid()) = user_id);
 
-create table public.usage_events (
+create table if not exists public.usage_events (
   id bigint generated always as identity primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
   kind text not null check (kind in ('trip','place','destination')),
   item_id text,
   created_at timestamptz not null default now()
 );
-create index usage_events_period_idx on public.usage_events(user_id,kind,created_at);
+create index if not exists usage_events_period_idx on public.usage_events(user_id,kind,created_at);
 alter table public.usage_events enable row level security;
 revoke all on public.usage_events from anon, authenticated;
 grant select on public.usage_events to authenticated;
+drop policy if exists "Read own usage" on public.usage_events;
 create policy "Read own usage" on public.usage_events for select to authenticated
   using ((select auth.uid()) = user_id);
 
-create function public.consume_free_allowance() returns trigger language plpgsql
+create or replace function public.consume_free_allowance() returns trigger language plpgsql
 security definer set search_path = '' as $$
 declare usage_kind text;
 declare usage_item_id text;
@@ -267,20 +269,23 @@ begin
   return new;
 end;
 $$;
+drop trigger if exists count_trip_creation on public.trips;
 create trigger count_trip_creation before insert on public.trips
   for each row execute function public.consume_free_allowance();
+drop trigger if exists count_saved_item on public.saved_items;
 create trigger count_saved_item before insert on public.saved_items
   for each row execute function public.consume_free_allowance();
 
 insert into public.user_entitlements(user_id,plan)
 select id,'free' from auth.users on conflict (user_id) do nothing;
-create function public.assign_free_plan() returns trigger language plpgsql
+create or replace function public.assign_free_plan() returns trigger language plpgsql
 security definer set search_path = '' as $$
 begin
   insert into public.user_entitlements(user_id,plan) values(new.id,'free');
   return new;
 end;
 $$;
+drop trigger if exists assign_free_plan on auth.users;
 create trigger assign_free_plan after insert on auth.users
   for each row execute function public.assign_free_plan();
 
@@ -294,10 +299,12 @@ insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
 values ('profile-avatars','profile-avatars',false,5242880,array['image/jpeg','image/png','image/webp'])
 on conflict (id) do update set public = false,file_size_limit = 5242880,
   allowed_mime_types = array['image/jpeg','image/png','image/webp'];
+drop policy if exists "Upload own pending avatar" on storage.objects;
 create policy "Upload own pending avatar" on storage.objects for insert to authenticated
   with check (bucket_id = 'profile-avatars'
     and (storage.foldername(name))[1] = (select auth.uid())::text
     and (storage.foldername(name))[2] = 'pending');
+drop policy if exists "Read own approved avatar" on storage.objects;
 create policy "Read own approved avatar" on storage.objects for select to authenticated
   using (bucket_id = 'profile-avatars'
     and (storage.foldername(name))[1] = (select auth.uid())::text

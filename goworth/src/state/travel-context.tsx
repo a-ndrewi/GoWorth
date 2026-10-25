@@ -1,14 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Activity, Expense, Trip, TripJournalEntry } from "@/data/travel";
-import type { NearbyPlace } from "@/data/nearby-places";
+import { venueFilters, type NearbyPlace, type VenueFilter } from "@/data/nearby-places";
 import { externalPlaceFromSaved } from "@/data/external-places";
 import { syncStoreEntitlement } from "@/lib/entitlements";
 import { purchasesConfigured } from "@/lib/purchases";
 import { useAuth } from "@/state/auth-context";
 import { placeFitsTripDay } from "@/utils/trip-place";
 import { describeSyncFailure, isFreeLimitFailure, SyncFailure } from "@/utils/sync-error";
-import { destinationForDay, tripDays, validateTrip } from "@/utils/trip";
+import { tripDays, validateTrip } from "@/utils/trip";
+import { emptyExploreHistory, parseExploreHistory, rememberCountry, rememberPlace, type ExploreHistory } from "@/utils/explore-history";
 import { loadUsdRate, setDisplaySettings, type AppCurrency, type AppLanguage } from "@/data/formatting";
 import {
   archiveCurrentTrip,
@@ -19,6 +20,7 @@ import {
   loadTravelData,
   loadTripJournal,
   replaceTrip,
+  updateTrip as saveTripChanges,
   recordDiscoveryFavorite,
   saveActivity,
   saveExpense,
@@ -41,9 +43,10 @@ export type TravelPreferences = {
 };
 
 export type TravelProfile = { name: string; username: string; language: AppLanguage; currency: AppCurrency; avatarPath?: string; avatarStatus?: "none" | "pending" | "approved" | "rejected" };
-export type DiscoverySettings = { radiusKm: number; centerId: string | null };
-const defaultDiscoverySettings: DiscoverySettings = { radiusKm: 500, centerId: null };
+export type DiscoverySettings = { radiusKm: number; centerId: string | null; venues: VenueFilter[] };
+const defaultDiscoverySettings: DiscoverySettings = { radiusKm: 500, centerId: null, venues: venueFilters };
 const externalPlacesKey = (userId: string) => `external-places:${userId}`;
+const exploreHistoryKey = (userId: string) => `explore-history:${userId}`;
 
 function parseLocalExternalPlaces(value: string | null): NearbyPlace[] {
   if (!value) return [];
@@ -71,6 +74,7 @@ function useTravelState() {
   const [saved, setSaved] = useState<string[]>([]);
   const [savedPlaces, setSavedPlaces] = useState<string[]>([]);
   const [externalPlaces, setExternalPlaces] = useState<NearbyPlace[]>([]);
+  const [exploreHistoryState, setExploreHistoryState] = useState<{ owner: string | null; history: ExploreHistory }>({ owner: null, history: emptyExploreHistory });
   const [trip, setTrip] = useState<Trip | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -90,6 +94,7 @@ function useTravelState() {
   const [syncError, setSyncError] = useState("");
   const [reload, setReload] = useState(0);
   const writeQueue = useRef<Promise<void>>(Promise.resolve());
+  const exploreHistoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     if (!userId) setDisplaySettings({ language: "en", currency: "EUR" });
@@ -98,10 +103,43 @@ function useTravelState() {
   useEffect(() => {
     if (!userId) return;
     let current = true;
+    AsyncStorage.getItem(exploreHistoryKey(userId))
+      .then((value) => { if (current) setExploreHistoryState({ owner: userId, history: parseExploreHistory(value) }); })
+      .catch(() => { if (current) setExploreHistoryState({ owner: userId, history: emptyExploreHistory }); });
+    return () => { current = false; };
+  }, [userId]);
+
+  useEffect(() => {
+    if (userId && exploreHistoryState.owner === userId) {
+      const value = JSON.stringify(exploreHistoryState.history);
+      exploreHistoryWriteQueue.current = exploreHistoryWriteQueue.current
+        .then(() => AsyncStorage.setItem(exploreHistoryKey(userId), value))
+        .catch(() => undefined);
+    }
+  }, [userId, exploreHistoryState]);
+
+  const recordCountryVisit = useCallback((code: string, searchTerm = "") => {
+    if (!userId) return;
+    setExploreHistoryState((current) => current.owner === userId
+      ? { owner: userId, history: rememberCountry(current.history, code, searchTerm) } : current);
+  }, [userId]);
+
+  const recordPlaceVisit = useCallback((countryCode: string, cityId: string, place: NearbyPlace, searchTerm = "") => {
+    if (!userId) return;
+    setExploreHistoryState((current) => current.owner === userId
+      ? { owner: userId, history: rememberPlace(current.history, countryCode, cityId, place, searchTerm) } : current);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    let current = true;
     AsyncStorage.getItem(`discovery-settings:${userId}`).then((value) => {
       if (!current || !value) return;
-      const parsed: DiscoverySettings = JSON.parse(value);
-      if ([25, 100, 500, 2000, 20000].includes(parsed.radiusKm)) setDiscoverySettingsState(parsed);
+      const parsed: Partial<DiscoverySettings> = JSON.parse(value);
+      if (!parsed.radiusKm || ![25, 100, 500, 2000, 20000].includes(parsed.radiusKm)) return;
+      // Settings saved before venues existed show every kind.
+      const venues = Array.isArray(parsed.venues) ? parsed.venues.filter((item) => venueFilters.includes(item)) : venueFilters;
+      setDiscoverySettingsState({ radiusKm: parsed.radiusKm, centerId: parsed.centerId ?? null, venues });
     }).catch(() => undefined);
     return () => { current = false; };
   }, [userId]);
@@ -219,14 +257,13 @@ function useTravelState() {
     setExternalPlaces((current) => enabled ? [...current.filter((item) => item.id !== place.id), place] : current.filter((item) => item.id !== place.id));
   };
 
-  const favoriteDiscoveryItem = async (kind: "destination" | "place", id: string) => {
+  const favoriteDiscoveryItem = async (id: string) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
-    if (kind === "destination" ? saved.includes(id) : savedPlaces.includes(id)) return;
-    await persist(() => setSavedItem(user.id, kind, id, true), false);
-    if (kind === "destination") setSaved((current) => [...new Set([...current, id])]);
-    else setSavedPlaces((current) => [...new Set([...current, id])]);
-    setMonthlyUsage((current) => ({ ...current, [kind]: current[kind] + 1 }));
-    void recordDiscoveryFavorite(user.id, kind, id).catch(() => undefined);
+    if (savedPlaces.includes(id)) return;
+    await persist(() => setSavedItem(user.id, "place", id, true), false);
+    setSavedPlaces((current) => [...new Set([...current, id])]);
+    setMonthlyUsage((current) => ({ ...current, place: current.place + 1 }));
+    void recordDiscoveryFavorite(user.id, "place", id).catch(() => undefined);
   };
 
   const setDiscoverySettings = (next: DiscoverySettings) => {
@@ -259,6 +296,18 @@ function useTravelState() {
     setSyncError("");
   };
 
+  /** Edits the current trip (dates, cities, style or budget) and keeps its activities and expenses. */
+  const updateTrip = async (next: Trip) => {
+    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    const validation = validateTrip(next);
+    if (validation) throw new Error(validation);
+    const days = tripDays(next.start, next.end);
+    const removed = activities.filter((activity) => activity.day > days).map((activity) => activity.id);
+    await persist(() => saveTripChanges(user.id, next, removed));
+    setTrip(next);
+    setActivities((current) => current.filter((activity) => activity.day <= days));
+  };
+
   const clearTrip = async () => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
     await writeQueue.current;
@@ -286,7 +335,7 @@ function useTravelState() {
     if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
     if (activity.day < 1 || activity.day > tripDays(trip.start, trip.end)) throw new Error("Choose a day in this trip.");
     if (activity.placeId && (activity.latitude === undefined || activity.longitude === undefined || !placeFitsTripDay(trip, activity.day, { latitude: activity.latitude, longitude: activity.longitude }))) {
-      throw new Error(`This place is outside ${destinationForDay(trip, activity.day)}. Choose a matching day or add that city to your route.`);
+      throw new Error("This place is outside the cities planned for that day. Add its city to the day first.");
     }
     const next = { ...activity, id: `activity-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
     await persist(() => saveActivity(user.id, next, activities.length));
@@ -391,7 +440,10 @@ function useTravelState() {
 
   return {
     saved, toggleSaved, savedPlaces, togglePlace, externalPlaces, toggleExternalPlace, favoriteDiscoveryItem,
-    trip, hasTrip: !!trip, generateTrip, clearTrip, finishTrip,
+    exploreHistory: exploreHistoryState.owner === userId ? exploreHistoryState.history : emptyExploreHistory,
+    exploreHistoryReady: !!userId && exploreHistoryState.owner === userId,
+    recordCountryVisit, recordPlaceVisit,
+    trip, hasTrip: !!trip, generateTrip, updateTrip, clearTrip, finishTrip,
     activities, addActivity, updateActivity, removeActivity,
     expenses, addExpense, updateExpense, removeExpense,
     preferences, setPreferences, hasPreferences, completePreferences,

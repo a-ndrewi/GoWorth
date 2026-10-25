@@ -1,20 +1,27 @@
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
 import { Button, Chip, Copy, EmptyState, Header, Icon, Row, Screen } from "@/components/goworth/ui";
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
-import { palette as p } from "@/constants/design";
+import { usePalette } from "@/state/theme-context";
 import { citiesForCountry, citiesForUsState, cityForId, countryFlag, countryForCode, usStates } from "@/data/geography";
-import { loadNearbyPlaces, searchWikipediaPlaces, type NearbyPlace } from "@/data/nearby-places";
+import { loadNearbyPlaces, searchWikipediaPlaces, venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
 import { externalPlaceFromSaved } from "@/data/external-places";
 import { useTravel } from "@/state/travel-context";
 import { normalizeSearchText } from "@/utils/search";
 import { useAppLanguage } from "@/data/formatting";
-import { translate } from "@/data/i18n";
+import { formatMessage, translate } from "@/data/i18n";
+
+function placeBadge(category: string, detail: string, language: ReturnType<typeof useAppLanguage>) {
+  const distance = detail.match(/(?:·|,)\s*(\d+(?:\.\d+)?)\s*km away/i)?.[1];
+  return distance ? `${translate(category, language)} · ${distance.replace(".", ",")} km` : translate(category, language);
+}
 
 export function CountryScreen() {
+  const p = usePalette();
   const language = useAppLanguage();
-  const { code, state: routeState } = useLocalSearchParams<{ code?: string; state?: string }>();
+  const { code, state: routeState, search } = useLocalSearchParams<{ code?: string; state?: string; search?: string }>();
+  const { exploreHistoryReady, recordCountryVisit } = useTravel();
   const country = countryForCode(code);
   const [query, setQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(40);
@@ -22,9 +29,17 @@ export function CountryScreen() {
   const isUs = code === "US";
   const selectedState = isUs ? usStates.find((state) => state.code === selectedStateCode) : undefined;
   const cities = useMemo(() => code === "US" ? selectedStateCode ? citiesForUsState(selectedStateCode) : [] : citiesForCountry(code ?? ""), [code, selectedStateCode]);
-  const filtered = useMemo(() => cities.filter((city) => normalizeSearchText(`${city.name} ${translate(city.name, language)}`).includes(normalizeSearchText(query))), [cities, query, language]);
+  // City names are normalised once per country, so typing only compares strings.
+  const searchable = useMemo(() => cities.map((city) => normalizeSearchText(`${city.name} ${translate(city.name, language)}`)), [cities, language]);
+  const filtered = useMemo(() => {
+    const needle = normalizeSearchText(query.trim());
+    return needle ? cities.filter((_, index) => searchable[index].includes(needle)) : cities;
+  }, [cities, searchable, query]);
   const filteredStates = isUs && !selectedState ? usStates.filter((state) => normalizeSearchText(state.name).includes(normalizeSearchText(query))) : [];
-  if (!country) return <Screen><Header title={translate("Country unavailable", language)} /><EmptyState title={translate("Country not found", language)} detail={translate("Choose another country.", language)} action={translate("Explore countries", language)} onPress={() => router.replace("/home" as Href)} /></Screen>;
+  useEffect(() => {
+    if (country && exploreHistoryReady) recordCountryVisit(country.code, search);
+  }, [country, exploreHistoryReady, recordCountryVisit, search]);
+  if (!country) return <Screen><Header title={translate("Country unavailable", language)} /><EmptyState title={translate("Country not found", language)} detail={translate("Choose another country.", language)} action={translate("Explore countries", language)} onPress={() => router.dismissTo("/home" as Href)} /></Screen>;
   return <Screen active="home" style={{ gap: 17 }}>
     <Header title={selectedState ? selectedState.name : `${countryFlag(country.code)}  ${translate(country.name, language)}`} subtitle={selectedState ? `${translate(country.name, language)} · ${selectedState.cityCount.toLocaleString(language === "ro" ? "ro-RO" : "en-US")} ${language === "ro" ? "orașe" : "cities"}` : `${country.cityCount.toLocaleString(language === "ro" ? "ro-RO" : "en-US")} ${language === "ro" ? "orașe" : "cities"}`} />
     {selectedState && <Button secondary icon="back" onPress={() => { setSelectedStateCode(null); setQuery(""); setVisibleCount(40); }}>{translate("All states", language)}</Button>}
@@ -47,13 +62,14 @@ export function CountryScreen() {
         <Icon name="right" color={p.muted} size={17} />
       </Pressable>)}
     </View>
-    {!filtered.length && <EmptyState title={translate(query ? "No cities found" : "No indexed cities", language)} detail={translate(query ? "Try another city name." : "Search this country on the world map.", language)} action={translate(query ? "Clear search" : "Open map", language)} onPress={() => query ? setQuery("") : router.push({ pathname: "/map", params: { q: country.name } } as Href)} />}
+    {!filtered.length && <EmptyState title={translate(query ? "No cities found" : "No indexed cities", language)} detail={translate(query ? "Try another city name." : "Cities for this country are not available yet.", language)} action={query ? translate("Clear search", language) : undefined} onPress={query ? () => setQuery("") : undefined} />}
     {visibleCount < filtered.length && <Button secondary icon="plus" onPress={() => setVisibleCount((count) => count + 40)}>{translate("Show more cities", language)}</Button>}
     </>}
   </Screen>;
 }
 
 export function CityScreen() {
+  const p = usePalette();
   const language = useAppLanguage();
   const { country: code, city: id } = useLocalSearchParams<{ country?: string; city?: string }>();
   const country = countryForCode(code);
@@ -75,7 +91,22 @@ export function CityScreen() {
       .catch(() => { if (active) setResult({ key: city.id, places: [], status: "error" }); });
     return () => { active = false; };
   }, [city]);
-  if (!country || !city) return <Screen><Header title={translate("City unavailable", language)} /><EmptyState title={translate("City not found", language)} detail={translate("Choose a city from a country.", language)} action={translate("Explore countries", language)} onPress={() => router.replace("/home" as Href)} /></Screen>;
+  // Wider results load on their own shortly after the user stops typing; there is no separate search button.
+  useEffect(() => {
+    const searchedQuery = query.trim();
+    if (!city || !country || searchedQuery.length < 3) return;
+    const requestId = ++searchId.current;
+    const timer = setTimeout(() => {
+      setSearching(true);
+      setSearchError("");
+      searchWikipediaPlaces(searchedQuery, city, 25)
+        .then((results) => { if (requestId === searchId.current) setRemote({ cityId: city.id, query: searchedQuery, places: results.map((result) => ({ ...result, location: `${city.name}, ${country.name}` })) }); })
+        .catch(() => { if (requestId === searchId.current) setSearchError(translate("Search is unavailable right now.", language)); })
+        .finally(() => { if (requestId === searchId.current) setSearching(false); });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [query, city, country, language]);
+  if (!country || !city) return <Screen><Header title={translate("City unavailable", language)} /><EmptyState title={translate("City not found", language)} detail={translate("Choose a city from a country.", language)} action={translate("Explore countries", language)} onPress={() => router.dismissTo("/home" as Href)} /></Screen>;
   const categories = ["All", ...new Set(places.map((place) => place.category))];
   const filtered = places.filter((place) => (category === "All" || place.category === category) && normalizeSearchText(place.name).includes(normalizeSearchText(query)));
   const searchCity = async () => {
@@ -97,14 +128,22 @@ export function CityScreen() {
     country: country.code, city: city.id, place: place.id,
     name: place.name, latitude: String(place.latitude), longitude: String(place.longitude),
     category: place.category, detail: place.detail, sourceUrl: place.sourceUrl,
+    ...(query.trim() ? { search: query.trim() } : {}),
   } } as Href);
   return <Screen active="home" style={{ gap: 17 }}>
     <Header title={translate(city.name, language)} subtitle={`${city.stateCode ? `${usStates.find((state) => state.code === city.stateCode)?.name ?? city.stateCode} · ` : ""}${countryFlag(country.code)}  ${translate(country.name, language)}`} />
-    <View style={{ gap: 8 }}><Row style={{ borderWidth: 1, borderColor: p.line, borderRadius: 6, paddingHorizontal: 12, gap: 8 }}><Icon name="search" color={p.muted} size={18} /><TextInput accessibilityLabel={`${translate("Search places", language)}: ${city.name}`} placeholder={translate("Search places", language)} placeholderTextColor={p.muted} value={query} onChangeText={(value) => { searchId.current++; setSearching(false); setSearchError(""); setQuery(value); setVisibleCount(20); }} onSubmitEditing={() => void searchCity()} returnKeyType="search" style={{ flex: 1, minWidth: 0, height: 46, fontSize: 14, color: p.ink }} /></Row><Button secondary icon="search" busy={searching} disabled={query.trim().length < 3} onPress={() => void searchCity()}>{translate("Search city", language)}</Button></View>
+    <Button secondary icon="plus" onPress={() => router.push({ pathname: "/planner", params: { country: country.code, city: city.id } } as Href)}>Plan a trip</Button>
+    <Row style={{ minHeight: 48, borderRadius: 14, paddingHorizontal: 14, gap: 9, backgroundColor: p.soft }}>
+      <Icon name="search" color={p.muted} size={18} />
+      <TextInput accessibilityLabel={`${translate("Search places", language)}: ${city.name}`} placeholder={formatMessage("Search places in {city}", { city: translate(city.name, language) }, language)} placeholderTextColor={p.muted} value={query}
+        onChangeText={(value) => { searchId.current++; setSearching(false); setSearchError(""); setQuery(value); setVisibleCount(20); }}
+        onSubmitEditing={() => void searchCity()} returnKeyType="search" style={{ flex: 1, minWidth: 0, height: 46, fontSize: 14, color: p.ink, outlineWidth: 0 }} />
+      {searching && <ActivityIndicator size="small" color={p.blue} />}
+    </Row>
     <Row style={{ flexWrap: "wrap", gap: 6 }}>{categories.map((item) => <Chip key={item} selected={category === item} onPress={() => { setCategory(item); setVisibleCount(20); }}>{translate(item, language)}</Chip>)}</Row>
     {status === "loading" && <ActivityIndicator color={p.green} />}
     {status === "error" && <EmptyState title={translate("Places unavailable", language)} detail={translate("Check your connection and try again.", language)} action={translate("Retry", language)} onPress={() => { setResult({ key: city.id, places: [], status: "loading" }); loadNearbyPlaces(city, 10).then((items) => setResult({ key: city.id, places: items, status: "ready" })).catch(() => setResult({ key: city.id, places: [], status: "error" })); }} />}
-    {status === "ready" && !filtered.length && !searchResults.length && !searching && (!query.trim() || remote?.query === query.trim()) && <EmptyState title={translate(query ? "No matching places" : "No places found nearby", language)} detail={translate("Try another search or explore the map.", language)} action={translate("Open map", language)} onPress={() => router.push({ pathname: "/map", params: { lat: String(city.latitude), lon: String(city.longitude), name: `${city.name}, ${country.name}` } } as Href)} />}
+    {status === "ready" && !filtered.length && !searchResults.length && !searching && (!query.trim() || remote?.query === query.trim()) && <EmptyState title={translate(query ? "No matching places" : "No places found nearby", language)} detail={translate("Try another search.", language)} />}
     <View style={{ gap: 1 }}>
       {filtered.slice(0, visibleCount).map((place) => <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`Explore ${place.name}`} onPress={() => openPlace(place)} style={{ minHeight: 67, paddingVertical: 7, borderBottomWidth: 1, borderColor: p.line, flexDirection: "row", alignItems: "center", gap: 11 }}>
         <PlaceThumbnail name={place.name} location={`${city.name}, ${country.name}`} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} />
@@ -115,16 +154,16 @@ export function CityScreen() {
     {!!searchError && <Copy style={{ color: p.danger }}>{searchError}</Copy>}
     {!!searchResults.length && <View style={{ gap: 1 }}><Copy style={{ fontSize: 16, fontWeight: "700" }}>{translate("Search results", language)}</Copy>{searchResults.map((place) => <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`Explore ${place.name}`} onPress={() => openPlace(place)} style={{ minHeight: 56, paddingVertical: 8, borderBottomWidth: 1, borderColor: p.line, flexDirection: "row", alignItems: "center", gap: 11 }}><Icon name="pin" color={p.green} /><View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "600" }}>{place.name}</Copy><Copy muted style={{ fontSize: 12 }}>{translate(place.category, language)}</Copy></View><Icon name="right" color={p.muted} size={17} /></Pressable>)}</View>}
     {visibleCount < filtered.length && <Button secondary icon="plus" onPress={() => setVisibleCount((count) => count + 20)}>{translate("Show more places", language)}</Button>}
-    <Button secondary icon="map" onPress={() => router.push({ pathname: "/map", params: { lat: String(city.latitude), lon: String(city.longitude), name: `${city.name}, ${country.name}` } } as Href)}>{translate("Explore on map", language)}</Button>
   </Screen>;
 }
 
 export function PlaceScreen() {
+  const p = usePalette();
   const language = useAppLanguage();
-  const { country: code, city: cityId, place: placeId, name, latitude, longitude, category, detail, sourceUrl } = useLocalSearchParams<{ country?: string; city?: string; place?: string; name?: string; latitude?: string; longitude?: string; category?: string; detail?: string; sourceUrl?: string }>();
+  const { country: code, city: cityId, place: placeId, name, latitude, longitude, category, detail, sourceUrl, search, terrace, cuisine, hours, address } = useLocalSearchParams<{ country?: string; city?: string; place?: string; name?: string; latitude?: string; longitude?: string; category?: string; detail?: string; sourceUrl?: string; search?: string; terrace?: string; cuisine?: string; hours?: string; address?: string }>();
   const country = countryForCode(code);
   const city = useMemo(() => cityForId(code ?? "", cityId ?? ""), [code, cityId]);
-  const { savedPlaces, toggleExternalPlace } = useTravel();
+  const { savedPlaces, toggleExternalPlace, exploreHistoryReady, recordPlaceVisit } = useTravel();
   const [result, setResult] = useState<{ key: string; place: NearbyPlace | null; status: "ready" | "error" } | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -136,6 +175,7 @@ export function PlaceScreen() {
     return externalPlaceFromSaved(placeId, { id: placeId, name, latitude: Number(latitude), longitude: Number(longitude), category, detail, source: wiki ? "Wikipedia" : "OpenStreetMap", sourceUrl, location: `${city.name}, ${country.name}` });
   }, [city, country, placeId, name, latitude, longitude, category, detail, sourceUrl]);
   const place = result?.key === key ? result.place : routePlace;
+  const venue = venueFromCategory(place?.category, { terrace: terrace === "1", ...(cuisine ? { cuisine } : {}), ...(hours ? { openingHours: hours } : {}), ...(address ? { address } : {}) });
   const status = result?.key === key ? result.status : routePlace ? "ready" : "loading";
   useEffect(() => {
     if (!city || routePlace) return;
@@ -144,20 +184,26 @@ export function PlaceScreen() {
       .catch(() => { if (active) setResult({ key, place: null, status: "error" }); });
     return () => { active = false; };
   }, [city, placeId, key, routePlace]);
-  if (!country || !city) return <Screen><Header title={translate("Place unavailable", language)} /><EmptyState title={translate("Place not found", language)} detail={translate("Choose a city to explore.", language)} action={translate("Explore countries", language)} onPress={() => router.replace("/home" as Href)} /></Screen>;
+  useEffect(() => {
+    if (country && city && place && exploreHistoryReady) recordPlaceVisit(country.code, city.id, place, search);
+  }, [country, city, place, exploreHistoryReady, recordPlaceVisit, search]);
+  if (!country || !city) return <Screen><Header title={translate("Place unavailable", language)} /><EmptyState title={translate("Place not found", language)} detail={translate("Choose a city to explore.", language)} action={translate("Explore countries", language)} onPress={() => router.dismissTo("/home" as Href)} /></Screen>;
   return <Screen active="home" style={{ gap: 16 }}>
     <Header title={place?.name ?? "Place"} subtitle={`${translate(city.name, language)} · ${countryFlag(country.code)} ${translate(country.name, language)}`} />
     {status === "loading" && <ActivityIndicator color={p.green} />}
     {status === "error" && <Copy muted>Places are unavailable right now. Try again from the city page.</Copy>}
     {status === "ready" && !place && <EmptyState title={translate("Place unavailable", language)} detail={translate("This place may have changed in the source data.", language)} action={translate("Back to city", language)} onPress={() => router.back()} />}
     {place && <>
-      <PlacePreviewPhoto name={place.name} location={`${city.name}, ${country.name}`} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} />
-      <Copy muted>{translate(place.category, language)} · {place.source}</Copy>
-      <Copy>{place.detail}</Copy>
+      <PlacePreviewPhoto name={place.name} location={`${city.name}, ${country.name}`} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} badge={placeBadge(place.category, place.detail, language)} venue={venue} />
+      {venue && (venue.cuisine || venue.terrace || venue.openingHours || venue.address) && <View style={{ gap: 6 }}>
+        {!!venue.cuisine && <Row style={{ gap: 8 }}><Icon name="food" size={16} color={p.muted} /><Copy muted style={{ flex: 1 }}>{venue.cuisine}</Copy></Row>}
+        {venue.terrace && <Row style={{ gap: 8 }}><Icon name="terrace" size={16} color={p.muted} /><Copy muted style={{ flex: 1 }}>Terrace</Copy></Row>}
+        {!!venue.openingHours && <Row style={{ gap: 8 }}><Icon name="calendar" size={16} color={p.muted} /><Copy muted style={{ flex: 1 }}>{venue.openingHours}</Copy></Row>}
+        {!!venue.address && <Row style={{ gap: 8 }}><Icon name="pin" size={16} color={p.muted} /><Copy muted style={{ flex: 1 }}>{venue.address}</Copy></Row>}
+      </View>}
+      <Button icon="plus" onPress={() => router.push({ pathname: "/planner", params: { country: country.code, city: city.id } } as Href)}>Plan a trip</Button>
       <Button icon={savedPlaces.includes(place.id) ? "heartFill" : "heart"} busy={busy} onPress={async () => { setBusy(true); setNotice(""); try { await toggleExternalPlace({ ...place, location: `${city.name}, ${country.name}` }); } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save this place."); } finally { setBusy(false); } }}>{translate(savedPlaces.includes(place.id) ? "Remove from saved" : "Save place", language)}</Button>
       {!!notice && <Copy style={{ color: p.danger }}>{notice}</Copy>}
-      <Button secondary icon="map" onPress={() => router.push({ pathname: "/map", params: { lat: String(place.latitude), lon: String(place.longitude), name: place.name, pinKind: "place" } } as Href)}>{translate("Open on map", language)}</Button>
-      <Button secondary icon="globe" onPress={() => void Linking.openURL(place.sourceUrl)}>{translate("Open source", language)}</Button>
     </>}
   </Screen>;
 }

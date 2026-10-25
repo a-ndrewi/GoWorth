@@ -120,6 +120,7 @@ export type Expense = {
 export type Trip = {
   destinationId: string;
   dayDestinations?: string[];
+  dayCities?: string[][];
   routeStops?: RouteStop[];
   start: string;
   end: string;

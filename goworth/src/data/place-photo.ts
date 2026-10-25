@@ -19,8 +19,42 @@ type CommonsPage = {
   }[];
 };
 
+/** Wikimedia thumbnails come in standard widths; small list images should not decode the 640px card version. */
+export function sizedPhotoUrl(url: string, width: 120 | 250 | 330 | 500) {
+  return /\/thumb\/.+\/\d+px-[^/]+$/.test(url) ? url.replace(/\/\d+px-([^/]+)$/, `/${width}px-$1`) : url;
+}
+
 const cache = new Map<string, { expiresAt: number; photos: Promise<PlacePhoto[]> }>();
-const broadCache = new Map<string, Promise<PlacePhoto[]>>();
+
+/** Where finished lookups survive app restarts; the app plugs in device storage, tests leave it unset. */
+export type PhotoStore = { load: () => Promise<string | null>; save: (value: string) => Promise<void> };
+type StoredLookup = { expiresAt: number; photos: PlacePhoto[] };
+const storedLimit = 500;
+let stored: Record<string, StoredLookup> = {};
+let storeReady: Promise<void> = Promise.resolve();
+let photoStore: PhotoStore | null = null;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function setPhotoStore(store: PhotoStore) {
+  photoStore = store;
+  storeReady = store.load()
+    .then((value) => {
+      const parsed = value ? JSON.parse(value) as Record<string, StoredLookup> : {};
+      const now = Date.now();
+      stored = Object.fromEntries(Object.entries(parsed).filter(([, entry]) => entry.expiresAt > now && Array.isArray(entry.photos)));
+    })
+    .catch(() => { stored = {}; });
+}
+
+function remember(key: string, lookup: StoredLookup) {
+  if (!photoStore) return;
+  stored[key] = lookup;
+  const keys = Object.keys(stored);
+  // Keep the newest lookups: object keys keep insertion order, so the oldest come first.
+  for (const old of keys.slice(0, Math.max(0, keys.length - storedLimit))) delete stored[old];
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { void photoStore?.save(JSON.stringify(stored)).catch(() => undefined); }, 1500);
+}
 const stopWords = new Set(["the", "of", "de", "do", "da", "del", "di", "la", "le", "and", "at"]);
 const genericWords = new Set(["church", "museum", "market", "palace", "old", "town", "beach", "garden", "temple", "park", "national", "historic", "city", "center", "centre"]);
 const verifiedFiles: Record<string, string> = {
@@ -84,7 +118,7 @@ function photoFromPage(page: CommonsPage, name: string, location: string, truste
 
 async function queryCommons(params: URLSearchParams): Promise<CommonsPage[]> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 9000);
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
     const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, { signal: controller.signal });
     if (!response.ok) throw new Error("Photo search is unavailable.");
@@ -104,7 +138,7 @@ async function searchCommons(query: string, name: string, location: string): Pro
     gsrlimit: "15",
     prop: "imageinfo",
     iiprop: "url|mime|extmetadata",
-    iiurlwidth: "900",
+    iiurlwidth: "640",
     format: "json",
     origin: "*",
   });
@@ -130,7 +164,7 @@ async function searchCommons(query: string, name: string, location: string): Pro
 async function verifiedPhoto(title: string, name: string, location: string) {
   const params = new URLSearchParams({
     action: "query", titles: title, prop: "imageinfo", iiprop: "url|mime|extmetadata",
-    iiurlwidth: "900", format: "json", origin: "*",
+    iiurlwidth: "640", format: "json", origin: "*",
   });
   const pages = await queryCommons(params);
   return pages.length ? photoFromPage(pages[0], name, location) : null;
@@ -142,7 +176,14 @@ async function wikipediaPhoto(name: string, location: string, latitude?: number,
   const params = new URLSearchParams({ action: "query", prop: "pageimages|coordinates", piprop: "name", format: "json", origin: "*" });
   if (pageId) params.set("pageids", pageId);
   else params.set("titles", name);
-  const response = await fetch(`https://en.wikipedia.org/w/api.php?${params}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  let response: Response;
+  try {
+    response = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!response.ok) return null;
   const data: { query?: { pages?: Record<string, { title?: string; pageimage?: string; coordinates?: { lat: number; lon: number }[] }> } } = await response.json();
   const page = Object.values(data.query?.pages || {})[0];
@@ -156,24 +197,53 @@ async function wikipediaPhoto(name: string, location: string, latitude?: number,
   }
   const commons = await queryCommons(new URLSearchParams({
     action: "query", titles: `File:${page.pageimage}`, prop: "imageinfo", iiprop: "url|mime|extmetadata",
-    iiurlwidth: "900", format: "json", origin: "*",
+    iiurlwidth: "640", format: "json", origin: "*",
   }));
   return commons.length ? photoFromPage(commons[0], name, location, true) : null;
 }
 
+/**
+ * At most a few lookups hit the network at once; the newest request goes first, so cards just scrolled into view
+ * are served before ones that have already scrolled away.
+ */
+const maxLookups = 4;
+let runningLookups = 0;
+const waitingLookups: (() => void)[] = [];
+async function limited<T>(task: () => Promise<T>): Promise<T> {
+  if (runningLookups >= maxLookups) await new Promise<void>((resolve) => waitingLookups.push(resolve));
+  runningLookups++;
+  try { return await task(); }
+  finally { runningLookups--; waitingLookups.pop()?.(); }
+}
+
+const resolved = new Map<string, PlacePhoto[]>();
+const lookupKey = (name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string) =>
+  `${name}|${location}|${latitude ?? ""}|${longitude ?? ""}|${sourceUrl ?? ""}`.toLowerCase();
+
+/** The photo if it was already looked up (this session or a previous one), so a list can draw it on its first frame. `undefined` means unknown yet. */
+export function peekPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string): PlacePhoto | null | undefined {
+  const key = lookupKey(name, location, latitude, longitude, sourceUrl);
+  const photos = resolved.get(key) ?? (stored[key]?.expiresAt > Date.now() ? stored[key].photos : undefined);
+  return photos ? photos[0] ?? null : undefined;
+}
+
 export async function findPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string, excludedUrls: string[] = []): Promise<PlacePhoto | null> {
-  const key = `${name}|${location}|${latitude ?? ""}|${longitude ?? ""}|${sourceUrl ?? ""}`.toLowerCase();
+  const key = lookupKey(name, location, latitude, longitude, sourceUrl);
   let entry = cache.get(key);
   if (!entry || entry.expiresAt < Date.now()) {
     const photos = (async () => {
-      const linked = await wikipediaPhoto(name, location, latitude, longitude, sourceUrl).catch(() => null);
-      const verified = verifiedFiles[`${name}|${location}`.toLowerCase()];
-      let verifiedResult: PlacePhoto | null = null;
-      if (verified) {
-        verifiedResult = await verifiedPhoto(verified, name, location).catch(() => null);
-      }
-      if (linked || verifiedResult) return [linked, verifiedResult].filter((photo): photo is PlacePhoto => !!photo);
-      return searchCommons(`${name} ${location}`, name, location);
+      await storeReady;
+      const saved = stored[key];
+      if (saved && saved.expiresAt > Date.now()) return saved.photos;
+      return limited(async () => {
+        const verified = verifiedFiles[`${name}|${location}`.toLowerCase()];
+        const [linked, verifiedResult] = await Promise.all([
+          wikipediaPhoto(name, location, latitude, longitude, sourceUrl).catch(() => null),
+          verified ? verifiedPhoto(verified, name, location).catch(() => null) : Promise.resolve(null),
+        ]);
+        if (linked || verifiedResult) return [linked, verifiedResult].filter((photo): photo is PlacePhoto => !!photo);
+        return searchCommons(`${name} ${location}`, name, location);
+      });
     })().catch((error) => {
       cache.delete(key);
       throw error;
@@ -182,16 +252,14 @@ export async function findPlacePhoto(name: string, location: string, latitude?: 
     entry = currentEntry;
     cache.set(key, currentEntry);
     void photos.then((results) => {
-      if (cache.get(key) === currentEntry && results.length) currentEntry.expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+      if (cache.get(key) !== currentEntry) return;
+      resolved.set(key, results);
+      currentEntry.expiresAt = stored[key]?.expiresAt ?? Date.now() + (results.length ? 7 : 1) * 24 * 60 * 60 * 1000;
+      if (!stored[key]) remember(key, { expiresAt: currentEntry.expiresAt, photos: results });
     }).catch(() => undefined);
   }
   const photos = await entry.photos;
   const specific = photos.find((photo) => !excludedUrls.includes(photo.url));
   if (specific) return specific;
-  let broad = broadCache.get(key);
-  if (!broad) {
-    broad = searchCommons(name, name, location).catch((error) => { broadCache.delete(key); throw error; });
-    broadCache.set(key, broad);
-  }
-  return (await broad).find((photo) => !excludedUrls.includes(photo.url)) ?? null;
+  return null;
 }

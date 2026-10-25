@@ -1,24 +1,84 @@
-export const palette = {
-  blue: "#2563FF",
-  blueSoft: "#EAF3FF",
-  teal: "#06B6D4",
-  green: "#00B58C",
-  greenSoft: "#E6F8F2",
-  orange: "#FBBF24",
-  orangeSoft: "#FFF2DF",
-  pink: "#EE5D8D",
-  purple: "#8B66D9",
-  ink: "#0B2545",
-  muted: "#5E6877",
-  line: "#EBEDF1",
-  soft: "#F5F6F8",
+import { StyleSheet } from "react-native";
+
+const light = {
+  blue: "#2457E6",
+  blueSoft: "#E8EEFF",
+  blueTint: "#F8FAFF",
+  blueLine: "#C9D6FB",
+  teal: "#20A7A0",
+  tealSoft: "#E2F5F4",
+  green: "#0B9B72",
+  greenSoft: "#E3F4EC",
+  orange: "#F4A340",
+  orangeSoft: "#FFF0D9",
+  orangeLine: "#F8CF94",
+  pink: "#E85D75",
+  pinkSoft: "#FDE7EB",
+  purple: "#7667D8",
+  purpleSoft: "#ECE9FB",
+  ink: "#132238",
+  muted: "#667085",
+  line: "#E5E9F0",
+  soft: "#F3F6FA",
+  /** Page and card surface. */
   white: "#FFFFFF",
   danger: "#ED5365",
-} as const;
+  dangerSoft: "#FFF1F2",
+  /** Text and icons drawn on blue, photos or gradients: white in both themes. */
+  onColor: "#FFFFFF",
+  /** Dark fills (toasts, dark buttons, paid cards) that stay dark in both themes. */
+  night: "#132238",
+  shadow: "#132238",
+  /** Letterbox around the app on wide web screens. */
+  backdrop: "#F0F3F6",
+};
+
+export type Palette = Record<keyof typeof light, string>;
+
+const dark: Palette = {
+  blue: "#5B86F5",
+  blueSoft: "#1C2A4A",
+  blueTint: "#131D33",
+  blueLine: "#2E4170",
+  teal: "#2DBDB5",
+  tealSoft: "#12333A",
+  green: "#22B98A",
+  greenSoft: "#123629",
+  orange: "#F6AE55",
+  orangeSoft: "#3A2A14",
+  orangeLine: "#6B4A1E",
+  pink: "#F07088",
+  pinkSoft: "#3A1A25",
+  purple: "#8F82E6",
+  purpleSoft: "#251F45",
+  ink: "#E8EDF5",
+  muted: "#98A2B3",
+  line: "#253149",
+  soft: "#18233A",
+  white: "#0E1626",
+  danger: "#F26B7B",
+  dangerSoft: "#3A1820",
+  onColor: "#FFFFFF",
+  night: "#24324D",
+  shadow: "#000000",
+  backdrop: "#070C16",
+};
+
+export type ColorScheme = "light" | "dark";
+export const palettes: Record<ColorScheme, Palette> = { light, dark };
+
+export type ThemedStyles<S> = { resolve: (scheme: ColorScheme) => Readonly<S> };
+
+/** Like `StyleSheet.create`, built once per theme. Read it in components with `useStyles`. */
+export function themedStyles<S extends Parameters<typeof StyleSheet.create>[0]>(factory: (p: Palette) => S): ThemedStyles<S> {
+  const built: Partial<Record<ColorScheme, Readonly<S>>> = {};
+  return { resolve: (scheme) => (built[scheme] ??= StyleSheet.create(factory(palettes[scheme]))) };
+}
 
 export const photos = {
   brandMark: require("@/assets/images/goworth/brand-mark.png"),
   brandName: require("@/assets/images/goworth/brand-name.png"),
+  avatar: require("@/assets/images/goworth/avatar.png"),
   positano: require("@/assets/images/destinations/positano.jpg"),
   santorini: require("@/assets/images/destinations/santorini.jpg"),
   bali: require("@/assets/images/destinations/bali.jpg"),

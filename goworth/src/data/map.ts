@@ -1,7 +1,7 @@
 import { destinationCatalog } from "@/data/catalog";
 import type { Place } from "@/data/travel";
 import { normalizeSearchText } from "@/utils/search";
-import { countryForCode, representativeCities, usStates } from "@/data/geography";
+import { usStates } from "@/data/geography";
 import { usStateCenters } from "@/data/us-state-centers";
 import { isExplorePlace, photonBoundingBoxes, photonSearchCategories, searchWikipediaPlaces } from "@/data/nearby-places";
 
@@ -82,11 +82,6 @@ export const destinationPins: MapPin[] = destinationCatalog.map((destination) =>
   kind: "destination",
 }));
 
-export const worldCityPins: MapPin[] = representativeCities().map((city) => ({
-  id: city.id, name: `${city.name}, ${countryForCode(city.countryCode)?.name ?? city.countryCode}`,
-  latitude: city.latitude, longitude: city.longitude, kind: "city", countryCode: city.countryCode,
-}));
-
 export const usStatePins: MapPin[] = usStates.map((state) => ({
   id: `us-state:${state.code}`,
   name: `${state.name}, United States`,
@@ -122,7 +117,8 @@ export function parsePhotonSearchResults(features: PhotonSearchFeature[], area?:
     const properties = feature.properties;
     const [longitude, latitude] = feature.geometry?.coordinates ?? [];
     const osmType = properties?.osm_type ? osmTypes[properties.osm_type] : undefined;
-    if (area?.placesOnly && !isExplorePlace(properties)) return [];
+    // Map search is an exploration surface, so discard transport, commerce and admin results.
+    if (!isExplorePlace(properties)) return [];
     if (!properties?.name?.trim() || !osmType || typeof properties.osm_id !== "number" || !Number.isInteger(properties.osm_id) ||
       latitude === undefined || longitude === undefined || !Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return [];
     if (area && distanceKm(area.center, { latitude, longitude }) > area.radiusKm * 1.45) return [];

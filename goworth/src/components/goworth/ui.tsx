@@ -1,7 +1,9 @@
 import { Image } from "expo-image";
-import { router, type Href } from "expo-router";
-import { SymbolView } from "expo-symbols";
-import { Children, useState, type ReactNode } from "react";
+import { router, usePathname, type Href } from "expo-router";
+import Animated, {
+  FadeIn, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming,
+} from "react-native-reanimated";
+import { Children, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -21,7 +23,9 @@ import {
   type ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { palette as p, photos } from "@/constants/design";
+import { photos, themedStyles } from "@/constants/design";
+import { usePalette, useStyles, useThemePreference } from "@/state/theme-context";
+import { GlyphIcon, type GlyphName } from "@/components/goworth/icons";
 import { placesForDestination, type Destination } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
 import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
@@ -31,67 +35,19 @@ function translateText(children: ReactNode, language: ReturnType<typeof useAppLa
   return Children.map(children, (child) => typeof child === "string" ? translate(child, language) : child);
 }
 
-const symbols = {
-  back: ["chevron.left", "chevron_left"],
-  right: ["chevron.right", "chevron_right"],
-  home: ["house", "home"],
-  search: ["magnifyingglass", "search"],
-  heart: ["heart", "favorite"],
-  heartFill: ["heart.fill", "favorite"],
-  pin: ["mappin.and.ellipse", "location_on"],
-  calendar: ["calendar", "calendar_today"],
-  person: ["person", "person"],
-  people: ["person.2", "group"],
-  settings: ["gearshape", "settings"],
-  plus: ["plus", "add"],
-  close: ["xmark", "close"],
-  trash: ["trash", "delete"],
-  check: ["checkmark", "check"],
-  star: ["star.fill", "star"],
-  sparkle: ["sparkles", "auto_awesome"],
-  compass: ["safari", "explore"],
-  bag: ["suitcase.rolling", "luggage"],
-  bell: ["bell", "notifications"],
-  camera: ["camera", "photo_camera"],
-  share: ["square.and.arrow.up", "ios_share"],
-  sun: ["sun.max.fill", "sunny"],
-  wallet: ["creditcard", "account_balance_wallet"],
-  food: ["fork.knife", "restaurant"],
-  bed: ["bed.double", "bed"],
-  bus: ["bus", "directions_bus"],
-  shopping: ["bag", "shopping_bag"],
-  beach: ["beach.umbrella", "beach_access"],
-  mountain: ["mountain.2", "landscape"],
-  city: ["building.2", "location_city"],
-  road: ["car", "directions_car"],
-  crown: ["crown", "diamond"],
-  chat: ["bubble.left", "chat_bubble"],
-  map: ["map", "map"],
-  leaf: ["leaf", "eco"],
-  book: ["book", "menu_book"],
-  eye: ["eye", "visibility"],
-  eyeOff: ["eye.slash", "visibility_off"],
-  mail: ["envelope", "mail"],
-  lock: ["lock", "lock"],
-  help: ["questionmark.circle", "help"],
-  logout: ["rectangle.portrait.and.arrow.right", "logout"],
-  edit: ["pencil", "edit"],
-  more: ["ellipsis", "more_horiz"],
-  refresh: ["arrow.clockwise", "refresh"],
-  apple: ["apple.logo", "phone_iphone"],
-  google: ["globe", "public"],
-  globe: ["globe", "public"],
-} as const;
-export type IconName = keyof typeof symbols;
+export type IconName = GlyphName | "apple" | "google";
 export function Icon({
   name,
   size = 22,
-  color = p.ink,
+  color: tint,
 }: {
   name: IconName;
   size?: number;
   color?: string;
 }) {
+  const p = usePalette();
+  const color = tint ?? p.ink;
+  // Icons are plain views: they appear on every screen and in long lists, so they carry no animation of their own.
   if (name === "google")
     return (
       <Image
@@ -109,15 +65,17 @@ export function Icon({
         style={{ width: size, height: size }}
       />
     );
-  const [ios, web] = symbols[name];
-  return (
-    <SymbolView
-      name={{ ios, web, android: web }}
-      size={size}
-      tintColor={color}
-      style={{ width: size, height: size }}
-    />
-  );
+  return <GlyphIcon name={name} size={size} color={color} />;
+}
+/** Springy press feedback shared by icon buttons and the tab bar. */
+function usePressSpring(pressedScale = 0.86) {
+  const scale = useSharedValue(1);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return {
+    style,
+    onPressIn: () => { scale.set(withSpring(pressedScale, { damping: 14, stiffness: 420 })); },
+    onPressOut: () => { scale.set(withSpring(1, { damping: 7, stiffness: 260 })); },
+  };
 }
 export function Copy({
   children,
@@ -128,6 +86,7 @@ export function Copy({
   style?: StyleProp<TextStyle>;
   muted?: boolean;
 }) {
+  const s = useStyles(sharedSheet);
   const language = useAppLanguage();
   return <Text style={[s.text, muted && s.muted, style]}>{translateText(children, language)}</Text>;
 }
@@ -138,6 +97,7 @@ export function Heading({
   children: ReactNode;
   style?: StyleProp<TextStyle>;
 }) {
+  const s = useStyles(sharedSheet);
   const language = useAppLanguage();
   return (
     <Text accessibilityRole="header" style={[s.heading, style]}>
@@ -152,9 +112,12 @@ export function Row({
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
+  const s = useStyles(sharedSheet);
   return <View style={[s.row, style]}>{children}</View>;
 }
 export function Brand({ large = false }: { large?: boolean }) {
+  const p = usePalette();
+  const { scheme } = useThemePreference();
   return (
     <Row style={{ gap: large ? 10 : 6 }}>
       <Image
@@ -165,6 +128,7 @@ export function Brand({ large = false }: { large?: boolean }) {
       <Image
         source={photos.brandName}
         contentFit="contain"
+        tintColor={scheme === "dark" ? p.ink : undefined}
         style={{ width: large ? 178 : 123, height: large ? 39 : 27 }}
         accessibilityLabel="GoWorth"
       >
@@ -191,8 +155,10 @@ export function Button({
   icon?: IconName;
   style?: StyleProp<ViewStyle>;
 }) {
+  const s = useStyles(sharedSheet);
+  const p = usePalette();
   const language = useAppLanguage();
-  const color = secondary ? p.ink : p.white;
+  const color = secondary ? p.ink : p.onColor;
   return (
     <Pressable
       onPress={onPress}
@@ -202,8 +168,9 @@ export function Button({
       style={({ pressed }) => [
         s.button,
         secondary && s.secondaryButton,
-        dark && { backgroundColor: p.ink },
-        (pressed || disabled) && { opacity: 0.65 },
+        dark && { backgroundColor: p.night },
+        pressed && { opacity: 0.78, transform: [{ scale: 0.985 }] },
+        disabled && { opacity: 0.52 },
         style,
       ]}
     >
@@ -220,7 +187,7 @@ export function IconButton({
   name,
   label,
   onPress,
-  color = p.ink,
+  color: tint,
   filled = false,
   style,
 }: {
@@ -231,20 +198,37 @@ export function IconButton({
   filled?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const s = useStyles(sharedSheet);
+  const p = usePalette();
+  const color = tint ?? p.ink;
   const language = useAppLanguage();
+  const spring = usePressSpring();
+  // A short pop when the icon changes (for example the heart after saving).
+  const pop = useSharedValue(1);
+  const previous = useRef(name);
+  useEffect(() => {
+    if (previous.current === name) return;
+    previous.current = name;
+    pop.set(withSequence(withTiming(0.62, { duration: 90 }), withSpring(1, { damping: 8, stiffness: 280 })));
+  }, [name, pop]);
+  const popStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={spring.onPressIn}
+      onPressOut={spring.onPressOut}
       accessibilityRole="button"
       accessibilityLabel={translateAccessibility(label, language)}
       style={({ pressed }) => [
         s.iconButton,
         filled && { backgroundColor: p.white },
-        pressed && { opacity: 0.55 },
+        pressed && { backgroundColor: p.soft },
         style,
       ]}
     >
-      <Icon name={name} color={color} />
+      <Animated.View style={[spring.style, popStyle]}>
+        <Icon name={name} color={color} />
+      </Animated.View>
     </Pressable>
   );
 }
@@ -261,6 +245,8 @@ export function Chip({
   tint?: string;
   style?: StyleProp<ViewStyle>;
 }) {
+  const s = useStyles(sharedSheet);
+  const p = usePalette();
   const language = useAppLanguage();
   return (
     <Pressable
@@ -275,7 +261,7 @@ export function Chip({
         style,
       ]}
     >
-      <Text style={[s.chipText, selected && { color: p.white }]}>
+      <Text style={[s.chipText, selected && { color: p.onColor }]}>
         {translateText(children, language)}
       </Text>
     </Pressable>
@@ -286,6 +272,8 @@ export function Field({
   style,
   ...props
 }: TextInputProps & { label?: string }) {
+  const s = useStyles(sharedSheet);
+  const p = usePalette();
   const language = useAppLanguage();
   return (
     <View style={{ gap: 7, flex: 1 }}>
@@ -304,12 +292,16 @@ export function Header({
   title,
   subtitle,
   back = true,
+  onBack,
   right,
+  centered = false,
 }: {
   title?: string;
   subtitle?: string;
   back?: boolean;
+  onBack?: () => void;
   right?: ReactNode;
+  centered?: boolean;
 }) {
   return (
     <Row style={{ justifyContent: "space-between", minHeight: 46, gap: 5 }}>
@@ -317,15 +309,15 @@ export function Header({
         <IconButton
           name="back"
           label="Go back"
-          onPress={() =>
+          onPress={onBack ?? (() =>
             router.canGoBack() ? router.back() : router.replace("/home" as Href)
-          }
+          )}
         />
       )}
-      <View style={{ flex: 1 }}>
-        <Heading style={{ fontSize: 24, lineHeight: 30 }}>{title}</Heading>
+      <View style={{ flex: 1, alignItems: centered ? "center" : "flex-start" }}>
+        <Heading style={{ fontSize: 24, lineHeight: 30, textAlign: centered ? "center" : "left" }}>{title}</Heading>
         {subtitle && (
-          <Copy muted style={{ fontSize: 13 }}>
+          <Copy muted style={{ fontSize: 13, textAlign: centered ? "center" : "left" }}>
             {subtitle}
           </Copy>
         )}
@@ -334,31 +326,56 @@ export function Header({
     </Row>
   );
 }
-export function BottomNav({ active }: { active: string }) {
+const mainTabRoutes = new Set(["/home", "/map", "/saved", "/profile"]);
+function NavItem({ id, label, icon, href, active }: {
+  id: string; label: string; icon: GlyphName; href: string; active: boolean;
+}) {
+  const s = useStyles(sharedSheet);
+  const p = usePalette();
   const language = useAppLanguage();
+  const { avatarUrl } = useTravel();
+  const pathname = usePathname();
+  const create = id === "planner";
+  const activeIcon: GlyphName = id === "saved" ? "heartFill" : id === "home" ? "compassFill" : id === "map" ? "mapFill" : icon;
+  // Plain views and the raw glyph: the tab bar is on every screen, so it stays free of animations.
+  return (
+    <Pressable
+      onPress={() => {
+        if (create) router.push(href as Href);
+        // Inside the tab navigator, switch tabs; from a screen stacked above it, go back down to the tabs.
+        else if (mainTabRoutes.has(pathname)) router.navigate(href as Href);
+        else router.dismissTo(href as Href);
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={translate(label, language)}
+      accessibilityState={{ selected: active }}
+      style={({ pressed }) => [s.navItem, pressed && { opacity: 0.6 }]}
+    >
+      <View style={[s.navIcon, create && s.navCreate, active && !create && s.navIconActive]}>
+        {id === "profile" ? (
+          <Image source={avatarUrl ? { uri: avatarUrl } : photos.avatar} contentFit="cover" style={[s.navAvatar, active && s.navAvatarActive]} />
+        ) : (
+          <GlyphIcon name={active ? activeIcon : icon} size={create ? 22 : 23} color={create ? p.onColor : active && id === "saved" ? p.danger : active ? p.blue : p.muted} />
+        )}
+      </View>
+      <Text style={[s.navLabel, active && s.navLabelActive]}>{translate(label, language)}</Text>
+      {active && <View style={s.navIndicator} />}
+    </Pressable>
+  );
+}
+export function BottomNav({ active }: { active: string }) {
+  const s = useStyles(sharedSheet);
   const items = [
     ["home", "Explore", "compass", "/home"],
     ["map", "Map", "map", "/map"],
-    ["planner", "Plan", "calendar", "/planner"],
+    ["planner", "Plan", "plus", "/planner"],
     ["saved", "Saved", "heart", "/saved"],
     ["profile", "Profile", "person", "/profile"],
   ] as const;
   return (
     <View style={s.navShell}>
       <View style={s.nav}>{items.map(([id, label, icon, href]) => (
-        <Pressable
-          key={id}
-          onPress={() => router.navigate(href as Href)}
-          accessibilityRole="button"
-          accessibilityLabel={translate(label, language)}
-          accessibilityState={{ selected: active === id }}
-          style={({ pressed }) => [s.navItem, pressed && { opacity: 0.65 }]}
-        >
-          <View style={[s.navIcon, active === id && s.navIconActive]}>
-            <Icon name={active === "saved" && id === "saved" ? "heartFill" : icon} size={22} color={active === id ? p.blue : p.muted} />
-          </View>
-          <Text style={[s.navLabel, active === id && s.navLabelActive]}>{translate(label, language)}</Text>
-        </Pressable>
+        <NavItem key={id} id={id} label={label} icon={icon} href={href} active={active === id} />
       ))}</View>
     </View>
   );
@@ -368,15 +385,28 @@ export function Screen({
   active,
   footer,
   style,
+  bodyStyle,
   scroll = true,
+  scrollEnabled = true,
+  overlay,
 }: {
   children: ReactNode;
   active?: string;
   footer?: ReactNode;
   style?: StyleProp<ViewStyle>;
+  bodyStyle?: StyleProp<ViewStyle>;
   scroll?: boolean;
+  scrollEnabled?: boolean;
+  /** Floating content above the page, such as a toast. */
+  overlay?: ReactNode;
 }) {
+  const s = useStyles(sharedSheet);
+  const p = usePalette();
   const { syncError } = useTravel();
+  const contentGap = StyleSheet.flatten(style)?.gap ?? 20;
+  // Tab screens can mount in the background, where an entering animation may never get to run;
+  // the tab switch already fades them in.
+  const contentEntering = active ? undefined : FadeIn.duration(180);
   return (
     <SafeAreaView style={s.screen} edges={active ? ["top"] : ["top", "bottom"]}>
       <KeyboardAvoidingView
@@ -385,24 +415,26 @@ export function Screen({
       >
         {scroll ? (
           <ScrollView
+            scrollEnabled={scrollEnabled}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[s.content, style, active || footer ? { paddingBottom: 28 } : null]}
+            contentContainerStyle={[s.content, style, active ? { paddingBottom: 90 } : null, footer ? { paddingBottom: 112 } : null]}
           >
             {!!syncError && (
-              <View style={{ backgroundColor: "#FFF1F2", borderRadius: 6, padding: 10 }}>
+              <View style={{ backgroundColor: p.dangerSoft, borderRadius: 6, padding: 10 }}>
                 <Copy style={{ color: p.danger, fontSize: 12 }}>{syncError}</Copy>
               </View>
             )}
-            {children}
+            <Animated.View entering={contentEntering} style={[{ gap: contentGap }, bodyStyle]}>{children}</Animated.View>
           </ScrollView>
         ) : (
-          <View style={[s.content, { flex: 1 }, style]}>
+          <Animated.View entering={contentEntering} style={[s.content, { flex: 1 }, style, bodyStyle]}>
             {!!syncError && <Copy style={{ color: p.danger }}>{syncError}</Copy>}
             {children}
-          </View>
+          </Animated.View>
         )}
         {footer && <View style={s.footer}>{footer}</View>}
+        {overlay && <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>{overlay}</View>}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -416,6 +448,7 @@ export function SectionTitle({
   action?: string;
   onPress?: () => void;
 }) {
+  const p = usePalette();
   return (
     <Row style={{ justifyContent: "space-between" }}>
       <Heading style={{ fontSize: 20, lineHeight: 26 }}>{title}</Heading>
@@ -440,6 +473,7 @@ export function DestinationPhoto({
   destination: Destination;
   style?: StyleProp<ImageStyle>;
 }) {
+  const p = usePalette();
   const language = useAppLanguage();
   const [failedId, setFailedId] = useState<string | null>(null);
   if (failedId === destination.id) {
@@ -462,6 +496,8 @@ export function DestinationPhoto({
 }
 
 export function DestinationCard({ destination }: { destination: Destination }) {
+  const s = useStyles(sharedSheet);
+  const p = usePalette();
   const language = useAppLanguage();
   const { saved, toggleSaved } = useTravel();
   const { width } = useWindowDimensions();
@@ -517,6 +553,7 @@ export function Sheet({
   children: ReactNode;
   onClose: () => void;
 }) {
+  const s = useStyles(sharedSheet);
   return (
     <Modal
       visible={visible}
@@ -562,6 +599,7 @@ export function EmptyState({
   action?: string;
   onPress?: () => void;
 }) {
+  const p = usePalette();
   return (
     <View style={{ alignItems: "center", paddingVertical: 40, gap: 12 }}>
       <Icon name="compass" size={44} color={p.blue} />
@@ -580,7 +618,7 @@ export function EmptyState({
     </View>
   );
 }
-export const s = StyleSheet.create({
+export const sharedSheet = themedStyles((p) => ({
   text: { fontSize: 15, lineHeight: 22, color: p.ink, letterSpacing: 0 },
   muted: { color: p.muted },
   heading: {
@@ -609,7 +647,7 @@ export const s = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 12,
     backgroundColor: p.blue,
-    borderRadius: 28,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -632,13 +670,13 @@ export const s = StyleSheet.create({
     height: 44,
     minWidth: 44,
     minHeight: 44,
-    borderRadius: 24,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
   chip: {
     minHeight: 38,
-    borderRadius: 24,
+    borderRadius: 8,
     paddingHorizontal: 17,
     paddingVertical: 8,
     alignItems: "center",
@@ -657,7 +695,7 @@ export const s = StyleSheet.create({
     minHeight: 49,
     borderWidth: 1,
     borderColor: p.line,
-    borderRadius: 13,
+    borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 13,
     fontSize: 14,
@@ -669,35 +707,53 @@ export const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: p.line,
     backgroundColor: p.white,
+    shadowColor: p.shadow,
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.035,
+    shadowRadius: 14,
   },
   nav: {
     width: "100%",
     maxWidth: 600,
     alignSelf: "center",
     flexDirection: "row",
-    paddingTop: 5,
-    paddingBottom: Platform.OS === "web" ? 8 : 3,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "web" ? 7 : 2,
     paddingHorizontal: 4,
   },
   navItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 60,
-    gap: 1,
+    minHeight: 62,
+    gap: 3,
   },
   navIcon: {
-    width: 42,
-    height: 34,
-    borderRadius: 17,
+    width: 40,
+    height: 37,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   navIconActive: { backgroundColor: p.blueSoft },
-  navLabel: { color: p.muted, fontSize: 11, lineHeight: 16, fontWeight: "600", textAlign: "center" },
+  navCreate: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: p.blue,
+    shadowColor: p.blue,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.16,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  navAvatar: { width: 29, height: 29, borderRadius: 15, borderWidth: 1, borderColor: p.line },
+  navAvatarActive: { borderWidth: 2, borderColor: p.blue },
+  navIndicator: { width: 13, height: 2, borderRadius: 1, backgroundColor: p.blue, position: "absolute", bottom: 0 },
+  navLabel: { color: p.muted, fontSize: 10, lineHeight: 14, fontWeight: "600", textAlign: "center" },
   navLabelActive: { color: p.blue, fontWeight: "700" },
   destinationCard: {
-    borderRadius: 16,
+    borderRadius: 8,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: p.line,
@@ -721,4 +777,4 @@ export const s = StyleSheet.create({
   },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   error: { color: p.danger, fontSize: 13, lineHeight: 20 },
-});
+}));

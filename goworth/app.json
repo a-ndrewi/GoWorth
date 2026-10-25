@@ -34,7 +34,11 @@
         {
           "backgroundColor": "#FFFFFF",
           "image": "./assets/images/goworth/brand-mark.png",
-          "imageWidth": 130
+          "imageWidth": 130,
+          "dark": {
+            "backgroundColor": "#0E1626",
+            "image": "./assets/images/goworth/brand-mark.png"
+          }
         }
       ],
       "expo-sqlite",

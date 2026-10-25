@@ -1,8 +1,8 @@
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
 import { Linking, Platform, Pressable, Share, View } from "react-native";
-import { Button, Copy, Field, Header, Heading, Icon, Screen, Sheet, s, type IconName } from "@/components/goworth/ui";
-import { palette as p } from "@/constants/design";
+import { Button, Copy, Field, Header, Heading, Icon, Screen, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
+import { usePalette, useStyles } from "@/state/theme-context";
 import { legalDocuments, legalIdentity, type LegalDocumentId } from "@/data/legal";
 import { legalDocumentsRo } from "@/data/legal-ro";
 import { useAppLanguage } from "@/data/formatting";
@@ -18,12 +18,14 @@ const documents: { id: LegalDocumentId; icon: IconName }[] = [
 ];
 
 export function LegalScreen() {
+  const s = useStyles(sharedSheet);
+  const p = usePalette();
   const language = useAppLanguage();
   const localizedDocuments = language === "ro" ? legalDocumentsRo : legalDocuments;
   const { user, deleteAccount } = useAuth();
   const {
     profile, preferences, saved, savedPlaces, externalPlaces, trip, activities, expenses,
-    journal, journalEntries,
+    journal, journalEntries, plan,
   } = useTravel();
   const [confirming, setConfirming] = useState(false);
   const [confirmation, setConfirmation] = useState("");
@@ -97,6 +99,11 @@ export function LegalScreen() {
     </View>
     <Sheet visible={confirming} title="Delete your account?" onClose={() => setConfirming(false)}>
       <Copy>All account data, including saved items and trip history, will be permanently deleted. This cannot be undone.</Copy>
+      {plan === "premium" && <View style={{ gap: 10, padding: 12, borderRadius: 8, backgroundColor: p.dangerSoft }}>
+        <Copy style={{ color: p.danger, fontSize: 13, lineHeight: 19 }}>Deleting your account does not cancel your monthly subscription. Cancel it in Membership first, or you may continue to be charged.</Copy>
+        <Button secondary icon="crown" onPress={() => { setConfirming(false); router.push("/membership" as Href); }}>Open Membership</Button>
+      </View>}
+      {plan !== "free" && <Copy muted style={{ fontSize: 12, lineHeight: 18 }}>Remaining Premium time and Lifetime access end when the account is deleted and are not refunded.</Copy>}
       <Field label="Type DELETE to confirm" value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" />
       {!!error && <Copy style={s.error}>{error}</Copy>}
       <Button disabled={confirmation !== "DELETE"} busy={busy} onPress={() => void removeAccount()}>Delete account permanently</Button>
@@ -106,6 +113,7 @@ export function LegalScreen() {
 }
 
 export function LegalDocumentScreen() {
+  const p = usePalette();
   const language = useAppLanguage();
   const { type, photoName, photoArtist, photoLicense, photoPageUrl, photoLicenseUrl } = useLocalSearchParams<{ type?: string; photoName?: string; photoArtist?: string; photoLicense?: string; photoPageUrl?: string; photoLicenseUrl?: string }>();
   const id = type && Object.prototype.hasOwnProperty.call(legalDocuments, type) ? type as LegalDocumentId : "privacy";
@@ -114,7 +122,7 @@ export function LegalDocumentScreen() {
   const validLicenseUrl = photoLicenseUrl?.startsWith("https://creativecommons.org/licenses/") || photoLicenseUrl?.startsWith("https://creativecommons.org/publicdomain/") || photoLicenseUrl === photoPageUrl;
   return <Screen style={{ gap: 20 }}>
     <Header title={document.title} />
-    <Copy style={{ color: p.danger, fontSize: 12, fontWeight: "600" }}>{document.updated} · Operator details pending</Copy>
+    <Copy style={{ color: p.danger, fontSize: 12, fontWeight: "600" }}>{document.updated} · {translate("Operator details pending", language)}</Copy>
     {id === "credits" && validPhotoSource && <View style={{ gap: 8 }}>
       <Heading style={{ fontSize: 18, lineHeight: 24 }}>{photoName}</Heading>
       <Copy>{photoArtist} · {photoLicense}</Copy>

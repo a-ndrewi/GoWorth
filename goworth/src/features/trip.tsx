@@ -1,362 +1,71 @@
-import Slider from "@react-native-community/slider";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import Svg, { Circle } from "react-native-svg";
-import { CalendarPicker, TimeDropdown } from "@/components/goworth/date-time-controls";
+import { Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { TimeDropdown } from "@/components/goworth/date-time-controls";
+import { Button, Chip, Copy, EmptyState, Field, Header, Heading, Icon, IconButton, Row, Screen, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
+import { themedStyles } from "@/constants/design";
+import { usePalette, useStyles } from "@/state/theme-context";
 import {
-  Button,
-  Chip,
-  Copy,
-  EmptyState,
-  Field,
-  Header,
-  Heading,
-  Icon,
-  IconButton,
-  Row,
-  Screen,
-  Sheet,
-  s,
-  type IconName,
-} from "@/components/goworth/ui";
-import { palette as p } from "@/constants/design";
-import {
-  dateLabel,
-  destinations,
   expenseCategories,
-  findDestination,
-  interests,
   money,
-  places,
   tripDays,
-  validateTrip,
   type Activity,
   type Expense,
   type ExpenseCategory,
-  type Trip,
-  type RouteStop,
 } from "@/data/travel";
-import { searchTripCities, searchTripCountries, type TripCountry } from "@/data/trip-geography";
-import { countryFlag, usStates } from "@/data/geography";
-import { routeStop, routeStopForDay, routeTitle, uniqueRouteStops } from "@/data/trip-route";
+import { routeStop, routeTitle } from "@/data/trip-route";
 import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
+import { countryFlag } from "@/data/geography";
 import { useAppLanguage } from "@/data/formatting";
 import { useTravel } from "@/state/travel-context";
-import { mapsRouteUrl, wazeRouteUrl } from "@/utils/trip-place";
+import { TripHero, heroStylesSheet, localToday, tripStatus } from "@/components/goworth/trip-hero";
+import { citiesForDay, nextActivitySlot } from "@/utils/trip";
+import { dayRoutePoints, MAX_ROUTE_STOPS, mapsRouteUrl } from "@/utils/trip-place";
+import { publicActivityNote } from "@/utils/public-activity";
 
-export function PlannerScreen() {
-  const language = useAppLanguage();
-  const params = useLocalSearchParams<{ destination?: string }>();
-  const { trip, preferences, generateTrip } = useTravel();
-  const [draft, setDraft] = useState<Trip>({
-    destinationId: params.destination
-      ? findDestination(params.destination).id
-      : trip?.destinationId || destinations[0].id,
-    start: trip?.start || "",
-    end: trip?.end || "",
-    companions: trip?.companions || "Solo",
-    budget: preferences.budget,
-    interests: preferences.interests,
-    dayDestinations: trip?.dayDestinations,
-    routeStops: trip?.routeStops,
-  });
-  const [routeMode, setRouteMode] = useState(!!trip?.dayDestinations && new Set(trip.dayDestinations).size > 1);
-  const [selectingDay, setSelectingDay] = useState<number | null>(null);
-  const [selecting, setSelecting] = useState(false);
-  const [country, setCountry] = useState<TripCountry | null>(null);
-  const [countryQuery, setCountryQuery] = useState("");
-  const [stateCode, setStateCode] = useState<string | null>(null);
-  const [cityQuery, setCityQuery] = useState("");
-  const [listLimit, setListLimit] = useState(40);
-  const [dateField, setDateField] = useState<"start" | "end" | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [info, setInfo] = useState(false);
-  const [confirmReplace, setConfirmReplace] = useState(false);
-  const patch = (next: Partial<Trip>) =>
-    setDraft((old) => ({ ...old, ...next }));
-  const chooseDate = (value: string) => {
-    if (dateField === "start") {
-      const end = draft.end && (draft.end < value || tripDays(value, draft.end) > 14) ? "" : draft.end;
-      patch({ start: value, end, dayDestinations: routeMode && end ? Array.from({ length: tripDays(value, end) }, (_, i) => draft.dayDestinations?.[i] || draft.destinationId) : undefined });
-    } else if (dateField === "end") patch({ end: value, dayDestinations: routeMode && draft.start ? Array.from({ length: tripDays(draft.start, value) }, (_, i) => draft.dayDestinations?.[i] || draft.destinationId) : undefined });
-  };
-  const maxEnd = draft.start
-    ? new Date(Date.parse(draft.start) + 13 * 86_400_000).toISOString().slice(0, 10)
-    : undefined;
-  const openDestinationSelector = (day: number | null) => {
-    setCountry(null);
-    setCountryQuery("");
-    setStateCode(null);
-    setCityQuery("");
-    setListLimit(40);
-    setSelectingDay(day);
-    setSelecting(true);
-  };
-  const countryResults = !country ? searchTripCountries(countryQuery, listLimit + 1) : [];
-  const stateResults = country?.code === "US" && !stateCode
-    ? usStates.filter((state) => state.name.toLocaleLowerCase().includes(cityQuery.trim().toLocaleLowerCase())).slice(0, listLimit + 1)
-    : [];
-  const cityResults = country && (country.code !== "US" || stateCode)
-    ? searchTripCities(cityQuery, country, listLimit + 1, stateCode ?? undefined)
-    : [];
-  const chooseStop = (stop: RouteStop) => {
-    const count = draft.start && draft.end ? tripDays(draft.start, draft.end) : 0;
-    const oldStart = draft.destinationId;
-    const nextDays = routeMode && count ? Array.from({ length: count }, (_, i) =>
-      selectingDay === null || selectingDay === 0
-        ? i === 0 || (draft.dayDestinations?.[i] || oldStart) === oldStart ? stop.id : draft.dayDestinations![i]
-        : i === selectingDay ? stop.id : draft.dayDestinations?.[i] || oldStart) : undefined;
-    const nextId = selectingDay === null || selectingDay === 0 ? stop.id : oldStart;
-    const usedIds = new Set(nextDays || [nextId]);
-    const nextStops = [...usedIds].map((id) => id === stop.id ? stop : routeStop(draft, id));
-    patch({ destinationId: nextId, dayDestinations: nextDays, routeStops: nextStops });
-    setSelecting(false); setSelectingDay(null);
-  };
-  const generate = async () => {
-    const validation = validateTrip(draft);
-    if (validation) {
-      setError(validation);
-      return;
-    }
-    setError("");
-    if (trip) {
-      setConfirmReplace(true);
-      return;
-    }
-    await saveTrip();
-  };
-  const saveTrip = async () => {
-    setBusy(true);
-    try {
-      await generateTrip(draft);
-      router.replace("/itinerary" as Href);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save your trip. Try again.");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Screen active="planner" style={{ gap: 20 }}>
-      <Row style={{ justifyContent: "space-between" }}>
-        <IconButton
-          name="back"
-          label="Back to Explore"
-          onPress={() => router.navigate("/home" as Href)}
-        />
-        <IconButton
-          name="more"
-          label="Planner information"
-          onPress={() => setInfo(true)}
-        />
-      </Row>
-      <View style={{ gap: 8 }}>
-        <Heading>Plan your trip</Heading>
-        <Copy muted>
-          Choose where and when to go. Build your itinerary from real places.
-        </Copy>
-      </View>
-      <Row style={{ gap: 8 }}>
-        <Chip selected={!routeMode} onPress={() => { setRouteMode(false); patch({ dayDestinations: undefined, routeStops: draft.routeStops?.filter((stop) => stop.id === draft.destinationId) }); }}>One city</Chip>
-        <Chip selected={routeMode} onPress={() => {
-          setRouteMode(true);
-          if (draft.start && draft.end) patch({ dayDestinations: Array.from({ length: tripDays(draft.start, draft.end) }, (_, i) => draft.dayDestinations?.[i] || draft.destinationId) });
-        }}>Multi-city route</Chip>
-      </Row>
-      <View style={{ gap: 7 }}>
-        <Copy style={s.label}>{routeMode ? "Starting city" : "Destination"}</Copy>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={translate("Choose destination", language)}
-          onPress={() => openDestinationSelector(null)}
-          style={[s.input, s.row, { justifyContent: "space-between" }]}
-        >
-          <Copy style={{ fontSize: 14 }}>
-            {routeStop(draft).name},{" "}
-            {routeStop(draft).country}
-          </Copy>
-          <Icon name="pin" size={19} color={p.blue} />
-        </Pressable>
-      </View>
-      <Row style={{ alignItems: "flex-start", gap: 8 }}>
-        {(["start", "end"] as const).map((field) => <View key={field} style={{ flex: 1, gap: 7 }}>
-          <Copy style={s.label}>{field === "start" ? "Departure" : "Return"}</Copy>
-          <Pressable accessibilityRole="button" accessibilityLabel={translate(field === "start" ? "Choose departure date" : "Choose return date", language)}
-            onPress={() => setDateField(field)} style={[s.input, s.row, { justifyContent: "space-between", minHeight: 48, paddingHorizontal: 9, gap: 4 }]}>
-            <Copy style={{ fontSize: 13, flexShrink: 1 }}>{draft[field] ? new Date(`${draft[field]}T12:00:00Z`).toLocaleDateString(language === "ro" ? "ro-RO" : "en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "Select date"}</Copy>
-            <Icon name="calendar" size={18} color={p.blue} />
-          </Pressable>
-        </View>)}
-      </Row>
-      {!!draft.start && !!draft.end && <Copy muted style={{ fontSize: 12 }}>{routeMode ? formatMessage("{days} days · Choose a city for each day", { days: tripDays(draft.start, draft.end) }, language) : formatMessage("{days} days · In {city}", { days: tripDays(draft.start, draft.end), city: routeStop(draft).name }, language)}</Copy>}
-      {routeMode && !!draft.start && !!draft.end && <View style={{ gap: 7 }}>
-        <Copy style={s.label}>Route by day</Copy>
-        {Array.from({ length: tripDays(draft.start, draft.end) }, (_, index) => <Pressable key={index} accessibilityRole="button" onPress={() => openDestinationSelector(index)} style={[s.input, s.row, { justifyContent: "space-between" }]}>
-          <Copy>Day {index + 1} · {routeStopForDay(draft, index + 1).name}, {routeStopForDay(draft, index + 1).country}</Copy><Icon name="right" size={17} color={p.blue} />
-        </Pressable>)}
-      </View>}
-      <View style={{ gap: 11 }}>
-        <Row style={{ justifyContent: "space-between" }}>
-          <Copy style={s.label}>Budget (per person)</Copy>
-          <Copy style={{ fontWeight: "600", color: p.blue }}>
-            {money(draft.budget)}
-          </Copy>
-        </Row>
-        <Slider
-          accessibilityLabel={translate("Trip budget", language)}
-          minimumValue={500}
-          maximumValue={10000}
-          step={100}
-          value={draft.budget}
-          onValueChange={(budget) => patch({ budget })}
-          minimumTrackTintColor={p.blue}
-          maximumTrackTintColor={p.line}
-          thumbTintColor={p.blue}
-        />
-        <Row style={{ justifyContent: "space-between" }}>
-          <Copy muted style={{ fontSize: 12 }}>
-            {money(500)}
-          </Copy>
-          <Copy muted style={{ fontSize: 12 }}>
-            {money(10000)}
-          </Copy>
-        </Row>
-      </View>
-      <View style={{ gap: 10 }}>
-        <Copy style={s.label}>Travel companions</Copy>
-        <Row>
-          {["Solo", "Couple", "Friends", "Family"].map((companions) => (
-            <Chip
-              key={companions}
-              selected={draft.companions === companions}
-              onPress={() => patch({ companions })}
-              style={{ flex: 1, paddingHorizontal: 5 }}
-            >
-              {companions}
-            </Chip>
-          ))}
-        </Row>
-      </View>
-      <View style={{ gap: 10 }}>
-        <Copy style={s.label}>Interests</Copy>
-        <View style={[s.grid, { gap: 8 }]}>
-          {interests.slice(0, 7).map((interest) => (
-            <Chip
-              key={interest}
-              tint={p.greenSoft}
-              selected={draft.interests.includes(interest)}
-              onPress={() =>
-                patch({
-                  interests: draft.interests.includes(interest)
-                    ? draft.interests.filter((x) => x !== interest)
-                    : [...draft.interests, interest],
-                })
-              }
-            >
-              {interest}
-            </Chip>
-          ))}
-        </View>
-      </View>
-      {!!error && <Copy style={s.error}>{error}</Copy>}
-      <Button icon="plus" busy={busy} onPress={generate}>
-        {busy ? "Saving your trip..." : "Create Trip"}
-      </Button>
-      <Sheet
-        visible={selecting}
-        title={!country ? translate("Country", language) : country.code === "US" && !stateCode ? translate("State", language) : selectingDay === null ? translate("Starting city", language) : formatMessage("City for day {day}", { day: selectingDay + 1 }, language)}
-        onClose={() => { setSelecting(false); setSelectingDay(null); }}
-      >
-        {country && <Button secondary icon="back" onPress={() => { if (stateCode) { setStateCode(null); setCityQuery(""); } else { setCountry(null); setCountryQuery(""); } setListLimit(40); }}>{translate(stateCode ? "All states" : "All countries", language)}</Button>}
-        {!country && <>
-          <Field label="Country" placeholder="Search a country" value={countryQuery} onChangeText={(value) => { setCountryQuery(value); setListLimit(40); }} />
-          {countryResults.slice(0, listLimit).map((item) => <Pressable key={item.code} accessibilityRole="button" onPress={() => { setCountry(item); setStateCode(null); setCityQuery(""); setListLimit(40); }} style={[s.row, { paddingVertical: 10, gap: 10 }]}><Copy style={{ fontSize: 23 }}>{countryFlag(item.code)}</Copy><Copy style={{ flex: 1 }}>{translate(item.name, language)}</Copy><Icon name="right" color={p.muted} /></Pressable>)}
-          {!countryResults.length && <Copy muted>{translate("No countries found. Try another name.", language)}</Copy>}
-          {countryResults.length > listLimit && <Button secondary icon="plus" onPress={() => setListLimit((limit) => limit + 40)}>{translate("Show more countries", language)}</Button>}
-        </>}
-        {country?.code === "US" && !stateCode && <>
-          <Field label="State" placeholder="Search states" value={cityQuery} onChangeText={(value) => { setCityQuery(value); setListLimit(40); }} />
-          {stateResults.slice(0, listLimit).map((state) => <Pressable key={state.code} accessibilityRole="button" onPress={() => { setStateCode(state.code); setCityQuery(""); setListLimit(40); }} style={[s.row, { paddingVertical: 10, gap: 10 }]}><Icon name="map" color={p.green} /><Copy style={{ flex: 1 }}>{state.name}</Copy><Copy muted>{state.cityCount}</Copy><Icon name="right" color={p.muted} /></Pressable>)}
-          {!stateResults.length && <Copy muted>{translate("No states found", language)}</Copy>}
-          {stateResults.length > listLimit && <Button secondary icon="plus" onPress={() => setListLimit((limit) => limit + 40)}>{translate("Show more states", language)}</Button>}
-        </>}
-        {country && (country.code !== "US" || stateCode) && <>
-          <Field label={formatMessage("City in {country}", { country: translate(country.name, language) }, language)} placeholder="Search a city or town" value={cityQuery} onChangeText={(value) => { setCityQuery(value); setListLimit(40); }} />
-          {cityResults.slice(0, listLimit).map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={formatMessage("Choose {city}, {country}", { city: item.name, country: translate(item.country, language) }, language)} onPress={() => chooseStop(item)} style={[s.row, { paddingVertical: 10, gap: 10 }]}><Icon name="pin" color={p.green} /><View style={{ flex: 1 }}><Copy style={{ fontWeight: "600" }}>{item.name}</Copy><Copy muted style={{ fontSize: 12 }}>{stateCode ? `${usStates.find((state) => state.code === stateCode)?.name}, ` : ""}{translate(item.country, language)}</Copy></View><Icon name="right" color={p.muted} /></Pressable>)}
-          {!cityResults.length && <Copy muted>{translate("No cities found in this country. Try another name.", language)}</Copy>}
-          {cityResults.length > listLimit && <Button secondary icon="plus" onPress={() => setListLimit((limit) => limit + 40)}>{translate("Show more cities", language)}</Button>}
-        </>}
-      </Sheet>
-      <CalendarPicker key={dateField ?? "closed"} visible={!!dateField} title={dateField === "end" ? "Return date" : "Departure date"}
-        value={dateField ? draft[dateField] : ""} minDate={dateField === "end" ? draft.start || undefined : undefined}
-        maxDate={dateField === "end" ? maxEnd : undefined} onSelect={chooseDate} onClose={() => setDateField(null)} />
-      <Sheet
-        visible={info}
-        title="Your travel plan"
-        onClose={() => setInfo(false)}
-      >
-        <Copy muted>
-          Creating a trip replaces your current itinerary and expense list. Add
-          places and activities after you save. No reservations or payments are made.
-        </Copy>
-        {!!trip && <Button
-          secondary
-          onPress={() => {
-            setInfo(false);
-            router.push("/itinerary" as Href);
-          }}
-        >
-          View current itinerary
-        </Button>}
-      </Sheet>
-      <Sheet
-        visible={confirmReplace}
-        title="Replace current trip?"
-        onClose={() => setConfirmReplace(false)}
-      >
-        <Copy muted>Your current trip will move into your journal with its itinerary, expenses, saved places, and note. You can still review it there.</Copy>
-        {!!error && <Copy style={s.error}>{error}</Copy>}
-        <Button busy={busy} onPress={() => void saveTrip()}>Replace trip</Button>
-        <Button secondary onPress={() => setConfirmReplace(false)}>Keep current trip</Button>
-      </Sheet>
-    </Screen>
-  );
-}
+const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
 export function ItineraryScreen() {
+  const styles = useStyles(stylesSheet);
+  const s = useStyles(sharedSheet);
+  const heroStyles = useStyles(heroStylesSheet);
+  const p = usePalette();
   const language = useAppLanguage();
-  const { trip, activities, externalPlaces, addActivity, updateActivity, removeActivity } = useTravel();
-  const [selectedDay, setDay] = useState(1);
+  const locale = language === "ro" ? "ro-RO" : "en-US";
+  const { day: dayParam } = useLocalSearchParams<{ day?: string }>();
+  const { trip, activities, addActivity, updateActivity, removeActivity, finishTrip, clearTrip } = useTravel();
   const [editing, setEditing] = useState<Activity | null>(null);
   const [showEditor, setShowEditor] = useState(false);
+  const [menu, setMenu] = useState<"" | "trip" | "finish" | "delete">("");
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
-  const [time, setTime] = useState("16:00");
+  const [time, setTime] = useState("10:00");
+  const [activityDay, setActivityDay] = useState(1);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   if (!trip) {
     return (
-      <Screen style={{ gap: 22 }}>
-        <Header title="My itinerary" />
+      <Screen active="itinerary" style={{ gap: 22 }}>
+        <Header title="My trip" onBack={() => router.dismissTo("/home" as Href)} />
         <EmptyState title="Your first trip starts here" detail="Plan a destination to build your itinerary." action="Plan a trip" onPress={() => router.push("/planner" as Href)} />
       </Screen>
     );
   }
-  const destination = routeStop(trip);
   const days = tripDays(trip.start, trip.end);
-  const day = Math.min(selectedDay, days);
-  const dayCity = routeStopForDay(trip, day);
-  const routeStops = uniqueRouteStops(trip);
-  const routeIds = routeStops.map((stop) => stop.id);
-  const routePins = routeStops;
+  const today = localToday();
+  const status = tripStatus(trip.start, trip.end, today);
+  const day = Math.min(Math.max(1, Math.trunc(Number(dayParam)) || (status.kind === "active" ? status.days : 1)), days);
+  const dayDate = addDays(trip.start, day - 1);
+  const dayStops = citiesForDay(trip, day).map((id) => routeStop(trip, id));
+  const format = (date: string, options: Intl.DateTimeFormatOptions) => new Date(`${date}T12:00:00Z`).toLocaleDateString(locale, { ...options, timeZone: "UTC" });
+  const selectDay = (next: number) => router.setParams({ day: String(next) });
   const openEditor = (activity?: Activity) => {
     setEditing(activity || null);
     setName(activity?.name || "");
     setNote(activity?.note || "");
-    setTime(activity?.time || "16:00");
+    setTime(activity?.time || nextActivitySlot(activities, day).time);
+    setActivityDay(activity?.day ?? day);
     setError("");
     setConfirmDelete(false);
     setShowEditor(true);
@@ -371,7 +80,7 @@ export function ItineraryScreen() {
       return;
     }
     const activity = {
-      day,
+      day: activityDay,
       period: (Number(time.slice(0, 2)) < 12 ? "Morning" : Number(time.slice(0, 2)) < 18 ? "Afternoon" : "Evening") as Activity["period"],
       time,
       name: name.trim(),
@@ -383,6 +92,7 @@ export function ItineraryScreen() {
       if (editing) await updateActivity({ ...activity, id: editing.id, placeId: editing.placeId, latitude: editing.latitude, longitude: editing.longitude });
       else await addActivity(activity);
       setShowEditor(false);
+      if (activityDay !== day) selectDay(activityDay);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save the activity.");
     } finally {
@@ -402,188 +112,139 @@ export function ItineraryScreen() {
       setSaving(false);
     }
   };
-  const today = activities
-    .filter((a) => a.day === day)
-    .sort((a, b) => a.time.localeCompare(b.time));
-  const footer = (
-    <Row style={{ justifyContent: "space-around" }}>
-      {(
-        [
-          {
-            label: "Overview",
-            icon: "bag",
-            action: () =>
-              router.push({
-                pathname: destinations.some((item) => item.id === trip.destinationId) ? "/trip" : "/map",
-                params: destinations.some((item) => item.id === trip.destinationId)
-                  ? { id: trip.destinationId }
-                  : { lat: String(destination.latitude), lon: String(destination.longitude), name: destination.name },
-              } as Href),
-          },
-          { label: "Places", icon: "pin", action: () => router.push(destinations.some((item) => item.id === dayCity.id)
-            ? { pathname: "/explore", params: { id: dayCity.id } } as Href
-            : { pathname: "/map", params: { lat: String(dayCity.latitude), lon: String(dayCity.longitude), name: dayCity.name } } as Href) },
-          {
-            label: "Budget",
-            icon: "wallet",
-            action: () => router.push("/budget" as Href),
-          },
-        ] as { label: string; icon: IconName; action: () => void }[]
-      ).map((item) => (
-        <Pressable
-          key={item.label}
-          accessibilityRole="button"
-          accessibilityLabel={translate(item.label, language)}
-          onPress={item.action}
-          style={{ alignItems: "center", gap: 5, flex: 1, minHeight: 44 }}
-        >
-          <Icon name={item.icon} size={20} color={p.muted} />
-          <Copy muted style={{ fontSize: 10 }}>
-            {item.label}
-          </Copy>
-        </Pressable>
-      ))}
-    </Row>
-  );
+  const closeTrip = async (action: "finish" | "delete") => {
+    setSaving(true);
+    setError("");
+    try {
+      if (action === "finish") { await finishTrip(); setMenu(""); router.dismissTo({ pathname: "/saved", params: { tab: "Trips" } } as Href); }
+      else { await clearTrip(); setMenu(""); router.dismissTo("/home" as Href); }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not update this trip.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const dayActivities = activities.filter((a) => a.day === day).sort((a, b) => a.time.localeCompare(b.time));
+  const navigationPoints = dayRoutePoints(dayStops, dayActivities.filter((activity) => activity.latitude !== undefined && activity.longitude !== undefined) as (Activity & { latitude: number; longitude: number })[]);
+  const routeUrl = mapsRouteUrl(navigationPoints);
+  const unmapped = dayActivities.filter((activity) => !Number.isFinite(activity.latitude) || !Number.isFinite(activity.longitude)).length;
+  const findPlaces = () => router.navigate({ pathname: "/itinerary-places", params: { day: String(day) } } as Href);
   return (
-    <Screen footer={footer} style={{ gap: 20 }}>
-      <Header
-        title={routeTitle(trip)}
-        subtitle={formatMessage("{days} Days · {start} - {end}", { days, start: dateLabel(trip.start), end: dateLabel(trip.end) }, language)}
-        right={
-          <IconButton
-            name="plus"
-            label="Add activity"
-            color={p.blue}
-            onPress={() => openEditor()}
-          />
-        }
-      />
-      {routeIds.length > 1 && <View style={{ gap: 8 }}>
-        <Copy style={s.label}>City route</Copy>
-        <Copy muted>{routeStops.map((stop) => `${stop.name}, ${stop.country}`).join(" → ")}</Copy>
-        {Array.from({ length: Math.ceil((routePins.length - 1) / 3) }, (_, index) => {
-          const url = mapsRouteUrl(routePins.slice(index * 3, index * 3 + 4));
-          return url && <Button key={index} secondary icon="map" onPress={() => void Linking.openURL(url)}>{formatMessage("Google Maps · leg {leg}", { leg: index + 1 }, language)}</Button>;
+    <Screen active="itinerary" style={{ gap: 18 }}>
+      <Row style={{ justifyContent: "space-between" }}>
+        <IconButton name="back" label="Go back" onPress={() => router.dismissTo("/home" as Href)} />
+        <Copy style={{ fontWeight: "700" }}>My trip</Copy>
+        <IconButton name="more" label="Trip options" onPress={() => { setError(""); setMenu("trip"); }} />
+      </Row>
+
+      <TripHero trip={trip}>
+        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/planner", params: { edit: "1" } } as Href)} style={({ pressed }) => [heroStyles.heroButton, { alignSelf: "flex-start" }, pressed && { opacity: 0.85 }]}>
+          <Icon name="edit" size={16} color={p.blue} /><Text style={heroStyles.heroButtonText}>{translate("Edit trip", language)}</Text>
+        </Pressable>
+      </TripHero>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 8 }}>
+        {Array.from({ length: days }, (_, index) => {
+          const date = addDays(trip.start, index);
+          const selected = day === index + 1;
+          const planned = activities.some((activity) => activity.day === index + 1);
+          return <Pressable key={index} accessibilityRole="button" accessibilityState={{ selected }}
+            accessibilityLabel={formatMessage("Day {day}, {date}", { day: index + 1, date: format(date, { weekday: "long", day: "numeric", month: "long" }) }, language)}
+            onPress={() => selectDay(index + 1)} style={({ pressed }) => [styles.dayPill, selected && styles.dayPillSelected, date === today && !selected && styles.dayPillToday, pressed && { transform: [{ scale: 0.95 }] }]}>
+            <Text style={[styles.dayPillLabel, selected && { color: "rgba(255,255,255,0.85)" }]}>{formatMessage("Day {day}", { day: index + 1 }, language)}</Text>
+            <Text style={[styles.dayPillDate, selected && { color: p.onColor }]}>{format(date, { day: "numeric" })}</Text>
+            <Text style={[styles.dayPillLabel, selected && { color: "rgba(255,255,255,0.85)" }]}>{format(date, { weekday: "short" })}</Text>
+            <View style={[styles.dayPillDot, { opacity: planned ? 1 : 0 }, selected && { backgroundColor: p.white }]} />
+          </Pressable>;
         })}
-        <Button secondary icon="map" onPress={() => void Linking.openURL(wazeRouteUrl(routePins[Math.min(routePins.length - 1, Math.max(1, routeIds.indexOf(dayCity.id)))]))}>Waze · next city</Button>
-      </View>}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0 }}
-        contentContainerStyle={{ gap: 9 }}
-      >
-        {Array.from({ length: days }, (_, i) => (
-          <Chip key={i} selected={day === i + 1} onPress={() => setDay(i + 1)}>
-            Day {i + 1}
-          </Chip>
-        ))}
       </ScrollView>
-      {routeIds.length > 1 && <Copy muted>Day {day} · {dayCity.name}, {dayCity.country}</Copy>}
-      {(["Morning", "Afternoon", "Evening"] as const).map((section) => (
-        <View key={section} style={{ gap: 15 }}>
-          <Row>
-            <View
-              style={[
-                styles.dot,
-                { borderColor: section === "Evening" ? p.pink : p.blue },
-              ]}
-            />
-            <Copy style={{ fontWeight: "600" }}>{section}</Copy>
-          </Row>
-          <View
-            style={{
-              borderLeftWidth: 1.5,
-              borderColor: p.blueSoft,
-              marginLeft: 5,
-              paddingLeft: 15,
-              gap: 14,
-            }}
-          >
-            {today
-              .filter((a) => a.period === section)
-              .map((activity) => {
-                const externalPlace = externalPlaces.find((place) => activity.note.includes(place.sourceUrl));
-                const catalogPlace = places.find((place) => place.destinationId === dayCity.id && (place.id === activity.placeId || place.name === activity.name));
-                return <Row key={activity.id} style={{ alignItems: "center", gap: 6 }}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={translateAccessibility(`Edit ${activity.name}`, language)}
-                    onPress={() => openEditor(activity)}
-                    style={[s.row, { flex: 1, minWidth: 0, alignItems: "flex-start", gap: 12 }]}
-                  >
-                  <Copy
-                    muted
-                    style={{ width: 46, fontSize: 11, paddingTop: 15 }}
-                  >
-                    {activity.time}
-                  </Copy>
-                  <View
-                    style={{
-                      flex: 1,
-                      borderWidth: 1,
-                      borderColor: p.line,
-                      borderRadius: 13,
-                      padding: 13,
-                      gap: 4,
-                    }}
-                  >
-                    <Copy style={{ fontSize: 13, fontWeight: "600" }}>
-                      {activity.name}
-                    </Copy>
-                    {!!activity.note && (
-                      <Copy muted style={{ fontSize: 11, lineHeight: 17 }}>
-                        {activity.note}
-                      </Copy>
-                    )}
-                  </View>
-                  </Pressable>
-                  {(externalPlace || catalogPlace) && <IconButton name="map" label={`Open ${activity.name} on map`} onPress={() => router.push(externalPlace
-                    ? { pathname: "/map", params: { external: externalPlace.id } } as Href
-                    : { pathname: "/map", params: { destination: dayCity.id, place: catalogPlace!.id } } as Href)} />}
-                </Row>;
-              })}
-            {!today.some((a) => a.period === section) && (
-              <Copy muted style={{ fontSize: 12, paddingVertical: 10 }}>
-                A little room for spontaneity.
-              </Copy>
-            )}
-          </View>
+
+      <Row style={{ alignItems: "flex-start", gap: 10 }}>
+        <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+          <Heading style={{ fontSize: 20, lineHeight: 26 }}>{format(dayDate, { weekday: "long", day: "numeric", month: "long" })}</Heading>
+          <Copy muted style={{ fontSize: 13 }}>{dayStops.map((stop) => `${countryFlag(stop.countryCode)} ${translate(stop.name, language)}`.trim()).join("  →  ")}</Copy>
         </View>
-      ))}
-      <Button secondary icon="plus" onPress={() => openEditor()}>
-        Add Activity
-      </Button>
-      <Button secondary icon="pin" onPress={() => router.push({ pathname: "/explore", params: { id: dayCity.id } } as Href)}>
-        {formatMessage("Explore places in {city}", { city: dayCity.name }, language)}
-      </Button>
-      <Sheet
-        visible={showEditor}
-        title={editing ? "Edit activity" : formatMessage("Add to Day {day}", { day }, language)}
-        onClose={() => setShowEditor(false)}
-      >
-        <Field
-          label="Activity"
-          placeholder="What would you like to do?"
-          value={name}
-          onChangeText={setName}
-          maxLength={90}
-        />
-        <TimeDropdown value={time} onChange={setTime} />
-        <Field
-          label="Notes"
-          placeholder="Anything worth remembering"
-          value={note}
-          onChangeText={setNote}
-          maxLength={200}
-          multiline
-        />
+        {!!routeUrl && <Pressable accessibilityRole="button" accessibilityLabel={formatMessage("Open day {day} route in Google Maps", { day }, language)} onPress={() => void Linking.openURL(routeUrl)} style={({ pressed }) => [styles.navigate, pressed && { backgroundColor: p.blueSoft }]}>
+          <Icon name="road" size={17} color={p.blue} /><Text style={styles.navigateText}>{translate("Navigate", language)}</Text>
+        </Pressable>}
+      </Row>
+
+      {navigationPoints.length ? <View style={styles.routeCard}>
+        <Row style={{ gap: 6 }}>
+          <Icon name="road" size={15} color={p.blue} />
+          <Text style={styles.routeTitle}>{formatMessage(navigationPoints.length === 1 ? "Day {day} route · 1 stop" : "Day {day} route · {count} stops", { day, count: navigationPoints.length }, language)}</Text>
+        </Row>
+        <Copy muted style={{ fontSize: 12, lineHeight: 18 }}>{navigationPoints.slice(0, MAX_ROUTE_STOPS).map((stop, index) => `${index + 1}. ${stop.name}`).join("  →  ")}</Copy>
+        {navigationPoints.length > MAX_ROUTE_STOPS && <Copy muted style={{ fontSize: 11 }}>{formatMessage("Google Maps opens the first {count} stops.", { count: MAX_ROUTE_STOPS }, language)}</Copy>}
+      </View> : !!dayActivities.length && <Copy muted style={{ fontSize: 12 }}>Add a place from Find places to build the Google Maps route for this day.</Copy>}
+
+      {dayActivities.length ? <View>
+        {dayActivities.map((activity, index) => {
+          const located = Number.isFinite(activity.latitude) && Number.isFinite(activity.longitude);
+          return <Row key={activity.id} style={{ alignItems: "stretch", gap: 12 }}>
+            <View style={{ width: 44, alignItems: "center" }}>
+              <Text style={styles.time}>{activity.time}</Text>
+              <View style={[styles.timelineDot, located && { backgroundColor: p.blue }]} />
+              {index < dayActivities.length - 1 && <View style={styles.timelineLine} />}
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel={translateAccessibility(`Edit ${activity.name}`, language)} onPress={() => openEditor(activity)}
+              style={({ pressed }) => [styles.activity, pressed && { backgroundColor: p.soft }]}>
+              <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+                <Text style={styles.activityName}>{activity.name}</Text>
+                {!!publicActivityNote(activity.note) && <Copy muted style={{ fontSize: 12, lineHeight: 17 }}>{publicActivityNote(activity.note)}</Copy>}
+                {located && <Row style={{ gap: 4 }}><Icon name="pin" size={13} color={p.blue} /><Copy style={{ fontSize: 11, color: p.blue, fontWeight: "600" }}>On the map</Copy></Row>}
+              </View>
+              {located && <IconButton name="map" label={`Open ${activity.name} on map`} color={p.blue} onPress={() => router.navigate({ pathname: "/itinerary-places", params: { day: String(day), activity: activity.id } } as Href)} style={{ width: 38, minWidth: 38, height: 38, minHeight: 38 }} />}
+            </Pressable>
+          </Row>;
+        })}
+      </View> : <View style={styles.emptyDay}>
+        <View style={styles.emptyIcon}><Icon name="compass" size={26} color={p.blue} /></View>
+        <Heading style={{ fontSize: 17, lineHeight: 23, textAlign: "center" }}>Nothing planned yet</Heading>
+        <Copy muted style={{ fontSize: 13, textAlign: "center" }}>{formatMessage("Find things to do in {city} or add your own plan.", { city: dayStops.map((stop) => translate(stop.name, language)).join(", ") }, language)}</Copy>
+      </View>}
+      <Row style={{ gap: 9 }}>
+        <Button secondary icon="pin" onPress={findPlaces} style={{ flex: 1 }}>Find places</Button>
+        <Button icon="plus" onPress={() => openEditor()} style={{ flex: 1 }}>Add activity</Button>
+      </Row>
+      {!!unmapped && !!navigationPoints.length && <Copy muted style={{ fontSize: 11, textAlign: "center" }}>Activities without a map location are not included in navigation.</Copy>}
+
+
+      <Sheet visible={menu === "trip"} title={routeTitle(trip, language)} onClose={() => setMenu("")}>
+        <Button secondary icon="edit" onPress={() => { setMenu(""); router.push({ pathname: "/planner", params: { edit: "1" } } as Href); }}>Edit trip</Button>
+        <Button secondary icon="check" onPress={() => setMenu("finish")}>Finish trip</Button>
+        <Button secondary icon="trash" onPress={() => setMenu("delete")}>Delete trip</Button>
+      </Sheet>
+      <Sheet visible={menu === "finish"} title="Finish this trip?" onClose={() => { if (!saving) setMenu(""); }}>
+        <Copy muted>The itinerary, recorded expenses, saved places, and note will move into your journal. This trip will no longer be editable.</Copy>
         {!!error && <Copy style={s.error}>{error}</Copy>}
-        <Button busy={saving} onPress={save}>Save Activity</Button>
+        <Button busy={saving} onPress={() => void closeTrip("finish")}>Finish and archive</Button>
+        <Button secondary disabled={saving} onPress={() => setMenu("trip")}>Keep trip open</Button>
+      </Sheet>
+      <Sheet visible={menu === "delete"} title="Delete this trip?" onClose={() => { if (!saving) setMenu(""); }}>
+        <Copy muted>Your itinerary and expenses will be deleted. Saved places and your journal will remain.</Copy>
+        {!!error && <Copy style={s.error}>{error}</Copy>}
+        <Button busy={saving} onPress={() => void closeTrip("delete")}>Delete trip</Button>
+        <Button secondary disabled={saving} onPress={() => setMenu("trip")}>Cancel</Button>
+      </Sheet>
+
+      <Sheet visible={showEditor} title={editing ? "Edit activity" : "New activity"} onClose={() => setShowEditor(false)}>
+        <Field label="Activity" placeholder="What would you like to do?" value={name} onChangeText={setName} maxLength={90} />
+        <View style={{ gap: 7 }}>
+          <Copy style={s.label}>Day</Copy>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
+            {Array.from({ length: days }, (_, index) => <Chip key={index} selected={activityDay === index + 1} onPress={() => setActivityDay(index + 1)}>
+              {formatMessage("Day {day} · {date}", { day: index + 1, date: format(addDays(trip.start, index), { day: "numeric", month: "short" }) }, language)}
+            </Chip>)}
+          </ScrollView>
+        </View>
+        <TimeDropdown value={time} onChange={setTime} />
+        <Field label="Notes" placeholder="Anything worth remembering" value={note} onChangeText={setNote} maxLength={200} multiline />
+        {!!error && <Copy style={s.error}>{error}</Copy>}
+        <Button busy={saving} onPress={save}>{editing ? "Save changes" : "Add to itinerary"}</Button>
         {editing && (confirmDelete
           ? <Button secondary busy={saving} onPress={() => void remove()}>Confirm delete activity</Button>
-          : <Button secondary onPress={() => setConfirmDelete(true)}>Delete activity</Button>)}
+          : <Button secondary icon="trash" onPress={() => setConfirmDelete(true)}>Delete activity</Button>)}
       </Sheet>
     </Screen>
   );
@@ -596,11 +257,15 @@ const expenseIcons: Record<ExpenseCategory, IconName> = {
   Activities: "sparkle",
   Shopping: "shopping",
 };
-const expenseColors = [p.purple, p.orange, p.blue, p.pink, p.blue];
+const expenseTones = ["purple", "orange", "blue", "pink", "blue"] as const;
 
 export function BudgetScreen() {
+  const styles = useStyles(stylesSheet);
+  const s = useStyles(sharedSheet);
+  const p = usePalette();
+  const expenseColors = expenseTones.map((tone) => p[tone]);
   const language = useAppLanguage();
-  const { trip, expenses, addExpense, updateExpense, removeExpense } = useTravel();
+  const { trip, expenses, addExpense, updateExpense, removeExpense, updateTrip } = useTravel();
   const [editor, setEditor] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [label, setLabel] = useState("");
@@ -608,8 +273,9 @@ export function BudgetScreen() {
   const [category, setCategory] = useState<ExpenseCategory>("Food & Drinks");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [detail, setDetail] = useState<ExpenseCategory | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [budgetEditor, setBudgetEditor] = useState(false);
+  const [budgetDraft, setBudgetDraft] = useState("");
   const openEditor = (expense?: Expense) => {
     setEditing(expense || null);
     setLabel(expense?.label || "");
@@ -617,27 +283,19 @@ export function BudgetScreen() {
     setCategory(expense?.category || "Food & Drinks");
     setError("");
     setConfirmDelete(false);
-    setDetail(null);
     setEditor(true);
   };
   const save = async () => {
     const value = Number(amount.replace(",", "."));
-    if (!label.trim()) {
-      setError("Give this expense a name.");
-      return;
-    }
     if (!Number.isFinite(value) || value < 0.01 || value > 1000000) {
-      setError("Enter an amount between $0.01 and $1,000,000.");
+      setError("Enter an amount between €0.01 and €1,000,000.");
       return;
     }
     setSaving(true);
     setError("");
     try {
-      const expense = {
-        label: label.trim(),
-        category,
-        amount: Math.round(value * 100) / 100,
-      };
+      // The name is optional; the category is a clear default.
+      const expense = { label: label.trim() || translate(category, language), category, amount: Math.round(value * 100) / 100 };
       if (editing) await updateExpense({ ...expense, id: editing.id });
       else await addExpense(expense);
       setEditor(false);
@@ -660,226 +318,162 @@ export function BudgetScreen() {
       setSaving(false);
     }
   };
+  const saveBudget = async () => {
+    if (!trip) return;
+    const value = Math.round(Number(budgetDraft.replace(",", ".")));
+    if (!Number.isFinite(value) || value < 100 || value > 1000000) {
+      setError("Enter a budget between €100 and €1,000,000.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try { await updateTrip({ ...trip, budget: value }); setBudgetEditor(false); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "Could not update the budget."); }
+    finally { setSaving(false); }
+  };
   if (!trip) {
     return (
-      <Screen style={{ gap: 22 }}>
-        <Header title="Trip budget" />
-        <EmptyState
-          title="No trip budget yet"
-          detail="Plan a trip to start tracking expenses."
-          action="Plan a trip"
-          onPress={() => router.push("/planner" as Href)}
-        />
+      <Screen active="itinerary" style={{ gap: 22 }}>
+        <Header title="Budget" onBack={() => router.dismissTo("/home" as Href)} />
+        <EmptyState title="No trip budget yet" detail="Plan a trip to start tracking expenses." action="Plan a trip" onPress={() => router.push("/planner" as Href)} />
       </Screen>
     );
   }
   const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-  const fraction = total / trip.budget;
   const remaining = trip.budget - total;
+  const over = remaining < 0;
+  const today = localToday();
+  const daysLeft = today > trip.end ? 0 : tripDays(today < trip.start ? trip.start : today, trip.end);
+  const byCategory = expenseCategories.map((cat, index) => ({ cat, color: expenseColors[index], spent: expenses.filter((e) => e.category === cat).reduce((sum, e) => sum + e.amount, 0) }))
+    .filter((item) => item.spent > 0).sort((a, b) => b.spent - a.spent);
+  const categoryIndex = (cat: ExpenseCategory) => expenseCategories.indexOf(cat);
   return (
-    <Screen
-      style={{ gap: 22 }}
-      footer={
-        <Button icon="plus" onPress={() => openEditor()}>
-          Add Expense
-        </Button>
-      }
-    >
-      <Header
-        title="Trip Budget"
-        subtitle={`${routeStop(trip).country} · ${dateLabel(trip.start)} - ${dateLabel(trip.end)}`}
-      />
-      <View
-        accessibilityLabel={formatMessage("{spent} spent of {budget} budget", { spent: money(total), budget: money(trip.budget) }, language)}
-        style={{
-          width: 208,
-          height: 208,
-          alignSelf: "center",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <Svg width={208} height={208} style={StyleSheet.absoluteFill}>
-          <Circle
-            cx={104}
-            cy={104}
-            r={87}
-            stroke={p.line}
-            strokeWidth={14}
-            fill="none"
-          />
-          <Circle
-            cx={104}
-            cy={104}
-            r={87}
-            stroke={remaining < 0 ? p.danger : p.blue}
-            strokeWidth={14}
-            fill="none"
-            strokeDasharray={`${Math.min(fraction, 1) * 546.637} 546.637`}
-            strokeLinecap="round"
-            transform="rotate(90 104 104)"
-          />
-        </Svg>
-        <Heading style={{ fontSize: 32, lineHeight: 39 }}>
-          {money(total)}
-        </Heading>
-        <Copy muted>of {money(trip.budget)}</Copy>
-        <Copy style={{ color: p.muted, marginTop: 12 }}>
-          {Math.round(fraction * 100)}%
-        </Copy>
-      </View>
-      <View style={{ gap: 22 }}>
-        {expenseCategories.map((cat, i) => {
-          const spent = expenses
-            .filter((e) => e.category === cat)
-            .reduce((sum, e) => sum + e.amount, 0);
-          return (
-            <Pressable
-              key={cat}
-              accessibilityRole="button"
-              accessibilityLabel={`${cat}: ${money(spent)}`}
-              onPress={() => setDetail(cat)}
-              style={[s.row, { gap: 12 }]}
-            >
-              <View
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 21,
-                  backgroundColor: `${expenseColors[i]}14`,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Icon
-                  name={expenseIcons[cat]}
-                  size={21}
-                  color={expenseColors[i]}
-                />
-              </View>
-              <View style={{ flex: 1, gap: 8 }}>
-                <Row style={{ justifyContent: "space-between", gap: 4 }}>
-                  <Copy style={{ fontSize: 12, fontWeight: "500" }}>{cat}</Copy>
-                  <Copy style={{ fontSize: 12, fontWeight: "600" }}>
-                    {money(spent)}
-                  </Copy>
-                </Row>
-                <View
-                  style={{
-                    height: 7,
-                    backgroundColor: p.line,
-                    borderRadius: 4,
-                    overflow: "hidden",
-                  }}
-                >
-                  <View
-                    style={{
-                      height: 7,
-                      width: `${Math.min((spent / trip.budget) * 100, 100)}%`,
-                      backgroundColor: p.green,
-                      borderRadius: 4,
-                    }}
-                  />
-                </View>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-      <Row
-        style={{
-          backgroundColor: remaining < 0 ? "#FFF0F2" : p.greenSoft,
-          borderRadius: 15,
-          padding: 16,
-        }}
-      >
-        <Icon
-          name={remaining < 0 ? "wallet" : "leaf"}
-          color={remaining < 0 ? p.danger : p.green}
-          size={29}
-        />
-        <View>
-          <Copy style={{ fontWeight: "600", fontSize: 14 }}>
-            {remaining < 0 ? "Over your planned budget" : "You're on track!"}
-          </Copy>
-          <Copy muted style={{ fontSize: 12 }}>
-            {money(Math.abs(remaining))}{" "}
-            {remaining < 0 ? "over budget" : "remaining"}
-          </Copy>
-          <Copy muted style={{ fontSize: 12 }}>
-            {remaining < 0
-              ? "A good moment to review your spending."
-              : "Keep exploring."}
-          </Copy>
-        </View>
+    <Screen active="itinerary" footer={<Button icon="plus" onPress={() => openEditor()}>Add expense</Button>} style={{ gap: 20 }}>
+      <Row style={{ justifyContent: "space-between" }}>
+        <IconButton name="back" label="Go back" onPress={() => router.dismissTo("/home" as Href)} />
+        <Copy style={{ fontWeight: "700" }}>Budget</Copy>
+        <View style={{ width: 44 }} />
       </Row>
-      <Sheet
-        visible={editor}
-        title={editing ? "Edit expense" : "Add an expense"}
-        onClose={() => setEditor(false)}
-      >
-        <Field
-          label="Expense name"
-          placeholder="e.g. Lunch by the sea"
-          value={label}
-          onChangeText={setLabel}
-          maxLength={80}
-        />
-        <Field
-          label="Amount (EUR)"
-          placeholder="0.00"
-          keyboardType="decimal-pad"
-          value={amount}
-          onChangeText={setAmount}
-        />
-        <View style={[s.grid, { gap: 8 }]}>
-          {expenseCategories.map((cat) => (
-            <Chip
-              key={cat}
-              selected={category === cat}
-              onPress={() => setCategory(cat)}
-            >
-              {cat}
-            </Chip>
-          ))}
+
+      <View style={styles.budgetCard}>
+        <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+          <View style={{ gap: 2 }}>
+            <Copy muted style={{ fontSize: 12, fontWeight: "700" }}>SPENT</Copy>
+            <Text style={styles.budgetTotal}>{money(total)}</Text>
+            <Copy muted style={{ fontSize: 13 }}>{formatMessage("of {budget} budget", { budget: money(trip.budget) }, language)}</Copy>
+          </View>
+          <Pressable accessibilityRole="button" onPress={() => { setBudgetDraft(String(trip.budget)); setError(""); setBudgetEditor(true); }} style={({ pressed }) => [styles.editBudget, pressed && { backgroundColor: p.blueSoft }]}>
+            <Icon name="edit" size={15} color={p.blue} /><Text style={styles.editBudgetText}>{translate("Edit budget", language)}</Text>
+          </Pressable>
+        </Row>
+        <View style={styles.progressTrack}>
+          {total > 0 && byCategory.map((item) => <View key={item.cat} style={{ width: `${(item.spent / Math.max(total, trip.budget)) * 100}%`, backgroundColor: item.color }} />)}
         </View>
+        <Row style={{ gap: 10 }}>
+          <View style={[styles.stat, over && { backgroundColor: p.dangerSoft }]}>
+            <Copy muted style={{ fontSize: 11, fontWeight: "700" }}>{over ? "OVER BUDGET" : "REMAINING"}</Copy>
+            <Text style={[styles.statValue, { color: over ? p.danger : p.green }]}>{money(Math.abs(remaining))}</Text>
+          </View>
+          <View style={styles.stat}>
+            <Copy muted style={{ fontSize: 11, fontWeight: "700" }}>PER DAY LEFT</Copy>
+            <Text style={styles.statValue}>{daysLeft && !over ? money(remaining / daysLeft) : "—"}</Text>
+          </View>
+        </Row>
+      </View>
+
+      {!!byCategory.length && <View style={{ gap: 10 }}>
+        <Heading style={{ fontSize: 18, lineHeight: 24 }}>By category</Heading>
+        {byCategory.map((item) => <Row key={item.cat} style={{ gap: 11 }}>
+          <View style={[styles.categoryIcon, { backgroundColor: `${item.color}18` }]}><Icon name={expenseIcons[item.cat]} size={19} color={item.color} /></View>
+          <Copy style={{ flex: 1, fontSize: 14, fontWeight: "600" }}>{item.cat}</Copy>
+          <Copy muted style={{ fontSize: 12 }}>{Math.round((item.spent / total) * 100)}%</Copy>
+          <Copy style={{ fontWeight: "700", minWidth: 76, textAlign: "right" }}>{money(item.spent)}</Copy>
+        </Row>)}
+      </View>}
+
+      <View style={{ gap: 4 }}>
+        <Heading style={{ fontSize: 18, lineHeight: 24 }}>{formatMessage("Expenses ({count})", { count: expenses.length }, language)}</Heading>
+        {[...expenses].reverse().map((expense) => <Pressable key={expense.id} accessibilityRole="button" accessibilityLabel={translateAccessibility(`Edit ${expense.label}`, language)} onPress={() => openEditor(expense)}
+          style={({ pressed }) => [styles.expenseRow, pressed && { backgroundColor: p.soft }]}>
+          <View style={[styles.categoryIcon, { backgroundColor: `${expenseColors[categoryIndex(expense.category)]}18` }]}><Icon name={expenseIcons[expense.category]} size={19} color={expenseColors[categoryIndex(expense.category)]} /></View>
+          <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "600" }}>{expense.label}</Copy><Copy muted style={{ fontSize: 12 }}>{expense.category}</Copy></View>
+          <Copy style={{ fontWeight: "700" }}>{money(expense.amount)}</Copy>
+        </Pressable>)}
+        {!expenses.length && <View style={styles.emptyDay}>
+          <View style={styles.emptyIcon}><Icon name="wallet" size={26} color={p.blue} /></View>
+          <Heading style={{ fontSize: 17, lineHeight: 23, textAlign: "center" }}>No expenses yet</Heading>
+          <Copy muted style={{ fontSize: 13, textAlign: "center" }}>Add what you spend to see how your trip budget is doing.</Copy>
+        </View>}
+      </View>
+
+      <Sheet visible={editor} title={editing ? "Edit expense" : "New expense"} onClose={() => setEditor(false)}>
+        <View style={styles.amountBox}>
+          <Text style={styles.amountCurrency}>€</Text>
+          <TextInput accessibilityLabel={translate("Amount (EUR)", language)} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={p.muted} autoFocus={!editing} style={styles.amountInput} />
+        </View>
+        <View style={styles.categoryGrid}>
+          {expenseCategories.map((cat, index) => {
+            const selected = category === cat;
+            return <Pressable key={cat} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setCategory(cat)}
+              style={({ pressed }) => [styles.categoryTile, selected && { borderColor: expenseColors[index], backgroundColor: `${expenseColors[index]}14` }, pressed && { transform: [{ scale: 0.95 }] }]}>
+              <Icon name={expenseIcons[cat]} size={21} color={expenseColors[index]} />
+              <Text numberOfLines={1} style={styles.categoryLabel}>{translate(cat, language)}</Text>
+            </Pressable>;
+          })}
+        </View>
+        <Field label="Name (optional)" placeholder="e.g. Lunch by the sea" value={label} onChangeText={setLabel} maxLength={80} />
         {!!error && <Copy style={s.error}>{error}</Copy>}
-        <Button busy={saving} onPress={save}>Save Expense</Button>
+        <Button busy={saving} onPress={save}>{editing ? "Save changes" : "Add expense"}</Button>
         {editing && (confirmDelete
           ? <Button secondary busy={saving} onPress={() => void remove()}>Confirm delete expense</Button>
-          : <Button secondary onPress={() => setConfirmDelete(true)}>Delete expense</Button>)}
+          : <Button secondary icon="trash" onPress={() => setConfirmDelete(true)}>Delete expense</Button>)}
       </Sheet>
-      <Sheet
-        visible={!!detail}
-        title={detail || ""}
-        onClose={() => setDetail(null)}
-      >
-        {expenses
-          .filter((e) => e.category === detail)
-          .map((e) => (
-            <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={`Edit ${e.label}`} onPress={() => openEditor(e)} style={[s.row, { justifyContent: "space-between", paddingVertical: 9 }]}>
-              <Copy style={{ flex: 1 }}>{e.label}</Copy>
-              <Copy style={{ fontWeight: "600" }}>{money(e.amount)}</Copy>
-              <Icon name="right" size={17} color={p.muted} />
-            </Pressable>
-          ))}
-        {!expenses.some((e) => e.category === detail) && (
-          <EmptyState
-            title="Nothing spent yet"
-            detail="Your expenses in this category will appear here."
-          />
-        )}
+
+      <Sheet visible={budgetEditor} title={translate("Trip budget", language)} onClose={() => setBudgetEditor(false)}>
+        <View style={styles.amountBox}>
+          <Text style={styles.amountCurrency}>€</Text>
+          <TextInput accessibilityLabel={translate("Trip budget", language)} value={budgetDraft} onChangeText={setBudgetDraft} keyboardType="number-pad" style={styles.amountInput} />
+        </View>
+        <Copy muted style={{ fontSize: 12 }}>Budgets are stored in EUR.</Copy>
+        {!!error && <Copy style={s.error}>{error}</Copy>}
+        <Button busy={saving} onPress={() => void saveBudget()}>Save budget</Button>
       </Sheet>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  dot: {
-    width: 11,
-    height: 11,
-    borderRadius: 6,
-    borderWidth: 2,
-    backgroundColor: "white",
-  },
-});
+const stylesSheet = themedStyles((p) => ({
+  dayPill: { width: 62, alignItems: "center", gap: 1, paddingVertical: 9, borderRadius: 16, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
+  dayPillSelected: { backgroundColor: p.blue, borderColor: p.blue },
+  dayPillToday: { borderColor: p.blue },
+  dayPillLabel: { color: p.muted, fontSize: 10, fontWeight: "700" },
+  dayPillDate: { color: p.ink, fontSize: 19, lineHeight: 24, fontWeight: "800" },
+  dayPillDot: { width: 5, height: 5, borderRadius: 3, marginTop: 2, backgroundColor: p.blue },
+  navigate: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: p.line },
+  navigateText: { color: p.blue, fontSize: 13, fontWeight: "700" },
+  routeCard: { gap: 6, padding: 13, borderRadius: 14, borderWidth: 1, borderColor: p.blueLine, backgroundColor: p.blueTint },
+  routeTitle: { color: p.blue, fontSize: 13, fontWeight: "700" },
+  time: { color: p.ink, fontSize: 12, fontWeight: "800", paddingTop: 14 },
+  timelineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 6, borderWidth: 2, borderColor: p.blue, backgroundColor: p.white },
+  timelineLine: { flex: 1, width: 2, marginTop: 4, borderRadius: 1, backgroundColor: p.blueSoft },
+  activity: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10, padding: 13, borderRadius: 14, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
+  activityName: { color: p.ink, fontSize: 15, fontWeight: "700" },
+  emptyDay: { alignItems: "center", gap: 7, paddingVertical: 24, paddingHorizontal: 20, borderRadius: 18, borderWidth: 1.5, borderStyle: "dashed", borderColor: p.blueLine, backgroundColor: p.blueTint },
+  emptyIcon: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", backgroundColor: p.blueSoft, marginBottom: 4 },
+  budgetCard: { gap: 16, padding: 18, borderRadius: 22, borderWidth: 1, borderColor: p.line, backgroundColor: p.white,
+    shadowColor: p.shadow, shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
+  budgetTotal: { color: p.ink, fontSize: 34, lineHeight: 41, fontWeight: "800" },
+  editBudget: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: p.line },
+  editBudgetText: { color: p.blue, fontSize: 12, fontWeight: "700" },
+  progressTrack: { height: 12, flexDirection: "row", overflow: "hidden", borderRadius: 6, backgroundColor: p.soft },
+  stat: { flex: 1, gap: 3, padding: 12, borderRadius: 14, backgroundColor: p.soft },
+  statValue: { color: p.ink, fontSize: 18, fontWeight: "800" },
+  categoryIcon: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  expenseRow: { flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 12 },
+  amountBox: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 16, backgroundColor: p.soft },
+  amountCurrency: { color: p.muted, fontSize: 30, fontWeight: "700" },
+  amountInput: { minWidth: 80, color: p.ink, fontSize: 38, fontWeight: "800", textAlign: "center", paddingVertical: 4, outlineWidth: 0 },
+  categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  categoryTile: { width: "31.5%", alignItems: "center", gap: 5, paddingVertical: 11, borderRadius: 14, borderWidth: 1.5, borderColor: p.line, backgroundColor: p.white },
+  categoryLabel: { color: p.ink, fontSize: 11, fontWeight: "700" },
+}));

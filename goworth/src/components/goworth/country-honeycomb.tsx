@@ -1,0 +1,270 @@
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
+import { GestureDetector, useExclusiveGestures, usePanGesture, useTapGesture } from "react-native-gesture-handler";
+import Animated, {
+  Easing, Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withDecay, withSpring, withTiming,
+  type SharedValue,
+} from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
+import { countryFlag, type Country } from "@/data/geography";
+import { translate } from "@/data/i18n";
+import { useAppLanguage } from "@/data/formatting";
+import { themedStyles, type Palette } from "@/constants/design";
+import { usePalette, useStyles } from "@/state/theme-context";
+import { Icon } from "@/components/goworth/ui";
+
+const BUBBLE = 76;
+const SPACING = BUBBLE + 10;
+const HEIGHT = 360;
+const continentTint = (p: Palette): Record<string, { bg: string; ring: string }> => ({
+  EU: { bg: p.blueSoft, ring: p.blueLine },
+  AS: { bg: p.orangeSoft, ring: p.orangeLine },
+  AF: { bg: p.greenSoft, ring: "#A9DDC6" },
+  NA: { bg: p.pinkSoft, ring: "#F4B3BF" },
+  SA: { bg: p.tealSoft, ring: "#9FDAD6" },
+  OC: { bg: p.purpleSoft, ring: "#C5BDF2" },
+  AN: { bg: p.soft, ring: p.line },
+});
+
+/** Axial hex coordinates walked outward ring by ring, so the first items sit in the middle. */
+function spiral(count: number) {
+  const directions = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+  const cells: { x: number; y: number }[] = [{ x: 0, y: 0 }];
+  for (let ring = 1; cells.length < count; ring++) {
+    let q = -ring, r = ring;
+    for (const [dq, dr] of directions) {
+      for (let step = 0; step < ring && cells.length < count; step++) {
+        cells.push({ x: SPACING * (q + r / 2), y: SPACING * (Math.sqrt(3) / 2) * r });
+        q += dq; r += dr;
+      }
+    }
+  }
+  return cells;
+}
+
+/** Apple Watch–style fisheye: bubbles shrink and gather toward the centre as they near the edge. */
+function project(x: number, y: number, tx: number, ty: number, halfW: number, halfH: number) {
+  "worklet";
+  const px = x + tx, py = y + ty;
+  const r = Math.sqrt((px / halfW) ** 2 + (py / halfH) ** 2);
+  const scale = interpolate(r, [0, 0.45, 0.85, 1.15, 1.4], [1, 0.96, 0.66, 0.32, 0.12], Extrapolation.CLAMP);
+  const pull = interpolate(r, [0.55, 1.4], [1, 0.8], Extrapolation.CLAMP);
+  const opacity = interpolate(r, [1.05, 1.4], [1, 0], Extrapolation.CLAMP);
+  return { x: px * pull, y: py * pull, scale, opacity, r };
+}
+
+const HIDDEN = { opacity: 0, transform: [{ translateX: 0 }, { translateY: 0 }, { scale: 0 }] };
+
+function rubber(value: number, limit: number) {
+  "worklet";
+  if (value > limit) return limit + (value - limit) * 0.32;
+  if (value < -limit) return -limit + (value + limit) * 0.32;
+  return value;
+}
+
+const Bubble = memo(function Bubble({ country, cell, index, tx, ty, intro, pressed, width, language, onSelect }: {
+  country: Country; cell: { x: number; y: number }; index: number;
+  tx: SharedValue<number>; ty: SharedValue<number>; intro: SharedValue<number>; pressed: SharedValue<number>;
+  width: number; language: ReturnType<typeof useAppLanguage>; onSelect: (code: string) => void;
+}) {
+  const styles = useStyles(stylesSheet);
+  const p = usePalette();
+  const halfW = width / 2, halfH = HEIGHT / 2;
+  const startAt = Math.min(0.55, Math.hypot(cell.x, cell.y) / (SPACING * 9));
+  const style = useAnimatedStyle(() => {
+    const view = project(cell.x, cell.y, tx.value, ty.value, halfW, halfH);
+    if (view.opacity <= 0) return HIDDEN;
+    const t = Math.min(1, Math.max(0, (intro.value - startAt) / 0.45));
+    const c1 = 1.9, c3 = c1 + 1;
+    const pop = t === 0 ? 0 : 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
+    return {
+      opacity: view.opacity * Math.min(1, t * 2),
+      transform: [
+        { translateX: view.x },
+        { translateY: view.y },
+        { scale: view.scale * pop },
+      ],
+    };
+  });
+  const pressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: withSpring(pressed.value === index ? 0.86 : 1, { damping: 12, stiffness: 320 }) }],
+  }));
+  const tints = continentTint(p);
+  const tint = tints[country.continent] ?? tints.AN;
+  const name = translate(country.name, language);
+  return <Animated.View
+    accessible
+    accessibilityRole="button"
+    accessibilityLabel={language === "ro" ? `Explorează ${name}` : `Explore ${name}`}
+    accessibilityActions={[{ name: "activate" }]}
+    onAccessibilityAction={() => onSelect(country.code)}
+    pointerEvents="none"
+    style={[styles.bubbleSlot, { left: halfW - BUBBLE / 2, top: halfH - BUBBLE / 2 }, style]}
+  >
+    <Animated.View style={[styles.bubble, { backgroundColor: tint.bg, borderColor: tint.ring }, pressStyle]}>
+      <Text style={styles.flag}>{countryFlag(country.code)}</Text>
+      <Text numberOfLines={2} style={styles.name}>{name}</Text>
+    </Animated.View>
+  </Animated.View>;
+});
+
+export function CountryHoneycomb({
+  countries,
+  onSelect,
+  onInteraction,
+}: {
+  countries: Country[];
+  onSelect: (code: string) => void;
+  onInteraction?: (active: boolean) => void;
+}) {
+  const styles = useStyles(stylesSheet);
+  const p = usePalette();
+  const language = useAppLanguage();
+  const selectRef = useRef(onSelect);
+  useEffect(() => { selectRef.current = onSelect; }, [onSelect]);
+  const select = useCallback((code: string) => selectRef.current(code), []);
+  const [size, setSize] = useState({ width: 0 });
+  // The spiral starts in the middle, so the first bubbles are the ones on screen; the rest mount a moment later.
+  const [allBubbles, setAllBubbles] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setAllBubbles(true), 800);
+    return () => clearTimeout(timer);
+  }, []);
+  const [movedFor, setMovedFor] = useState("");
+  const ordered = useMemo(() => [...countries].sort((a, b) => b.cityCount - a.cityCount), [countries]);
+  const cells = useMemo(() => spiral(ordered.length), [ordered.length]);
+  const xs = useMemo(() => cells.map((cell) => cell.x), [cells]);
+  const ys = useMemo(() => cells.map((cell) => cell.y), [cells]);
+  const codes = useMemo(() => ordered.map((country) => country.code), [ordered]);
+  const codesKey = codes.join(",");
+  const moved = movedFor === codesKey;
+  const limitX = Math.max(0, ...xs.map(Math.abs));
+  const limitY = Math.max(0, ...ys.map(Math.abs));
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+  const startX = useSharedValue(0);
+  const startY = useSharedValue(0);
+  const intro = useSharedValue(0);
+  const pressed = useSharedValue(-1);
+  const halfW = size.width / 2, halfH = HEIGHT / 2;
+
+  useEffect(() => {
+    tx.set(withSpring(0));
+    ty.set(withSpring(0));
+    intro.set(0);
+    intro.set(withTiming(1, { duration: 1100, easing: Easing.linear }));
+  }, [codesKey, tx, ty, intro]);
+
+  const hit = (x: number, y: number) => {
+    "worklet";
+    let best = -1, bestScale = 0;
+    for (let i = 0; i < xs.length; i++) {
+      const view = project(xs[i], ys[i], tx.value, ty.value, halfW, halfH);
+      const dx = x - halfW - view.x, dy = y - halfH - view.y;
+      if (view.opacity > 0.3 && Math.sqrt(dx * dx + dy * dy) <= (BUBBLE / 2) * view.scale && view.scale > bestScale) {
+        best = i; bestScale = view.scale;
+      }
+    }
+    return best;
+  };
+
+  const pan = usePanGesture({
+    minDistance: 4,
+    onBegin: () => {
+      "worklet";
+      startX.set(tx.value);
+      startY.set(ty.value);
+      if (onInteraction) scheduleOnRN(onInteraction, true);
+    },
+    onActivate: () => {
+      "worklet";
+      pressed.set(-1);
+      scheduleOnRN(setMovedFor, codesKey);
+    },
+    onUpdate: ({ translationX, translationY }) => {
+      "worklet";
+      tx.set(rubber(startX.value + translationX, limitX));
+      ty.set(rubber(startY.value + translationY, limitY));
+    },
+    onDeactivate: ({ velocityX, velocityY }) => {
+      "worklet";
+      tx.set(withDecay({ velocity: velocityX, deceleration: 0.994, clamp: [-limitX, limitX], rubberBandEffect: true, rubberBandFactor: 0.7 }));
+      ty.set(withDecay({ velocity: velocityY, deceleration: 0.994, clamp: [-limitY, limitY], rubberBandEffect: true, rubberBandFactor: 0.7 }));
+    },
+    onFinalize: () => {
+      "worklet";
+      if (onInteraction) scheduleOnRN(onInteraction, false);
+    },
+  });
+
+  const tap = useTapGesture({
+    maxDistance: 8,
+    onBegin: ({ x, y }) => {
+      "worklet";
+      pressed.set(hit(x, y));
+    },
+    onActivate: ({ x, y }) => {
+      "worklet";
+      const index = hit(x, y);
+      if (index >= 0 && index === pressed.value) scheduleOnRN(onSelect, codes[index]);
+    },
+    onFinalize: () => {
+      "worklet";
+      pressed.set(-1);
+    },
+  });
+  const gesture = useExclusiveGestures(pan, tap);
+
+  const recenter = () => {
+    tx.set(withSpring(0, { damping: 16, stiffness: 140 }));
+    ty.set(withSpring(0, { damping: 16, stiffness: 140 }));
+    setMovedFor("");
+  };
+
+  return <View style={styles.frame} onLayout={(event: LayoutChangeEvent) => setSize({ width: event.nativeEvent.layout.width })}>
+    <GestureDetector gesture={gesture}>
+      <View style={StyleSheet.absoluteFill} collapsable={false}>
+        {size.width > 0 && ordered.map((country, index) => (allBubbles || index < 48) && <Bubble
+          key={country.code}
+          country={country}
+          cell={cells[index]}
+          index={index}
+          tx={tx} ty={ty} intro={intro} pressed={pressed}
+          width={size.width}
+          language={language}
+          onSelect={select}
+        />)}
+      </View>
+    </GestureDetector>
+    {moved && <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={language === "ro" ? "Revino în centru" : "Back to centre"}
+      onPress={recenter}
+      style={({ pressed: down }) => [styles.recenter, down && { transform: [{ scale: 0.9 }] }]}
+    >
+      <Icon name="target" size={18} color={p.blue} />
+    </Pressable>}
+    {!moved && <View pointerEvents="none" style={styles.hint}>
+      <Text style={styles.hintText}>{language === "ro" ? "Trage pentru a explora · atinge o țară" : "Drag to explore · tap a country"}</Text>
+    </View>}
+  </View>;
+}
+
+const stylesSheet = themedStyles((p) => ({
+  frame: { height: HEIGHT, borderRadius: 28, overflow: "hidden", backgroundColor: p.soft, borderWidth: 1, borderColor: p.line },
+  bubbleSlot: { position: "absolute", width: BUBBLE, height: BUBBLE },
+  bubble: {
+    width: BUBBLE, height: BUBBLE, borderRadius: BUBBLE / 2, borderWidth: 2,
+    alignItems: "center", justifyContent: "center", paddingHorizontal: 6,
+    shadowColor: p.shadow, shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3,
+  },
+  flag: { fontSize: 28, lineHeight: 33 },
+  name: { color: p.ink, fontSize: 9, lineHeight: 10.5, fontWeight: "700", textAlign: "center", maxWidth: BUBBLE - 12 },
+  recenter: {
+    position: "absolute", top: 12, right: 12, width: 38, height: 38, borderRadius: 19, backgroundColor: p.white,
+    alignItems: "center", justifyContent: "center",
+    shadowColor: p.shadow, shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4,
+  },
+  hint: { position: "absolute", bottom: 10, alignSelf: "center", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.86)" },
+  hintText: { color: p.muted, fontSize: 11, fontWeight: "600" },
+}));

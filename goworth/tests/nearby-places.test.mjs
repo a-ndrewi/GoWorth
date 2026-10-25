@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isExplorePlace, parseOsmPlaces, parsePhotonPlaces, parseWikipediaPlaces, photonBoundingBoxes } from "../src/data/nearby-places.ts";
+import { filterVenues, venueFromCategory, isExplorePlace, parseOsmPlaces, parseOsmVenues, parsePhotonPlaces, parseWikipediaPlaces, photonBoundingBoxes } from "../src/data/nearby-places.ts";
 
 const center = { latitude: 44.4268, longitude: 26.1025 };
 
@@ -71,4 +71,31 @@ test("Photon bounding boxes stay valid across the date line", () => {
       assert.ok(south < north);
     }
   }
+});
+
+test("OpenStreetMap venues are typed, ranked by how well they are described, and filtered by kind or terrace", () => {
+  const venues = parseOsmVenues([
+    { type: "node", id: 1, lat: 44.427, lon: 26.103, tags: { amenity: "restaurant", name: "Caru' cu Bere", cuisine: "romanian;regional", opening_hours: "Mo-Su 09:00-24:00", outdoor_seating: "yes", website: "https://example.com" } },
+    { type: "node", id: 2, lat: 44.4269, lon: 26.1026, tags: { amenity: "cafe", name: "Chain Coffee", brand: "Chain Coffee", outdoor_seating: "yes" } },
+    { type: "node", id: 3, lat: 44.428, lon: 26.104, tags: { amenity: "pub", name: "The Pub" } },
+    { type: "node", id: 4, lat: 44.429, lon: 26.105, tags: { amenity: "nightclub", name: "Club" } },
+    { type: "node", id: 5, lat: 44.43, lon: 26.106, tags: { amenity: "fast_food", name: "Burger" } },
+    { type: "node", id: 6, lat: 44.427, lon: 26.103, tags: { amenity: "bar" } },
+    { type: "node", id: 7, lat: 45.5, lon: 27.5, tags: { amenity: "bar", name: "Far Away" } },
+  ], center, 3);
+  assert.deepEqual(venues.map((place) => place.name), ["Caru' cu Bere", "The Pub", "Club", "Chain Coffee"]);
+  assert.deepEqual(venues[0].venue, { kind: "restaurant", terrace: true, cuisine: "Romanian", openingHours: "Mo-Su 09:00-24:00" });
+  assert.equal(venues[0].category, "Restaurants");
+  assert.equal(venues[1].venue.kind, "bar");
+  assert.equal(venues[1].category, "Bars & Pubs");
+  assert.deepEqual(filterVenues(venues, ["nightclub"]).map((place) => place.name), ["Club"]);
+  assert.deepEqual(filterVenues(venues, ["terrace"]).map((place) => place.name), ["Caru' cu Bere", "Chain Coffee"]);
+  assert.deepEqual(filterVenues(venues, []), []);
+});
+
+test("Saved venues are recognised from their category so they keep their venue art", () => {
+  assert.deepEqual(venueFromCategory("Bars & Pubs"), { kind: "bar", terrace: false });
+  assert.deepEqual(venueFromCategory("Cafés", { terrace: true, cuisine: "Coffee" }), { kind: "cafe", terrace: true, cuisine: "Coffee" });
+  assert.equal(venueFromCategory("Museums"), undefined);
+  assert.equal(venueFromCategory(undefined), undefined);
 });
