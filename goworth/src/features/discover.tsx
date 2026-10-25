@@ -82,9 +82,19 @@ export function HomeScreen() {
   const filtered = useMemo(() => countries.filter((country) =>
     normalizeSearchText(`${country.name} ${translate(country.name, language)}`).includes(normalizeSearchText(query.trim()))), [query, language]);
   const browsing = !query.trim() && !searchFocused;
+  // Places whose photo search came back empty (or failed); their cards are replaced by the next place instead of
+  // showing a placeholder. Venues are not affected: they draw their own art.
+  const [withoutPhoto, setWithoutPhoto] = useState<ReadonlySet<string>>(() => new Set());
+  const reportPhoto = useCallback((id: string, available: boolean) => {
+    setWithoutPhoto((current) => available === !current.has(id) ? current
+      : available ? new Set([...current].filter((item) => item !== id)) : new Set([...current, id]));
+  }, []);
+  const showable = (place: NearbyPlace) => !!venueFromCategory(place.category) || !withoutPhoto.has(place.id);
+  const placeLocation = (visit: PlaceVisit) => visit.place.location
+    || [cityForId(visit.countryCode, visit.cityId)?.name, countryForCode(visit.countryCode)?.name].filter(Boolean).join(", ");
   const recent = [
     ...exploreHistory.countries.slice(0, 2).map((visit) => ({ kind: "country" as const, visit })),
-    ...exploreHistory.places.slice(0, 2).map((visit) => ({ kind: "place" as const, visit })),
+    ...exploreHistory.places.filter((visit) => showable(visit.place)).slice(0, 2).map((visit) => ({ kind: "place" as const, visit })),
   ].sort((a, b) => b.visit.viewedAt - a.visit.viewedAt);
   // Each section stands on its own: places opened from the discovery deck are remembered without a country visit.
   const showRecent = browsing && recent.length > 0;
@@ -124,7 +134,7 @@ export function HomeScreen() {
     if (nearbyResult?.status === "error") setNearbyAttempt((count) => count + 1);
   }, [nearbyResult?.status]));
   const suggestions = recommendationSeed && nearbyResult?.key === recommendationSeed.key
-    ? unseenNearbyPlaces(nearbyResult.places, exploreHistory) : [];
+    ? unseenNearbyPlaces(nearbyResult.places, exploreHistory, 12).filter(showable).slice(0, 4) : [];
   const placeRoute = (visit: PlaceVisit) => ({ pathname: "/place", params: {
     country: visit.countryCode, city: visit.cityId, place: visit.place.id,
     name: visit.place.name, latitude: String(visit.place.latitude), longitude: String(visit.place.longitude),
@@ -184,7 +194,7 @@ export function HomeScreen() {
             </View>
           </Pressable>;
         })() : <Pressable key={`place:${entry.visit.place.id}`} accessibilityRole="button" accessibilityLabel={`${translate("Place", language)}: ${entry.visit.place.name}`} onPress={() => router.push(placeRoute(entry.visit))} style={({ pressed }) => [styles.recentCard, pressed && styles.personalCardPressed]}>
-          <PlaceThumbnail name={entry.visit.place.name} location={entry.visit.place.location || countryForCode(entry.visit.countryCode)?.name || ""} latitude={entry.visit.place.latitude} longitude={entry.visit.place.longitude} sourceUrl={entry.visit.place.sourceUrl} style={styles.photoFill} thumbWidth={330} venue={venueFromCategory(entry.visit.place.category)} />
+          <PlaceThumbnail name={entry.visit.place.name} location={placeLocation(entry.visit)} latitude={entry.visit.place.latitude} longitude={entry.visit.place.longitude} sourceUrl={entry.visit.place.sourceUrl} style={styles.photoFill} thumbWidth={330} venue={venueFromCategory(entry.visit.place.category)} onPhotoAvailable={(available) => reportPhoto(entry.visit.place.id, available)} />
           <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.05)", "rgba(10,20,40,0.82)"]} style={StyleSheet.absoluteFill} />
           <View style={styles.recentBody}>
             <View style={styles.recentPill}><Icon name={placeIcon(entry.visit.place.category)} size={12} color={p.onColor} /><Text numberOfLines={1} style={styles.recentPillText}>{translate(publicPlaceCategory(entry.visit.place.category) || "Place", language)}</Text></View>
@@ -205,7 +215,7 @@ export function HomeScreen() {
           const open = (place: NearbyPlace) => router.push(placeRoute({ countryCode: recommendationSeed.countryCode, cityId: recommendationSeed.cityId, place, viewedAt: 0 }));
           return <>
             <Pressable accessibilityRole="button" accessibilityLabel={`${translate("Place", language)}: ${first.name}`} onPress={() => open(first)} style={({ pressed }) => [styles.featured, pressed && styles.personalCardPressed]}>
-              <PlaceThumbnail name={first.name} location={recommendationSeed.location} latitude={first.latitude} longitude={first.longitude} sourceUrl={first.sourceUrl} style={styles.photoFill} thumbWidth={500} venue={venueFromCategory(first.category)} />
+              <PlaceThumbnail name={first.name} location={recommendationSeed.location} latitude={first.latitude} longitude={first.longitude} sourceUrl={first.sourceUrl} style={styles.photoFill} thumbWidth={500} venue={venueFromCategory(first.category)} onPhotoAvailable={(available) => reportPhoto(first.id, available)} />
               <LinearGradient colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0)", "rgba(10,20,40,0.85)"]} style={StyleSheet.absoluteFill} />
               <View style={styles.featuredTop}>
                 <View style={styles.recentPill}><Text style={styles.recentPillText}>{translate("Top pick", language)}</Text></View>
@@ -219,7 +229,7 @@ export function HomeScreen() {
             </Pressable>
             {!!rest.length && <View style={styles.tiles}>
               {rest.slice(0, rest.length > 1 ? Math.min(6, rest.length - (rest.length % 2)) : 1).map((place) => <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`${translate("Place", language)}: ${place.name}`} onPress={() => open(place)} style={({ pressed }) => [styles.tile, pressed && styles.personalCardPressed]}>
-                <PlaceThumbnail name={place.name} location={recommendationSeed.location} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} style={styles.photoFill} thumbWidth={330} venue={venueFromCategory(place.category)} />
+                <PlaceThumbnail name={place.name} location={recommendationSeed.location} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} style={styles.photoFill} thumbWidth={330} venue={venueFromCategory(place.category)} onPhotoAvailable={(available) => reportPhoto(place.id, available)} />
                 <LinearGradient colors={["rgba(0,0,0,0)", "rgba(10,20,40,0.8)"]} style={StyleSheet.absoluteFill} />
                 <View style={styles.recentBody}>
                   <Text numberOfLines={1} style={styles.tileCategory}>{translate(publicPlaceCategory(place.category) || place.category, language)}</Text>

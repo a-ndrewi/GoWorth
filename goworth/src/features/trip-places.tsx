@@ -302,7 +302,7 @@ const stylesSheet = themedStyles((p) => ({
   search: { gap: 9, minHeight: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: p.soft },
   searchInput: { flex: 1, color: p.ink, fontSize: 14, paddingVertical: 12, outlineWidth: 0 },
   category: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 16, backgroundColor: p.soft },
-  categorySelected: { backgroundColor: p.night },
+  categorySelected: { backgroundColor: p.blue },
   categoryText: { color: p.ink, fontSize: 12, fontWeight: "700" },
   categoryDot: { width: 8, height: 8, borderRadius: 4 },
   card: { flexDirection: "row", alignItems: "center", gap: 12, padding: 10, borderRadius: 18, borderWidth: 1.5, borderColor: p.line, backgroundColor: p.white },
