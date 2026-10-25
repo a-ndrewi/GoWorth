@@ -221,7 +221,7 @@ export async function searchWikipediaPlaces(query: string, center: Center, radiu
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { signal: controller.signal });
+    const response = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: wikipediaHeaders, signal: controller.signal });
     if (!response.ok) throw new Error("Wikipedia place search is unavailable.");
     const data: { query?: { pages?: Record<string, WikiPlace> } } = await response.json();
     const places = parseWikipediaPlaces(Object.values(data.query?.pages ?? {}).sort((a, b) => (a.index ?? 0) - (b.index ?? 0)), center, radiusKm, includeSettlements);
@@ -231,6 +231,9 @@ export async function searchWikipediaPlaces(query: string, center: Center, radiu
     clearTimeout(timeout);
   }
 }
+
+// Wikipedia, like Wikimedia's image servers, refuses generic User-Agents such as Android's "okhttp".
+const wikipediaHeaders: Record<string, string> = typeof document === "undefined" ? { "User-Agent": "GoWorth/1.0 (travel app)" } : {};
 
 /** Overpass turns away requests without an identifying User-Agent (browsers keep their own). */
 const overpassHeaders = { Accept: "application/json", "User-Agent": "GoWorth/1.0 (travel app)" };
@@ -306,7 +309,7 @@ async function wikipediaPlaces(center: Center, radiusKm: number) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 7000);
   try {
-    const response = await fetch(url.toString(), { signal: controller.signal });
+    const response = await fetch(url.toString(), { headers: wikipediaHeaders, signal: controller.signal });
     if (!response.ok) throw new Error("Nearby places are unavailable.");
     const data: { query?: { pages?: Record<string, WikiPlace> } } = await response.json();
     return parseWikipediaPlaces(Object.values(data.query?.pages ?? {}).sort((a, b) => (a.index ?? 0) - (b.index ?? 0)), center, radiusKm);

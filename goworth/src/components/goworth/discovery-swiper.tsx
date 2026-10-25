@@ -18,7 +18,7 @@ import { destinationPins } from "@/data/map";
 import { cityForGlobalId, countryForCode, nearestCity, worldDiscoveryCities, type City } from "@/data/geography";
 import { filterVenues, loadNearbyPlaces, loadNearbyVenues, type NearbyPlace } from "@/data/nearby-places";
 import { VenueArt, venueFilterIcons } from "@/components/goworth/venue-art";
-import { findPlacePhoto } from "@/data/place-photo";
+import { findPlacePhoto, sizedPhotoUrl, wikimediaImageHeaders } from "@/data/place-photo";
 import { loadRecentDiscoveries, type RecentDiscovery } from "@/lib/travel-repository";
 import { useTravel } from "@/state/travel-context";
 import { formatMessage, translate, translateAccessibility, translateLocation } from "@/data/i18n";
@@ -81,8 +81,9 @@ function resolveCardPhoto(item: SwipeItem): Promise<string | null> {
     request = (name ? findPlacePhoto(name, location, pin?.latitude, pin?.longitude, item.kind === "nearby" ? item.place.sourceUrl : undefined) : Promise.resolve(null))
       .then(async (photo) => {
         // Download before revealing, so the card shows the final photo in one step.
-        if (photo?.url && !await Image.prefetch(photo.url, "memory-disk").catch(() => false)) return null;
-        return photo?.url ?? null;
+        const url = photo?.url ? sizedPhotoUrl(photo.url, 960) : null;
+        if (url && !await Image.prefetch(url, { cachePolicy: "memory-disk", ...(wikimediaImageHeaders ? { headers: wikimediaImageHeaders } : {}) }).catch(() => false)) return null;
+        return url;
       })
       .then((url) => { photoCache.set(item.key, url); return url; })
       // A failed search is not remembered as "no photo": the card asks again the next time it comes up.
@@ -208,7 +209,7 @@ function SwipeCard({ item, depth, height, command, onSwiped }: {
       {photo.ready && !photo.url && (venue ? <VenueArt venue={venue} /> : destination
         ? <DestinationPhoto destination={destination} style={StyleSheet.absoluteFill} />
         : <LinearGradient colors={[p.blue, p.teal]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />)}
-      {photo.ready && !!photo.url && <Image source={{ uri: photo.url }} cachePolicy="memory-disk" contentFit="cover" transition={180} accessibilityLabel={translateAccessibility(`Photo of ${placeName}`, language)} onError={() => photo.failed(photo.url!)} style={StyleSheet.absoluteFill} />}
+      {photo.ready && !!photo.url && <Image source={{ uri: photo.url, ...(wikimediaImageHeaders ? { headers: wikimediaImageHeaders } : {}) }} cachePolicy="memory-disk" contentFit="cover" transition={180} accessibilityLabel={translateAccessibility(`Photo of ${placeName}`, language)} onError={() => photo.failed(photo.url!)} style={StyleSheet.absoluteFill} />}
       <LinearGradient colors={["rgba(0,0,0,0.14)", "rgba(0,0,0,0.06)", "rgba(0,0,0,0.82)"]} style={StyleSheet.absoluteFill} />
       <View style={styles.cardContent}>
         <View style={{ alignSelf: "flex-start", gap: 7 }}>

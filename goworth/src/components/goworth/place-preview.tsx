@@ -4,7 +4,7 @@ import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-na
 import { Copy, Icon } from "@/components/goworth/ui";
 import { Shimmer } from "@/components/goworth/loading";
 import { usePalette } from "@/state/theme-context";
-import { findPlacePhoto, peekPlacePhoto, sizedPhotoUrl, type PlacePhoto } from "@/data/place-photo";
+import { findPlacePhoto, peekPlacePhoto, photoSource, sizedPhotoUrl, type PhotoWidth, type PlacePhoto } from "@/data/place-photo";
 import type { Venue } from "@/data/nearby-places";
 import { VenueArt, VenueTile } from "@/components/goworth/venue-art";
 import { useAppLanguage } from "@/data/formatting";
@@ -50,7 +50,7 @@ function PlaceSearchPhoto({ name, location, latitude, longitude, sourceUrl, badg
     <View style={{ height: 215, borderRadius: 6, overflow: "hidden", backgroundColor: p.blueSoft, alignItems: "center", justifyContent: "center" }}>
       {shimmering && <Shimmer style={StyleSheet.absoluteFill} />}
       {showPhoto
-        ? <Image source={{ uri: photo.url }} cachePolicy="memory-disk" transition={160} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onLoad={() => setLoadedUrl(photo.url)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />
+        ? <Image source={photoSource(photo.url, 960)} cachePolicy="memory-disk" transition={160} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onLoad={() => setLoadedUrl(photo.url)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />
         : status !== "loading" && <View style={{ alignItems: "center", gap: 8, padding: 20 }}>
           <Icon name="camera" size={26} color={p.blue} />
           <Copy muted style={{ textAlign: "center", fontSize: 13 }}>
@@ -62,7 +62,7 @@ function PlaceSearchPhoto({ name, location, latitude, longitude, sourceUrl, badg
   </View>;
 }
 
-type ThumbnailProps = PlacePhotoProps & { style?: StyleProp<ViewStyle>; thumbWidth?: 120 | 250 | 330 | 500; onPhotoAvailable?: (available: boolean) => void };
+type ThumbnailProps = PlacePhotoProps & { style?: StyleProp<ViewStyle>; thumbWidth?: PhotoWidth; onPhotoAvailable?: (available: boolean) => void };
 
 export function PlaceThumbnail({ venue, ...props }: ThumbnailProps & { venue?: Venue }) {
   if (venue) return <View style={[{ width: 54, height: 54, borderRadius: 5, overflow: "hidden" }, props.style]}><VenueTile venue={venue} large={(props.thumbWidth ?? 120) >= 330} /></View>;
@@ -104,7 +104,7 @@ function PlaceSearchThumbnail({ name, location, latitude, longitude, sourceUrl, 
   return <View style={[{ width: 54, height: 54, borderRadius: 5, overflow: "hidden", backgroundColor: p.blueSoft, alignItems: "center", justifyContent: "center" }, style]}>
     {(loading || (showPhoto && loadedUrl !== url)) && <Shimmer style={StyleSheet.absoluteFill} />}
     {showPhoto
-      ? <Image source={{ uri: url }} recyclingKey={key} cachePolicy="memory-disk" transition={120} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onLoad={() => setLoadedUrl(url)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />
+      ? <Image source={photoSource(url, thumbWidth)} recyclingKey={key} cachePolicy="memory-disk" transition={120} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onLoad={() => setLoadedUrl(url)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />
       : !loading && <Icon name="pin" size={thumbWidth >= 330 ? 28 : 18} color={p.blue} />}
   </View>;
 }

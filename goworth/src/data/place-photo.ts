@@ -19,9 +19,25 @@ type CommonsPage = {
   }[];
 };
 
-/** Wikimedia thumbnails come in standard widths; small list images should not decode the 640px card version. */
-export function sizedPhotoUrl(url: string, width: 120 | 250 | 330 | 500) {
+export type PhotoWidth = 120 | 250 | 330 | 500 | 960;
+
+/**
+ * Wikimedia only serves thumbnails in its standard widths (120, 250, 330, 500, 960…); any other width, such as the
+ * 640px earlier lookups stored, is refused with HTTP 400. Every photo is drawn through this, so old URLs are fixed too.
+ */
+export function sizedPhotoUrl(url: string, width: PhotoWidth) {
   return /\/thumb\/.+\/\d+px-[^/]+$/.test(url) ? url.replace(/\/\d+px-([^/]+)$/, `/${width}px-$1`) : url;
+}
+
+/**
+ * Headers for downloading Wikimedia images. Wikimedia refuses generic HTTP library User-Agents (Android's "okhttp" gets
+ * HTTP 403 for every image), so the app names itself; browsers send their own and cannot change it.
+ */
+export const wikimediaImageHeaders: Record<string, string> | undefined = typeof document === "undefined" ? { "User-Agent": "GoWorth/1.0 (travel app)" } : undefined;
+
+/** An image source for a Wikimedia photo at a standard width, with the headers Wikimedia requires. */
+export function photoSource(url: string, width: PhotoWidth) {
+  return { uri: sizedPhotoUrl(url, width), ...(wikimediaImageHeaders ? { headers: wikimediaImageHeaders } : {}) };
 }
 
 const cache = new Map<string, { expiresAt: number; photos: Promise<PlacePhoto[]> }>();
@@ -160,7 +176,7 @@ async function queryCommons(params: URLSearchParams): Promise<CommonsPage[]> {
   return Object.values(data.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
 }
 
-const imageProps = { prop: "imageinfo", iiprop: "url|mime|extmetadata", iiurlwidth: "640", format: "json", origin: "*" };
+const imageProps = { prop: "imageinfo", iiprop: "url|mime|extmetadata", iiurlwidth: "960", format: "json", origin: "*" };
 
 /** `requireLocation` is for searches by name alone, where a same-named place elsewhere would otherwise match. */
 async function searchCommons(query: string, name: string, location: string, requireLocation = false): Promise<PlacePhoto[]> {
@@ -197,7 +213,7 @@ function rankedPhotos(pages: CommonsPage[], name: string, location: string, near
 async function verifiedPhoto(title: string, name: string, location: string) {
   const params = new URLSearchParams({
     action: "query", titles: title, prop: "imageinfo", iiprop: "url|mime|extmetadata",
-    iiurlwidth: "640", format: "json", origin: "*",
+    iiurlwidth: "960", format: "json", origin: "*",
   });
   const pages = await queryCommons(params);
   return pages.length ? photoFromPage(pages[0], name, location) : null;
@@ -221,7 +237,7 @@ async function wikipediaPhoto(name: string, location: string, latitude?: number,
   }
   const commons = await queryCommons(new URLSearchParams({
     action: "query", titles: `File:${page.pageimage}`, prop: "imageinfo", iiprop: "url|mime|extmetadata",
-    iiurlwidth: "640", format: "json", origin: "*",
+    iiurlwidth: "960", format: "json", origin: "*",
   }));
   return commons.length ? photoFromPage(commons[0], name, location, true) : null;
 }
