@@ -6,7 +6,8 @@ import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-pr
 import { Shimmer, SkeletonRows } from "@/components/goworth/loading";
 import { usePalette } from "@/state/theme-context";
 import { citiesForCountry, citiesForUsState, cityForId, countryFlag, countryForCode, usStates } from "@/data/geography";
-import { loadNearbyPlaces, searchWikipediaPlaces, venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
+import { loadCityPlaces, searchWikipediaPlaces, venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
+import { insideBoundary, loadCityBoundary, type Boundary } from "@/data/city-boundary";
 import { externalPlaceFromSaved } from "@/data/external-places";
 import { useTravel } from "@/state/travel-context";
 import { normalizeSearchText } from "@/utils/search";
@@ -85,13 +86,18 @@ export function CityScreen() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const searchId = useRef(0);
+  const [boundary, setBoundary] = useState<{ cityId: string; outline: Boundary | null } | null>(null);
   useEffect(() => {
-    if (!city) return;
+    if (!city || !country) return;
     let active = true;
-    loadNearbyPlaces(city, 10).then((items) => { if (active) setResult({ key: city.id, places: items, status: "ready" }); })
+    loadCityPlaces(city, country.name).then((items) => { if (active) setResult({ key: city.id, places: items, status: "ready" }); })
       .catch(() => { if (active) setResult({ key: city.id, places: [], status: "error" }); });
+    // Already fetched by the line above; kept here so searches can be limited to the same area.
+    loadCityBoundary(city, country.name).then((outline) => { if (active) setBoundary({ cityId: city.id, outline }); }).catch(() => undefined);
     return () => { active = false; };
-  }, [city]);
+  }, [city, country]);
+  const outline = boundary?.cityId === city?.id ? boundary?.outline ?? null : null;
+  const inCity = (places: NearbyPlace[]) => outline ? places.filter((place) => insideBoundary(outline, place)) : places;
   // Wider results load on their own shortly after the user stops typing; there is no separate search button.
   useEffect(() => {
     const searchedQuery = query.trim();
@@ -101,12 +107,12 @@ export function CityScreen() {
       setSearching(true);
       setSearchError("");
       searchWikipediaPlaces(searchedQuery, city, 25)
-        .then((results) => { if (requestId === searchId.current) setRemote({ cityId: city.id, query: searchedQuery, places: results.map((result) => ({ ...result, location: `${city.name}, ${country.name}` })) }); })
+        .then((results) => { if (requestId === searchId.current) setRemote({ cityId: city.id, query: searchedQuery, places: (outline ? results.filter((result) => insideBoundary(outline, result)) : results).map((result) => ({ ...result, location: `${city.name}, ${country.name}` })) }); })
         .catch(() => { if (requestId === searchId.current) setSearchError(translate("Search is unavailable right now.", language)); })
         .finally(() => { if (requestId === searchId.current) setSearching(false); });
     }, 600);
     return () => clearTimeout(timer);
-  }, [query, city, country, language]);
+  }, [query, city, country, language, outline]);
   if (!country || !city) return <Screen><Header title={translate("City unavailable", language)} /><EmptyState title={translate("City not found", language)} detail={translate("Choose a city from a country.", language)} action={translate("Explore countries", language)} onPress={() => router.dismissTo("/home" as Href)} /></Screen>;
   const categories = ["All", ...new Set(places.map((place) => place.category))];
   const filtered = places.filter((place) => (category === "All" || place.category === category) && normalizeSearchText(place.name).includes(normalizeSearchText(query)));
@@ -119,7 +125,7 @@ export function CityScreen() {
     setCategory("All");
     try {
       const results = await searchWikipediaPlaces(searchedQuery, city, 25);
-      if (requestId === searchId.current) setRemote({ cityId: city.id, query: searchedQuery, places: results.map((result) => ({ ...result, location: `${city.name}, ${country.name}` })) });
+      if (requestId === searchId.current) setRemote({ cityId: city.id, query: searchedQuery, places: inCity(results).map((result) => ({ ...result, location: `${city.name}, ${country.name}` })) });
     } catch { if (requestId === searchId.current) setSearchError(translate("Search is unavailable right now.", language)); }
     finally { if (requestId === searchId.current) setSearching(false); }
   };
@@ -143,7 +149,7 @@ export function CityScreen() {
     </Row>
     <Row style={{ flexWrap: "wrap", gap: 6 }}>{categories.map((item) => <Chip key={item} selected={category === item} onPress={() => { setCategory(item); setVisibleCount(20); }}>{translate(item, language)}</Chip>)}</Row>
     {status === "loading" && <SkeletonRows count={6} />}
-    {status === "error" && <EmptyState title={translate("Places unavailable", language)} detail={translate("Check your connection and try again.", language)} action={translate("Retry", language)} onPress={() => { setResult({ key: city.id, places: [], status: "loading" }); loadNearbyPlaces(city, 10).then((items) => setResult({ key: city.id, places: items, status: "ready" })).catch(() => setResult({ key: city.id, places: [], status: "error" })); }} />}
+    {status === "error" && <EmptyState title={translate("Places unavailable", language)} detail={translate("Check your connection and try again.", language)} action={translate("Retry", language)} onPress={() => { setResult({ key: city.id, places: [], status: "loading" }); loadCityPlaces(city, country.name).then((items) => setResult({ key: city.id, places: items, status: "ready" })).catch(() => setResult({ key: city.id, places: [], status: "error" })); }} />}
     {status === "ready" && !filtered.length && !searchResults.length && !searching && (!query.trim() || remote?.query === query.trim()) && <EmptyState title={translate(query ? "No matching places" : "No places found nearby", language)} detail={translate("Try another search.", language)} />}
     <View style={{ gap: 1 }}>
       {filtered.slice(0, visibleCount).map((place) => <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`Explore ${place.name}`} onPress={() => openPlace(place)} style={{ minHeight: 67, paddingVertical: 7, borderBottomWidth: 1, borderColor: p.line, flexDirection: "row", alignItems: "center", gap: 11 }}>
@@ -179,12 +185,12 @@ export function PlaceScreen() {
   const venue = venueFromCategory(place?.category, { terrace: terrace === "1", ...(cuisine ? { cuisine } : {}), ...(hours ? { openingHours: hours } : {}), ...(address ? { address } : {}) });
   const status = result?.key === key ? result.status : routePlace ? "ready" : "loading";
   useEffect(() => {
-    if (!city || routePlace) return;
+    if (!city || !country || routePlace) return;
     let active = true;
-    loadNearbyPlaces(city, 10).then((items) => { if (active) setResult({ key, place: items.find((item) => item.id === placeId) ?? null, status: "ready" }); })
+    loadCityPlaces(city, country.name).then((items) => { if (active) setResult({ key, place: items.find((item) => item.id === placeId) ?? null, status: "ready" }); })
       .catch(() => { if (active) setResult({ key, place: null, status: "error" }); });
     return () => { active = false; };
-  }, [city, placeId, key, routePlace]);
+  }, [city, country, placeId, key, routePlace]);
   useEffect(() => {
     if (country && city && place && exploreHistoryReady) recordPlaceVisit(country.code, city.id, place, search);
   }, [country, city, place, exploreHistoryReady, recordPlaceVisit, search]);

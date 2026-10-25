@@ -11,7 +11,7 @@ import { themedStyles, type Palette } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
 import { tripDays } from "@/data/travel";
 import { routeStop } from "@/data/trip-route";
-import { filterVenues, loadNearbyPlaces, loadNearbyVenues, venueFilters, venueFromCategory, type NearbyPlace, type VenueFilter } from "@/data/nearby-places";
+import { filterVenues, loadCityPlaces, loadNearbyVenues, venueFilters, venueFromCategory, type NearbyPlace, type VenueFilter } from "@/data/nearby-places";
 import { searchMap } from "@/data/map";
 import { formatMessage, translate } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
@@ -67,7 +67,8 @@ export function TripPlacesScreen() {
   useEffect(() => {
     if (!dayStops.length) return;
     let active = true;
-    Promise.all(dayStops.map((stop) => loadNearbyPlaces(stop, 8).then((places) => places.map((place) => ({ ...place, city: stop.name })))))
+    // Each stop's places come from inside its own outline; stops without one keep the earlier 8 km radius.
+    Promise.all(dayStops.map((stop) => loadCityPlaces(stop, stop.country, 8).then((places) => places.map((place) => ({ ...place, city: stop.name })))))
       .then((lists) => {
         if (!active) return;
         const seen = new Set<string>();

@@ -1,5 +1,6 @@
 import type { MapPin } from "./map";
 import { findPlacePhoto, prefetchPlacePhotos } from "./place-photo.ts";
+import { boundaryRadiusKm, fallbackRadiusKm, insideBoundary, loadCityBoundary, type Boundary } from "./city-boundary.ts";
 
 export type VenueKind = "restaurant" | "bar" | "cafe" | "nightclub";
 /** What the Explore deck can show besides attractions; "terrace" means any venue with outdoor seating. */
@@ -70,20 +71,48 @@ function hasVerifiedPhoto(place: NearbyPlace) {
  * Keeps the places that have a photo. Most are confirmed in bulk from their Wikipedia articles; only when that leaves
  * too few does each remaining place get its own (slower) search, and only until there are enough or time runs out.
  */
-async function keepPhotoBackedPlaces(places: NearbyPlace[]) {
+const later = <T,>(ms: number, value: T) => new Promise<T>((resolve) => setTimeout(() => resolve(value), ms));
+
+/**
+ * Keeps the places that have a photo. Most are confirmed in bulk from their Wikipedia articles; only when that leaves
+ * too few does each remaining place get its own (slower) search. The whole check gives up after about 8 seconds
+ * (Wikimedia may be throttling): the list then also shows unchecked places rather than nothing, and `complete` is
+ * false so it is not kept for long.
+ */
+async function keepPhotoBackedPlaces(places: NearbyPlace[]): Promise<{ places: NearbyPlace[]; complete: boolean }> {
   const candidates = places.slice(0, 60);
-  const bulk = await prefetchPlacePhotos(candidates.map((place) => ({ name: place.name, location: place.location ?? "", latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl })))
-    .catch(() => candidates.map(() => false));
-  const ready = new Set(candidates.filter((_, index) => bulk[index]));
-  const deadline = Date.now() + 6000;
+  const deadline = Date.now() + 8000;
+  const bulk = await Promise.race([
+    prefetchPlacePhotos(candidates.map((place) => ({ name: place.name, location: place.location ?? "", latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl })))
+      .catch(() => candidates.map(() => false)),
+    later(deadline - Date.now(), null),
+  ]);
+  const ready = new Set(bulk ? candidates.filter((_, index) => bulk[index]) : []);
+  let complete = !!bulk;
   const rest = candidates.filter((place) => !ready.has(place));
-  for (let start = 0; start < rest.length && ready.size < 12 && Date.now() < deadline; start += 6) {
+  for (let start = 0; complete && start < rest.length && ready.size < 12; start += 6) {
+    if (Date.now() >= deadline) { complete = false; break; }
     const batch = rest.slice(start, start + 6);
-    const results = await Promise.all(batch.map(async (place) => ({ place, ok: await hasVerifiedPhoto(place) })));
+    const results = await Promise.race([
+      Promise.all(batch.map(async (place) => ({ place, ok: await hasVerifiedPhoto(place) }))),
+      later(Math.max(0, deadline - Date.now()), null),
+    ]);
+    if (!results) { complete = false; break; }
     for (const result of results) if (result.ok) ready.add(result.place);
   }
   // Keep the source's order (nearest or best-known first) rather than the order the photos were confirmed in.
-  return candidates.filter((place) => ready.has(place)).slice(0, 30);
+  const verified = candidates.filter((place) => ready.has(place));
+  if (complete || verified.length >= 8) return { places: verified.slice(0, 30), complete };
+  return { places: [...verified, ...candidates.filter((place) => !ready.has(place))].slice(0, 20), complete: false };
+}
+
+/**
+ * The places of a city or district: inside its outline when OpenStreetMap has one, otherwise within a radius that
+ * suits its size. The outline also tells how wide the search must be to cover all of it.
+ */
+export async function loadCityPlaces(city: Center & { id: string; name: string; population?: number }, countryName: string, fallbackKm?: number) {
+  const boundary = await loadCityBoundary(city, countryName).catch(() => null);
+  return loadNearbyPlaces(city, boundary ? boundaryRadiusKm(boundary, city) : fallbackKm ?? fallbackRadiusKm(city.population ?? 0), boundary);
 }
 
 export function isExplorePlace(properties: { osm_key?: string; osm_value?: string } | undefined): boolean {
@@ -286,9 +315,10 @@ async function wikipediaPlaces(center: Center, radiusKm: number) {
   }
 }
 
-export async function loadNearbyPlaces(center: Center, radiusKm = 8): Promise<NearbyPlace[]> {
+/** `within` keeps only places inside an area's outline, such as a city district, before their photos are checked. */
+export async function loadNearbyPlaces(center: Center, radiusKm = 8, within?: Boundary | null): Promise<NearbyPlace[]> {
   const radius = Math.max(1, Math.min(radiusKm, 25));
-  const key = `${center.latitude.toFixed(3)}|${center.longitude.toFixed(3)}|${radius}`;
+  const key = `${center.latitude.toFixed(3)}|${center.longitude.toFixed(3)}|${radius}|${within?.id ?? ""}`;
   const saved = cache.get(key);
   if (saved && saved.expiresAt > Date.now()) return saved.places;
   const current = pending.get(key);
@@ -296,9 +326,11 @@ export async function loadNearbyPlaces(center: Center, radiusKm = 8): Promise<Ne
   const request = (async () => {
     const photon = await photonPlaces(center, radius).catch(() => []);
     const osm = photon.length ? photon : await overpassPlaces(center, radius).catch(() => []);
-    const rawPlaces = osm.length ? osm : await wikipediaPlaces(center, radius);
-    const places = await keepPhotoBackedPlaces(rawPlaces);
-    cache.set(key, { places, expiresAt: Date.now() + 30 * 60 * 1000 });
+    const inside = (places: NearbyPlace[]) => within ? places.filter((place) => insideBoundary(within, place)) : places;
+    const osmInside = inside(osm);
+    const rawPlaces = osmInside.length ? osmInside : inside(await wikipediaPlaces(center, radius));
+    const { places, complete } = await keepPhotoBackedPlaces(rawPlaces);
+    cache.set(key, { places, expiresAt: Date.now() + (complete ? 30 : 2) * 60 * 1000 });
     return places;
   })().finally(() => pending.delete(key));
   pending.set(key, request);
