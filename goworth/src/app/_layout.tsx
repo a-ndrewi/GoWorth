@@ -18,10 +18,12 @@ import "@/global.css";
 // The native splash only knows the system theme; keep it up until the saved theme is read.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
-// Photo lookups take several Wikipedia requests each; keep the answers across launches.
+// Photo lookups take several Wikipedia requests each; keep the answers across launches. The key's version changes
+// when the lookup improves, so places remembered as having no photo are searched again.
+void AsyncStorage.removeItem("place-photo-lookups").catch(() => undefined);
 setPhotoStore({
-  load: () => AsyncStorage.getItem("place-photo-lookups"),
-  save: (value) => AsyncStorage.setItem("place-photo-lookups", value),
+  load: () => AsyncStorage.getItem("place-photo-lookups-v2"),
+  save: (value) => AsyncStorage.setItem("place-photo-lookups-v2", value),
 });
 
 const tabByPath: Record<string, string> = {

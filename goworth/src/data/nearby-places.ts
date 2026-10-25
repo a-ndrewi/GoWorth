@@ -60,7 +60,8 @@ function hasVerifiedPhoto(place: NearbyPlace) {
   if (cached) return cached;
   const request = findPlacePhoto(place.name, place.location ?? "", place.latitude, place.longitude, place.sourceUrl)
     .then((photo) => !!photo)
-    .catch(() => false);
+    // A failed lookup (throttled, offline) is tried again next time instead of hiding the place for the session.
+    .catch(() => { photoReadyCache.delete(key); return false; });
   photoReadyCache.set(key, request);
   return request;
 }

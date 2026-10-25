@@ -84,7 +84,12 @@ function PlaceSearchThumbnail({ name, location, latitude, longitude, sourceUrl, 
         setResult({ key, photo });
         onPhotoAvailableRef.current?.(!!photo);
       }
-    }).catch(() => { if (active) onPhotoAvailableRef.current?.(false); });
+    }).catch(() => {
+      // Not remembered as "no photo": the next time this thumbnail mounts it looks again.
+      if (!active) return;
+      setResult({ key, photo: null });
+      onPhotoAvailableRef.current?.(false);
+    });
     return () => { active = false; };
   }, [key, name, location, latitude, longitude, sourceUrl, failedUrls]);
   return <View style={[{ width: 54, height: 54, borderRadius: 5, overflow: "hidden", backgroundColor: p.greenSoft, alignItems: "center", justifyContent: "center" }, style]}>

@@ -83,7 +83,11 @@ function safeUrl(value: string | undefined, host: string) {
   }
 }
 
-function photoFromPage(page: CommonsPage, name: string, location: string, trustedAssociation = false): PlacePhoto | null {
+/**
+ * `nearby` is for files taken within a few hundred metres of the place: one distinctive word of its name in the file
+ * is then enough, since the location itself is already confirmed.
+ */
+function photoFromPage(page: CommonsPage, name: string, location: string, trustedAssociation = false, nearby = false, requireLocation = false): PlacePhoto | null {
   const info = page.imageinfo?.[0];
   const metadata = info?.extmetadata;
   const license = metadata?.LicenseShortName?.value || "";
@@ -93,14 +97,17 @@ function photoFromPage(page: CommonsPage, name: string, location: string, truste
   const distinctiveWords = placeWords.filter((word) => !genericWords.has(word));
   const titleCompact = normalize(title).replace(/ /g, "");
   const description = normalize(metadata?.ImageDescription?.value || "");
-  const matchesName = placeWords.length > 0 && (distinctiveWords.length ? distinctiveWords : placeWords).every((word) =>
-    titleWords.includes(word) || titleCompact.includes(word) || description.includes(word),
-  );
+  const wordMatches = (word: string) => titleWords.includes(word) || titleCompact.includes(word) || description.includes(word);
+  const matchesName = placeWords.length > 0 && (nearby
+    ? distinctiveWords.some(wordMatches)
+    : (distinctiveWords.length ? distinctiveWords : placeWords).every(wordMatches));
   const genericName = distinctiveWords.length < 2 || placeWords.some((word) => genericWords.has(word));
   const locationWords = tokens(location);
   const searchContext = `${title} ${metadata?.ImageDescription?.value || ""} ${metadata?.Categories?.value || ""}`;
   const matchesLocation = locationWords.some((word) => normalize(searchContext).includes(word));
-  if (!info?.thumburl || !info.descriptionurl || (!trustedAssociation && (!matchesName || (genericName && !matchesLocation)))) return null;
+  // Found by name alone, the file must name the city itself: the country is too broad to tell two same-named places apart.
+  const matchesCity = tokens(location.split(",")[0] ?? "").some((word) => normalize(searchContext).includes(word));
+  if (!info?.thumburl || !info.descriptionurl || (!trustedAssociation && (!matchesName || (!nearby && genericName && !matchesLocation) || (requireLocation && !matchesCity)))) return null;
   if (!/^CC0(?:\b|$)|^Public domain$/i.test(license) && !/^CC BY(?:-SA)?(?:\s|$)/i.test(license)) return null;
   if (!safeUrl(info.thumburl, "wikimedia.org") || !safeUrl(info.descriptionurl, "wikimedia.org")) return null;
   if (info.mime && !["image/jpeg", "image/png", "image/webp"].includes(info.mime)) return null;
@@ -116,36 +123,62 @@ function photoFromPage(page: CommonsPage, name: string, location: string, truste
   };
 }
 
-async function queryCommons(params: URLSearchParams): Promise<CommonsPage[]> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-  try {
-    const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, { signal: controller.signal });
-    if (!response.ok) throw new Error("Photo search is unavailable.");
-    const data: { query?: { pages?: Record<string, CommonsPage> } } = await response.json();
-    return Object.values(data.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
-  } finally {
-    clearTimeout(timeout);
+// Wikimedia throttles anonymous clients without an identifying User-Agent; browsers keep their own and may not set it.
+const wikimediaHeaders: Record<string, string> = typeof document === "undefined" ? { "User-Agent": "GoWorth/1.0 (travel app)" } : {};
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A Wikimedia API request that waits and tries again when the API asks it to slow down, so a busy list does not
+ * end up with "no photo" for places that simply were not looked up.
+ */
+// When Wikimedia asks to slow down, every lookup pauses together; retrying them one by one would keep it throttled.
+let pausedUntil = 0;
+
+async function wikimediaJson<T>(url: string): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    if (pausedUntil > Date.now()) await wait(pausedUntil - Date.now());
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    try {
+      const response = await fetch(url, { headers: wikimediaHeaders, signal: controller.signal });
+      if ((response.status === 429 || response.status === 503) && attempt < 3) {
+        const retryAfter = Number(response.headers?.get?.("retry-after"));
+        const delay = Math.min(8000, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 1500 * 2 ** attempt);
+        pausedUntil = Math.max(pausedUntil, Date.now() + delay);
+        continue;
+      }
+      if (!response.ok) throw new Error("Photo search is unavailable.");
+      return await response.json() as T;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 }
 
-async function searchCommons(query: string, name: string, location: string): Promise<PlacePhoto[]> {
-  const params = new URLSearchParams({
-    action: "query",
-    generator: "search",
-    gsrsearch: query,
-    gsrnamespace: "6",
-    gsrlimit: "15",
-    prop: "imageinfo",
-    iiprop: "url|mime|extmetadata",
-    iiurlwidth: "640",
-    format: "json",
-    origin: "*",
-  });
-  const pages = await queryCommons(params);
+async function queryCommons(params: URLSearchParams): Promise<CommonsPage[]> {
+  const data = await wikimediaJson<{ query?: { pages?: Record<string, CommonsPage> } }>(`https://commons.wikimedia.org/w/api.php?${params}`);
+  return Object.values(data.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
+}
+
+const imageProps = { prop: "imageinfo", iiprop: "url|mime|extmetadata", iiurlwidth: "640", format: "json", origin: "*" };
+
+/** `requireLocation` is for searches by name alone, where a same-named place elsewhere would otherwise match. */
+async function searchCommons(query: string, name: string, location: string, requireLocation = false): Promise<PlacePhoto[]> {
+  const pages = await queryCommons(new URLSearchParams({ action: "query", generator: "search", gsrsearch: query, gsrnamespace: "6", gsrlimit: "15", ...imageProps }));
+  return rankedPhotos(pages, name, location, false, requireLocation);
+}
+
+/** Files photographed within 250 m of the place whose title or description names it. */
+async function nearbyCommons(name: string, location: string, latitude: number, longitude: number): Promise<PlacePhoto[]> {
+  const pages = await queryCommons(new URLSearchParams({ action: "query", generator: "geosearch", ggsnamespace: "6",
+    ggscoord: `${latitude}|${longitude}`, ggsradius: "250", ggslimit: "30", ...imageProps }));
+  return rankedPhotos(pages, name, location, true);
+}
+
+function rankedPhotos(pages: CommonsPage[], name: string, location: string, nearby = false, requireLocation = false): PlacePhoto[] {
   const locationWords = tokens(location);
   const candidates = pages.flatMap((page) => {
-    const photo = photoFromPage(page, name, location);
+    const photo = photoFromPage(page, name, location, false, nearby, requireLocation);
     if (!photo) return [];
     const title = normalize(page.title || "");
     const fileTitle = normalize((page.title || "").replace(/^File:/, ""));
@@ -176,16 +209,7 @@ async function wikipediaPhoto(name: string, location: string, latitude?: number,
   const params = new URLSearchParams({ action: "query", prop: "pageimages|coordinates", piprop: "name", format: "json", origin: "*" });
   if (pageId) params.set("pageids", pageId);
   else params.set("titles", name);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-  let response: Response;
-  try {
-    response = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
-  if (!response.ok) return null;
-  const data: { query?: { pages?: Record<string, { title?: string; pageimage?: string; coordinates?: { lat: number; lon: number }[] }> } } = await response.json();
+  const data = await wikimediaJson<{ query?: { pages?: Record<string, { title?: string; pageimage?: string; coordinates?: { lat: number; lon: number }[] }> } }>(`https://en.wikipedia.org/w/api.php?${params}`);
   const page = Object.values(data.query?.pages || {})[0];
   if (!page?.pageimage) return null;
   if (!pageId) {
@@ -236,13 +260,29 @@ export async function findPlacePhoto(name: string, location: string, latitude?: 
       const saved = stored[key];
       if (saved && saved.expiresAt > Date.now()) return saved.photos;
       return limited(async () => {
+        // A step that failed (offline, throttled) must not turn into a remembered "no photo".
+        let failed = false;
+        const attempt = <T,>(task: Promise<T>, fallback: T) => task.catch(() => { failed = true; return fallback; });
         const verified = verifiedFiles[`${name}|${location}`.toLowerCase()];
         const [linked, verifiedResult] = await Promise.all([
-          wikipediaPhoto(name, location, latitude, longitude, sourceUrl).catch(() => null),
-          verified ? verifiedPhoto(verified, name, location).catch(() => null) : Promise.resolve(null),
+          attempt(wikipediaPhoto(name, location, latitude, longitude, sourceUrl), null),
+          verified ? attempt(verifiedPhoto(verified, name, location), null) : Promise.resolve(null),
         ]);
         if (linked || verifiedResult) return [linked, verifiedResult].filter((photo): photo is PlacePhoto => !!photo);
-        return searchCommons(`${name} ${location}`, name, location);
+        // Commons search needs every word to match, and files rarely name the country: try the city, then the name alone,
+        // then files taken at the place itself.
+        const city = location.split(",")[0]?.trim() ?? "";
+        const queries = [...new Set([city && !normalize(name).includes(normalize(city)) ? `${name} ${city}` : "", name].filter(Boolean))];
+        for (const query of queries) {
+          const photos = await attempt(searchCommons(query, name, location, query === name), []);
+          if (photos.length) return photos;
+        }
+        if (latitude !== undefined && longitude !== undefined && Number.isFinite(latitude) && Number.isFinite(longitude)) {
+          const photos = await attempt(nearbyCommons(name, location, latitude, longitude), []);
+          if (photos.length) return photos;
+        }
+        if (failed) throw new Error("Photo search is unavailable.");
+        return [];
       });
     })().catch((error) => {
       cache.delete(key);

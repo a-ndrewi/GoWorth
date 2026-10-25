@@ -59,3 +59,33 @@ test("failed image URLs can be skipped without losing a verified alternative", a
     assert.equal(requests, 1);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+const commonsFile = (title, url) => ({ index: 1, title, imageinfo: [{ thumburl: url, descriptionurl: `https://commons.wikimedia.org/wiki/${title}`, mime: "image/jpeg", extmetadata: { LicenseShortName: { value: "CC0" } } }] });
+
+test("a throttled photo search waits and tries again instead of reporting no photo", async () => {
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => {
+    requests++;
+    if (requests === 1) return { ok: false, status: 429, headers: { get: () => "0.01" }, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => ({ query: { pages: { 1: commonsFile("File:Harbour Lighthouse Retryville.jpg", "https://thumb.wikimedia.org/lighthouse.jpg") } } }) };
+  };
+  try {
+    const photo = await findPlacePhoto("Harbour Lighthouse", "Retryville, Nowhere");
+    assert.equal(photo?.url, "https://thumb.wikimedia.org/lighthouse.jpg");
+    assert.equal(requests, 2);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("a search by name alone does not borrow a same-named place from another city", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const query = new URL(url).searchParams.get("gsrsearch");
+    // Only the name-only search finds anything, and it is the museum in another city.
+    const pages = query === "Museo Civico Romano" ? { 1: commonsFile("File:Museo civico romano (Verona) 1.jpg", "https://thumb.wikimedia.org/verona.jpg") } : {};
+    return { ok: true, status: 200, json: async () => ({ query: { pages } }) };
+  };
+  try {
+    assert.equal(await findPlacePhoto("Museo Civico Romano", "Smalltown, Italy"), null);
+  } finally { globalThis.fetch = originalFetch; }
+});
