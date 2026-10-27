@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { filterVenues, venueFromCategory, isExplorePlace, parseOsmPlaces, parseOsmVenues, parsePhotonPlaces, parseWikipediaPlaces, photonBoundingBoxes } from "../src/data/nearby-places.ts";
+import { filterVenues, venueFromCategory, isExplorePlace, mergeSourcePlaces, parseOsmPlaces, parseOsmVenues, parsePhotonPlaces, parseWikipediaPlaces, photonBoundingBoxes, withWikidata } from "../src/data/nearby-places.ts";
 
 const center = { latitude: 44.4268, longitude: 26.1025 };
 
@@ -98,4 +98,36 @@ test("Saved venues are recognised from their category so they keep their venue a
   assert.deepEqual(venueFromCategory("Cafés", { terrace: true, cuisine: "Coffee" }), { kind: "cafe", terrace: true, cuisine: "Coffee" });
   assert.equal(venueFromCategory("Museums"), undefined);
   assert.equal(venueFromCategory(undefined), undefined);
+});
+
+test("OpenStreetMap places carry their Wikidata item, and Photon places get it from Nominatim", async () => {
+  const [tagged] = parseOsmPlaces([{ type: "node", id: 30, lat: 44.427, lon: 26.102, tags: { name: "Old Fort", historic: "fort", wikidata: "Q123" } }], center, 8);
+  assert.equal(tagged.wikidata, "Q123");
+  const photon = parsePhotonPlaces([
+    { properties: { osm_type: "W", osm_id: 31, osm_key: "tourism", osm_value: "museum", name: "Art Museum" }, geometry: { coordinates: [26.103, 44.428] } },
+    { properties: { osm_type: "N", osm_id: 32, osm_key: "tourism", osm_value: "attraction", name: "Clock" }, geometry: { coordinates: [26.104, 44.428] } },
+  ], center, 8);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, json: async () => [{ osm_type: "way", osm_id: 31, extratags: { wikidata: "Q456" } }, { osm_type: "node", osm_id: 32, extratags: { wikidata: "not an item" } }] });
+  try {
+    const enriched = await withWikidata(photon);
+    assert.equal(enriched.find((place) => place.name === "Art Museum")?.wikidata, "Q456");
+    assert.equal(enriched.find((place) => place.name === "Clock")?.wikidata, undefined);
+    globalThis.fetch = async () => { throw new Error("Nominatim is down"); };
+    assert.deepEqual(await withWikidata(photon), photon);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("Wikipedia articles join OpenStreetMap places unless OpenStreetMap already has them", () => {
+  const osm = parseOsmPlaces([
+    { type: "node", id: 1, lat: 44.428, lon: 26.103, tags: { name: "Biserica Neagră", tourism: "attraction" } },
+    { type: "node", id: 2, lat: 44.43, lon: 26.11, tags: { name: "Old Town Square", tourism: "attraction" } },
+  ], center, 8);
+  const wiki = parseWikipediaPlaces([
+    { pageid: 10, title: "Biserica Neagra, Brașov", lat: 44.4285, lon: 26.1035, pageprops: { page_image_free: "a.jpg", "wikibase-shortdesc": "Church in Brașov" } },
+    { pageid: 11, title: "Square fountain", lat: 44.43001, lon: 26.11001, pageprops: { page_image_free: "b.jpg", "wikibase-shortdesc": "Fountain in Romania" } },
+    { pageid: 12, title: "City Museum", lat: 44.4269, lon: 26.1026, pageprops: { page_image_free: "c.jpg", "wikibase-shortdesc": "Museum in Romania" } },
+  ], center, 8);
+  assert.deepEqual(mergeSourcePlaces(osm, wiki, center).map((place) => place.id), ["wiki:12", "osm:node:1", "osm:node:2"]);
+  assert.deepEqual(mergeSourcePlaces([], wiki, center).length, 3);
 });

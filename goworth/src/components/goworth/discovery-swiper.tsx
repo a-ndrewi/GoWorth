@@ -1,6 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
-import * as Location from "expo-location";
 import { router, type Href } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated as LegacyAnimated, Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
@@ -12,6 +11,7 @@ import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import { Copy, DestinationPhoto, Heading, Icon, IconButton, Row } from "@/components/goworth/ui";
 import { themedStyles } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
+import { deviceLocation } from "@/utils/device-location";
 import { discoveryDeck, distanceKm, type Coordinates, type DiscoveryItem } from "@/data/discovery";
 import { destinations, places } from "@/data/travel";
 import { destinationPins } from "@/data/map";
@@ -282,12 +282,11 @@ export function DiscoverySwiper() {
   useEffect(() => {
     if (discoverySettings.centerId) return;
     let current = true;
-    Location.requestForegroundPermissionsAsync().then(async (permission) => {
+    void deviceLocation().then((position) => {
       if (!current) return;
-      if (permission.status !== "granted") { setLocationStatus("unavailable"); return; }
-      const result = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      if (current) { setLocation(result.coords); setLocationStatus("ready"); }
-    }).catch(() => { if (current) setLocationStatus("unavailable"); });
+      setLocation(position);
+      setLocationStatus(position ? "ready" : "unavailable");
+    });
     return () => { current = false; };
   }, [discoverySettings.centerId]);
 
@@ -331,8 +330,18 @@ export function DiscoverySwiper() {
   const needsPhoto = (value: SwipeItem) => value.kind === "nearby" ? !value.place.venue : !!value.place;
   const remaining = useMemo(() => ordered.filter((value) => !seenKeys.includes(value.key) && !(needsPhoto(value) && cardPhotos[value.key] === null)),
     [ordered, seenKeys, cardPhotos]);
-  const unseen = useMemo(() => remaining.filter((value) => !needsPhoto(value) || typeof cardPhotos[value.key] === "string"),
-    [remaining, cardPhotos]);
+  // Cards already dealt onto the stack keep their order. A place whose photo arrives late, or a deck reshuffled by a
+  // save, only adds cards behind them, so the card on top never swaps right after a swipe.
+  const [dealt, setDealt] = useState<string[]>([]);
+  const unseen = useMemo(() => {
+    const ready = remaining.filter((value) => !needsPhoto(value) || typeof cardPhotos[value.key] === "string");
+    const byKey = new Map(ready.map((value) => [value.key, value]));
+    const kept = dealt.flatMap((key) => byKey.get(key) ?? []);
+    const keptKeys = new Set(kept.map((value) => value.key));
+    return [...kept, ...ready.filter((value) => !keptKeys.has(value.key))];
+  }, [remaining, cardPhotos, dealt]);
+  const dealtKey = unseen.slice(0, 3).map((value) => value.key).join("|");
+  if (dealtKey !== dealt.join("|")) setDealt(dealtKey ? dealtKey.split("|") : []);
   const pendingKeys = remaining.filter((value) => needsPhoto(value) && cardPhotos[value.key] === undefined).slice(0, 8);
   const pendingKey = pendingKeys.map((value) => value.key).join("|");
   useEffect(() => {
@@ -363,7 +372,7 @@ export function DiscoverySwiper() {
       });
   }, [wantsMoreWorld, worldCursor]);
 
-  const refresh = () => { setWorldMissCount(0); setCommand(null); setSeenKeys([]); setCycle((value) => value + 1); setSaveError(""); setFreeLimitReached(false); };
+  const refresh = () => { setWorldMissCount(0); setCommand(null); setSeenKeys([]); setDealt([]); setCycle((value) => value + 1); setSaveError(""); setFreeLimitReached(false); };
   const swiped = (swipedItem: SwipeItem, choice: "skip" | "favorite") => {
     setCommand(null);
     setSeenKeys((keys) => [...keys, swipedItem.key]);
@@ -376,6 +385,7 @@ export function DiscoverySwiper() {
     void save.catch((error: unknown) => {
       // Put the card back on top so the save can be retried.
       setSeenKeys((keys) => keys.filter((key) => key !== swipedItem.key));
+      setDealt((keys) => [swipedItem.key, ...keys.filter((key) => key !== swipedItem.key)]);
       setSaveError(error instanceof Error ? error.message : "Could not save this place. Try again.");
       setFreeLimitReached(error instanceof SyncFailure && error.isFreeLimit);
     });

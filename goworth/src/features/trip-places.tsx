@@ -18,7 +18,7 @@ import { useAppLanguage } from "@/data/formatting";
 import { countryFlag } from "@/data/geography";
 import { useTravel } from "@/state/travel-context";
 import { citiesForDay, nextActivitySlot } from "@/utils/trip";
-import { placeFitsTripDay } from "@/utils/trip-place";
+import { loadDayAreas, placeFitsTripDay, useTripAreas } from "@/utils/trip-place";
 import { publicActivityNote, publicPlaceCategory } from "@/utils/public-activity";
 import { SyncFailure } from "@/utils/sync-error";
 
@@ -52,6 +52,7 @@ export function TripPlacesScreen() {
   const day = Math.min(Math.max(1, Math.trunc(Number(dayParam)) || 1), days);
   const dayStops = useMemo(() => trip ? citiesForDay(trip, day).map((id) => routeStop(trip, id)) : [], [trip, day]);
   const stopsKey = dayStops.map((stop) => stop.id).join("|");
+  const tripAreas = useTripAreas(trip);
   const [ideas, setIdeas] = useState<{ key: string; status: "loading" | "ready" | "error"; places: Idea[] }>({ key: "", status: "loading", places: [] });
   const [venues, setVenues] = useState<{ key: string; status: "loading" | "ready" | "error"; places: Idea[] }>({ key: "", status: "loading", places: [] });
   const [query, setQuery] = useState("");
@@ -107,8 +108,8 @@ export function TripPlacesScreen() {
   const plannedIds = new Set(dayActivities.map((activity) => activity.placeId).filter(Boolean));
   const loading = venueFilter ? venues.key !== stopsKey || venues.status === "loading" : ideas.key !== stopsKey || ideas.status === "loading";
   const source = useMemo(() => searchResults ?? (venueFilter
-    ? venues.key === stopsKey ? filterVenues(venues.places, [venueFilter]) as Idea[] : []
-    : ideas.key === stopsKey ? ideas.places : []), [searchResults, venueFilter, venues, ideas, stopsKey]);
+    ? venues.key === stopsKey ? (filterVenues(venues.places, [venueFilter]) as Idea[]).filter((place) => !trip || placeFitsTripDay(trip, day, place, tripAreas)) : []
+    : ideas.key === stopsKey ? ideas.places : []), [searchResults, venueFilter, venues, ideas, stopsKey, trip, day, tripAreas]);
   const attractionSource = searchResults ?? (ideas.key === stopsKey ? ideas.places : []);
   const categories = ["All", ...new Set(attractionSource.map((place) => publicPlaceCategory(place.category) || place.category))];
   const visible = venueFilter ? source : source.filter((place) => category === "All" || (publicPlaceCategory(place.category) || place.category) === category);
@@ -136,8 +137,10 @@ export function TripPlacesScreen() {
       const lists = await Promise.all(dayStops.map((stop) => searchMap(text, { center: { ...stop, kind: "city" }, radiusKm: 25 })
         .then((results) => results.map((result): Idea => ({ id: result.id, name: result.name, latitude: result.latitude, longitude: result.longitude, kind: "place",
           category: result.category, detail: result.detail, source: result.source ?? "OpenStreetMap", sourceUrl: result.sourceUrl, location: stop.name, city: stop.name })))));
+      // Results come from around each city; only those inside the day's own cities can be added, so only those are shown.
+      const areas = await loadDayAreas(trip, dayStops.map((stop) => stop.id));
       const seen = new Set<string>();
-      setSearchResults(lists.flat().filter((place) => placeFitsTripDay(trip, day, place) && !seen.has(place.id) && !!seen.add(place.id)));
+      setSearchResults(lists.flat().filter((place) => placeFitsTripDay(trip, day, place, areas) && !seen.has(place.id) && !!seen.add(place.id)));
       setCategory("All");
     } catch {
       setSearchResults([]);
@@ -264,7 +267,7 @@ export function TripPlacesScreen() {
         </View>;
       }) : <View style={styles.empty}>
         <Icon name="compass" size={26} color={p.blue} />
-        <Copy muted style={{ textAlign: "center", fontSize: 13 }}>{searchResults ? translate("No places found for this day. Try another name.", language)
+        <Copy muted style={{ textAlign: "center", fontSize: 13 }}>{searchResults ? formatMessage("No places in {city} match this search. Day {day} only takes places in its own city.", { city: dayStops.map((stop) => translate(stop.name, language)).join(", "), day }, language)
           : venueFilter ? translate(venues.status === "error" ? "Nearby places are unavailable right now." : "No venues of this kind near this day's cities yet.", language)
           : ideas.status === "error" ? translate("Nearby places are unavailable right now.", language) : translate("No suggestions here yet. Search for a place you have in mind.", language)}</Copy>
       </View>}

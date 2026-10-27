@@ -353,7 +353,9 @@ function NavItem({ id, label, icon, href, active }: {
     >
       <View style={[s.navIcon, create && s.navCreate, active && !create && s.navIconActive]}>
         {id === "profile" ? (
-          <Image source={avatarUrl ? { uri: avatarUrl } : photos.avatar} contentFit="cover" style={[s.navAvatar, active && s.navAvatarActive]} />
+          avatarUrl
+            ? <Image source={{ uri: avatarUrl }} contentFit="cover" style={[s.navAvatar, active && s.navAvatarActive]} />
+            : <GlyphIcon name="person" size={23} color={active ? p.blue : p.muted} />
         ) : (
           <GlyphIcon name={active ? activeIcon : icon} size={create ? 22 : 23} color={create ? p.onColor : active && id === "saved" ? p.danger : active ? p.blue : p.muted} />
         )}

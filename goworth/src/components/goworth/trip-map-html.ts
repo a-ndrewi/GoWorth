@@ -31,9 +31,9 @@ export function tripMapHtml(language: "en" | "ro") {
   .idea{width:18px;height:18px;border-radius:9px;background:#fff;box-shadow:0 2px 8px rgba(19,34,56,.25)}
   .idea i{width:8px;height:8px;border-radius:4px;display:block}
   .selected{transform:scale(1.35);z-index:3}
+  .maplibregl-ctrl-attrib{font-size:9px!important;background:rgba(255,255,255,.85)!important}
   .city{z-index:0;opacity:.92;padding:5px 10px;border-radius:12px;background:#132238;color:#fff;font:800 11px system-ui;box-shadow:0 3px 10px rgba(19,34,56,.3);pointer-events:none;white-space:nowrap}
   .label{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);padding:5px 9px;border-radius:9px;background:#fff;color:#132238;font:700 12px system-ui;white-space:nowrap;box-shadow:0 3px 12px rgba(19,34,56,.2);pointer-events:none;max-width:200px;overflow:hidden;text-overflow:ellipsis}
-  .maplibregl-ctrl-attrib{font-size:9px!important;background:rgba(255,255,255,.85)!important}
 </style></head>
 <body><div id="map"></div><div id="loading">${copy.loading}</div>
 <script src="https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.js"></script>
@@ -89,7 +89,15 @@ try{
   if(!window.maplibregl||!(canvas.getContext('webgl2')||canvas.getContext('webgl')))throw new Error('WebGL unavailable');
   map=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/positron',center:[12,42],zoom:4,attributionControl:false,dragRotate:false,pitchWithRotate:false});
   map.touchZoomRotate.disableRotation();
+  // Credit stays reachable behind the compact "i" but starts folded; MapLibre unfolds it once the style's attribution arrives.
   map.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-left');
+  const foldAttribution=()=>{
+    const attrib=document.querySelector('.maplibregl-ctrl-attrib');
+    if(!attrib||!attrib.classList.contains('maplibregl-compact'))return;
+    attrib.removeAttribute('open');attrib.classList.remove('maplibregl-compact-show');
+    if(!attrib.dataset.watched){attrib.dataset.watched='1';attrib.addEventListener('click',()=>map.off('idle',foldAttribution),{once:true});}
+  };
+  map.on('idle',foldAttribution);
   map.on('click',()=>send(''));
   const slow=setTimeout(()=>{if(!ready)loading.textContent=${JSON.stringify(copy.unavailable)};},15000);
   map.on('load',()=>{

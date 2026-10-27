@@ -20,7 +20,7 @@ import { useAppLanguage } from "@/data/formatting";
 import { useTravel } from "@/state/travel-context";
 import { TripHero, heroStylesSheet, localToday, tripStatus } from "@/components/goworth/trip-hero";
 import { citiesForDay, nextActivitySlot } from "@/utils/trip";
-import { dayRoutePoints, MAX_ROUTE_STOPS, mapsRouteUrl } from "@/utils/trip-place";
+import { dayRoutePoints, MAX_ROUTE_STOPS, mapsRouteUrl, placeFitsTripDay, useTripAreas } from "@/utils/trip-place";
 import { publicActivityNote, translatedActivityNote } from "@/utils/public-activity";
 
 const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
@@ -41,6 +41,7 @@ export function ItineraryScreen() {
   const [note, setNote] = useState("");
   const [time, setTime] = useState("10:00");
   const [activityDay, setActivityDay] = useState(1);
+  const tripAreas = useTripAreas(trip);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -235,9 +236,13 @@ export function ItineraryScreen() {
         <View style={{ gap: 7 }}>
           <Copy style={s.label}>Day</Copy>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
-            {Array.from({ length: days }, (_, index) => <Chip key={index} selected={activityDay === index + 1} onPress={() => setActivityDay(index + 1)}>
-              {formatMessage("Day {day} · {date}", { day: index + 1, date: format(addDays(trip.start, index), { day: "numeric", month: "short" }) }, language)}
-            </Chip>)}
+            {/* A place can only move to the days planned for its own city; a free-form activity can go on any day. */}
+            {Array.from({ length: days }, (_, index) => index + 1).filter((option) => option === activityDay || !editing?.placeId ||
+              editing.latitude === undefined || editing.longitude === undefined ||
+              placeFitsTripDay(trip, option, { latitude: editing.latitude, longitude: editing.longitude, placeId: editing.placeId }, tripAreas)).map((option) =>
+              <Chip key={option} selected={activityDay === option} onPress={() => setActivityDay(option)}>
+                {formatMessage("Day {day} · {date}", { day: option, date: format(addDays(trip.start, option - 1), { day: "numeric", month: "short" }) }, language)}
+              </Chip>)}
           </ScrollView>
         </View>
         <TimeDropdown value={time} onChange={setTime} />

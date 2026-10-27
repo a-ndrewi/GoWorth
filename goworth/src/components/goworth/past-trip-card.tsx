@@ -42,7 +42,6 @@ export function PastTripCard({ entry }: { entry: TripJournalEntry }) {
       <View style={styles.stats}>
         <View style={styles.stat}><Icon name="calendar" size={13} color={p.blue} /><Text style={styles.statText}>{entry.activities.length}</Text></View>
         <View style={styles.stat}><Icon name="wallet" size={13} color={spent > entry.trip.budget ? p.danger : p.blue} /><Text style={styles.statText}>{money(spent)}<Text style={styles.statMuted}> / {money(entry.trip.budget)}</Text></Text></View>
-        {!!entry.savedPlaceIds.length && <View style={styles.stat}><Icon name="heartFill" size={13} color={p.pink} /><Text style={styles.statText}>{entry.savedPlaceIds.length}</Text></View>}
       </View>
       {!!entry.reflection && <Text numberOfLines={2} style={styles.note}>“{entry.reflection}”</Text>}
     </View>

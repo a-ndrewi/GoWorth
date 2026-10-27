@@ -15,6 +15,8 @@ export type NearbyPlace = MapPin & {
   source: "OpenStreetMap" | "Wikipedia";
   sourceUrl: string;
   location?: string;
+  /** The OpenStreetMap object's Wikidata item, whose image is the quickest reliable photo of the place. */
+  wikidata?: string;
   /** Set for restaurants, bars, cafés and clubs, which rarely have a free photo and get their own card. */
   venue?: Venue;
 };
@@ -83,11 +85,13 @@ async function keepPhotoBackedPlaces(places: NearbyPlace[]): Promise<{ places: N
   const candidates = places.slice(0, 60);
   const deadline = Date.now() + 8000;
   const bulk = await Promise.race([
-    prefetchPlacePhotos(candidates.map((place) => ({ name: place.name, location: place.location ?? "", latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl })))
+    prefetchPlacePhotos(candidates.map((place) => ({ name: place.name, location: place.location ?? "", latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl, wikidata: place.wikidata })))
       .catch(() => candidates.map(() => false)),
     later(deadline - Date.now(), null),
   ]);
-  const ready = new Set(bulk ? candidates.filter((_, index) => bulk[index]) : []);
+  // Wikipedia places are only listed when their article has a free lead image, so they need no check of their own:
+  // a check that Wikimedia throttled must not hide them.
+  const ready = new Set(candidates.filter((place, index) => place.source === "Wikipedia" || bulk?.[index]));
   let complete = !!bulk;
   const rest = candidates.filter((place) => !ready.has(place));
   for (let start = 0; complete && start < rest.length && ready.size < 12; start += 6) {
@@ -171,8 +175,43 @@ export function parseOsmPlaces(elements: OsmElement[], center: Center, radiusKm:
       category, detail: `${category} · ${distance.toFixed(1)} km away`, source: "OpenStreetMap" as const,
       sourceUrl: `https://www.openstreetmap.org/${element.type}/${element.id}`,
       ...(element.tags?.city && element.tags?.country ? { location: `${element.tags.city}, ${element.tags.country}` } : {}),
+      ...(wikidataId(element.tags?.wikidata) ? { wikidata: wikidataId(element.tags?.wikidata) } : {}),
     }];
   }).sort((a, b) => distanceKm(center, a) - distanceKm(center, b)).slice(0, 100);
+}
+
+function wikidataId(value: string | undefined) {
+  return value && /^Q\d+$/.test(value.trim()) ? value.trim() : undefined;
+}
+
+/**
+ * Photon leaves out OpenStreetMap's tags, so the Wikidata items of its places are read from Nominatim, up to 50 in one
+ * request. When it is slow or down the places come back as they were and photos fall back to the search by name.
+ */
+export async function withWikidata(places: NearbyPlace[], limit = 50): Promise<NearbyPlace[]> {
+  const types = { node: "N", way: "W", relation: "R" } as Record<string, string>;
+  const missing = places.slice(0, limit).filter((place) => !place.wikidata && place.id.startsWith("osm:"));
+  if (!missing.length) return places;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const url = new URL("https://nominatim.openstreetmap.org/lookup");
+    url.searchParams.set("osm_ids", missing.map((place) => { const [, type, id] = place.id.split(":"); return `${types[type]}${id}`; }).join(","));
+    url.searchParams.set("format", "json");
+    url.searchParams.set("extratags", "1");
+    const response = await fetch(url.toString(), { headers: overpassHeaders, signal: controller.signal });
+    if (!response.ok) return places;
+    const data: { osm_type?: string; osm_id?: number; extratags?: Record<string, string> | null }[] = await response.json();
+    const items = new Map<string, string>((Array.isArray(data) ? data : []).flatMap((element) => {
+      const item = wikidataId(element.extratags?.wikidata);
+      return item ? [[`osm:${element.osm_type}:${element.osm_id}`, item] as const] : [];
+    }));
+    return items.size ? places.map((place) => items.has(place.id) ? { ...place, wikidata: items.get(place.id) } : place) : places;
+  } catch {
+    return places;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function parsePhotonPlaces(features: PhotonFeature[], center: Center, radiusKm: number): NearbyPlace[] {
@@ -236,6 +275,7 @@ export async function searchWikipediaPlaces(query: string, center: Center, radiu
 const wikipediaHeaders: Record<string, string> = typeof document === "undefined" ? { "User-Agent": "GoWorth/1.0 (travel app)" } : {};
 
 /** Overpass turns away requests without an identifying User-Agent (browsers keep their own). */
+/** Overpass and Nominatim both ask clients to identify themselves. */
 const overpassHeaders = { Accept: "application/json", "User-Agent": "GoWorth/1.0 (travel app)" };
 
 async function overpassPlaces(center: Center, radiusKm: number) {
@@ -318,6 +358,23 @@ async function wikipediaPlaces(center: Center, radiusKm: number) {
   }
 }
 
+function comparableName(name: string) {
+  // Wikipedia titles often carry their city ("Bob Church, Cluj-Napoca"), which OpenStreetMap names leave out.
+  return name.split(",")[0].normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim().toLocaleLowerCase();
+}
+
+/**
+ * OpenStreetMap and Wikipedia places as one list, nearest first. A Wikipedia article is left out when OpenStreetMap
+ * already has the place: the same name within a kilometre, or anything within 40 metres.
+ */
+export function mergeSourcePlaces(osm: NearbyPlace[], wiki: NearbyPlace[], center: Center): NearbyPlace[] {
+  const extra = wiki.filter((article) => !osm.some((place) => {
+    const distance = distanceKm(place, article);
+    return distance < 0.04 || distance < 1 && comparableName(place.name) === comparableName(article.name);
+  }));
+  return [...osm, ...extra].sort((a, b) => distanceKm(center, a) - distanceKm(center, b));
+}
+
 /** `within` keeps only places inside an area's outline, such as a city district, before their photos are checked. */
 export async function loadNearbyPlaces(center: Center, radiusKm = 8, within?: Boundary | null): Promise<NearbyPlace[]> {
   const radius = Math.max(1, Math.min(radiusKm, 25));
@@ -327,13 +384,20 @@ export async function loadNearbyPlaces(center: Center, radiusKm = 8, within?: Bo
   const current = pending.get(key);
   if (current) return current;
   const request = (async () => {
-    const photon = await photonPlaces(center, radius).catch(() => []);
-    const osm = photon.length ? photon : await overpassPlaces(center, radius).catch(() => []);
     const inside = (places: NearbyPlace[]) => within ? places.filter((place) => insideBoundary(within, place)) : places;
-    const osmInside = inside(osm);
-    const rawPlaces = osmInside.length ? osmInside : inside(await wikipediaPlaces(center, radius));
+    // Wikipedia is asked alongside OpenStreetMap: its landmarks fill in cities OpenStreetMap maps thinly, and keep the
+    // list going while Photon or Overpass are down. A source that failed is `null`, unlike one that found nothing.
+    const wiki = wikipediaPlaces(center, radius).then(inside).catch(() => null);
+    const photon = await photonPlaces(center, radius).catch(() => null);
+    const osm = photon?.length ? photon : await overpassPlaces(center, radius).catch(() => photon);
+    const osmInside = osm ? inside(osm) : null;
+    const wikiInside = await wiki;
+    // Nothing answered (offline, every provider busy): fail so the screen offers a retry instead of caching an empty list.
+    if (!osmInside && !wikiInside) throw new Error("Nearby places are unavailable.");
+    const rawPlaces = mergeSourcePlaces(osmInside?.length ? await withWikidata(osmInside) : [], wikiInside ?? [], center);
     const { places, complete } = await keepPhotoBackedPlaces(rawPlaces);
-    cache.set(key, { places, expiresAt: Date.now() + (complete ? 30 : 2) * 60 * 1000 });
+    // A list missing one of its sources is kept only briefly, so the next visit tries that source again.
+    cache.set(key, { places, expiresAt: Date.now() + (complete && osmInside && wikiInside ? 30 : 2) * 60 * 1000 });
     return places;
   })().finally(() => pending.delete(key));
   pending.set(key, request);

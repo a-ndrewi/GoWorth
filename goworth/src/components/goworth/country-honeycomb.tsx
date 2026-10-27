@@ -6,7 +6,8 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
-import { countryFlag, type Country } from "@/data/geography";
+import * as Location from "expo-location";
+import { countryFlag, nearestCity, type Country } from "@/data/geography";
 import { translate } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
 import { themedStyles, type Palette } from "@/constants/design";
@@ -25,6 +26,15 @@ const continentTint = (p: Palette): Record<string, { bg: string; ring: string }>
   OC: { bg: p.purpleSoft, ring: "#C5BDF2" },
   AN: { bg: p.soft, ring: p.line },
 });
+
+/** The country the device is in, from the nearest known city; asks for permission only when `ask` is set. */
+async function locateCountry(ask: boolean): Promise<string | null> {
+  const permission = ask ? await Location.requestForegroundPermissionsAsync() : await Location.getForegroundPermissionsAsync();
+  if (permission.status !== "granted") return null;
+  const position = await Location.getLastKnownPositionAsync()
+    ?? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+  return nearestCity(position.coords.latitude, position.coords.longitude)?.countryCode ?? null;
+}
 
 /** Axial hex coordinates walked outward ring by ring, so the first items sit in the middle. */
 function spiral(count: number) {
@@ -62,8 +72,8 @@ function rubber(value: number, limit: number) {
   return value;
 }
 
-const Bubble = memo(function Bubble({ country, cell, index, tx, ty, intro, pressed, width, language, onSelect }: {
-  country: Country; cell: { x: number; y: number }; index: number;
+const Bubble = memo(function Bubble({ country, cell, index, here, tx, ty, intro, pressed, width, language, onSelect }: {
+  country: Country; cell: { x: number; y: number }; index: number; here: boolean;
   tx: SharedValue<number>; ty: SharedValue<number>; intro: SharedValue<number>; pressed: SharedValue<number>;
   width: number; language: ReturnType<typeof useAppLanguage>; onSelect: (code: string) => void;
 }) {
@@ -95,16 +105,17 @@ const Bubble = memo(function Bubble({ country, cell, index, tx, ty, intro, press
   return <Animated.View
     accessible
     accessibilityRole="button"
-    accessibilityLabel={language === "ro" ? `Explorează ${name}` : `Explore ${name}`}
+    accessibilityLabel={language === "ro" ? `Explorează ${name}${here ? ", ești aici" : ""}` : `Explore ${name}${here ? ", you are here" : ""}`}
     accessibilityActions={[{ name: "activate" }]}
     onAccessibilityAction={() => onSelect(country.code)}
     pointerEvents="none"
     style={[styles.bubbleSlot, { left: halfW - BUBBLE / 2, top: halfH - BUBBLE / 2 }, style]}
   >
-    <Animated.View style={[styles.bubble, { backgroundColor: tint.bg, borderColor: tint.ring }, pressStyle]}>
+    <Animated.View style={[styles.bubble, { backgroundColor: tint.bg, borderColor: here ? p.blue : tint.ring }, here && styles.bubbleHere, pressStyle]}>
       <Text style={styles.flag}>{countryFlag(country.code)}</Text>
       <Text numberOfLines={2} style={styles.name}>{name}</Text>
     </Animated.View>
+    {here && <View style={styles.hereBadge}><Icon name="pin" size={11} color={p.white} /></View>}
   </Animated.View>;
 });
 
@@ -131,6 +142,7 @@ export function CountryHoneycomb({
     return () => clearTimeout(timer);
   }, []);
   const [movedFor, setMovedFor] = useState("");
+  const [hereCode, setHereCode] = useState<string | null>(null);
   const ordered = useMemo(() => [...countries].sort((a, b) => b.cityCount - a.cityCount), [countries]);
   const cells = useMemo(() => spiral(ordered.length), [ordered.length]);
   const xs = useMemo(() => cells.map((cell) => cell.x), [cells]);
@@ -147,13 +159,28 @@ export function CountryHoneycomb({
   const intro = useSharedValue(0);
   const pressed = useSharedValue(-1);
   const halfW = size.width / 2, halfH = HEIGHT / 2;
+  // The grid rests on the bubble of the country the device is in, when location is allowed and that country is listed.
+  const hereIndex = hereCode ? codes.indexOf(hereCode) : -1;
+  const homeX = hereIndex >= 0 ? -cells[hereIndex].x : 0;
+  const homeY = hereIndex >= 0 ? -cells[hereIndex].y : 0;
+
+  // Only a permission given earlier is used here; the location button is what asks for it.
+  useEffect(() => {
+    let active = true;
+    locateCountry(false).then((code) => { if (active && code) setHereCode(code); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
-    tx.set(withSpring(0));
-    ty.set(withSpring(0));
+    tx.set(withSpring(homeX));
+    ty.set(withSpring(homeY));
+    // A new list or a newly found location moves the grid home; the intro replays only for a new list.
+  }, [codesKey, homeX, homeY, tx, ty]);
+
+  useEffect(() => {
     intro.set(0);
     intro.set(withTiming(1, { duration: 1100, easing: Easing.linear }));
-  }, [codesKey, tx, ty, intro]);
+  }, [codesKey, intro]);
 
   const hit = (x: number, y: number) => {
     "worklet";
@@ -215,10 +242,20 @@ export function CountryHoneycomb({
   });
   const gesture = useExclusiveGestures(pan, tap);
 
-  const recenter = () => {
-    tx.set(withSpring(0, { damping: 16, stiffness: 140 }));
-    ty.set(withSpring(0, { damping: 16, stiffness: 140 }));
+  const glide = (x: number, y: number) => {
+    tx.set(withSpring(x, { damping: 16, stiffness: 140 }));
+    ty.set(withSpring(y, { damping: 16, stiffness: 140 }));
     setMovedFor("");
+  };
+  const locate = () => {
+    glide(homeX, homeY);
+    // Asks for location (once) and refreshes it, so a trip abroad shows the new country.
+    locateCountry(true).then((code) => {
+      if (!code) return;
+      setHereCode(code);
+      const index = codes.indexOf(code);
+      if (index >= 0) glide(-cells[index].x, -cells[index].y);
+    }).catch(() => {});
   };
 
   return <View style={styles.frame} onLayout={(event: LayoutChangeEvent) => setSize({ width: event.nativeEvent.layout.width })}>
@@ -229,6 +266,7 @@ export function CountryHoneycomb({
           country={country}
           cell={cells[index]}
           index={index}
+          here={country.code === hereCode}
           tx={tx} ty={ty} intro={intro} pressed={pressed}
           width={size.width}
           language={language}
@@ -236,14 +274,14 @@ export function CountryHoneycomb({
         />)}
       </View>
     </GestureDetector>
-    {moved && <Pressable
+    <Pressable
       accessibilityRole="button"
-      accessibilityLabel={language === "ro" ? "Revino în centru" : "Back to centre"}
-      onPress={recenter}
+      accessibilityLabel={language === "ro" ? "Arată țara în care mă aflu" : "Show the country I'm in"}
+      onPress={locate}
       style={({ pressed: down }) => [styles.recenter, down && { transform: [{ scale: 0.9 }] }]}
     >
       <Icon name="target" size={18} color={p.blue} />
-    </Pressable>}
+    </Pressable>
     {!moved && <View pointerEvents="none" style={styles.hint}>
       <Text style={styles.hintText}>{language === "ro" ? "Trage pentru a explora · atinge o țară" : "Drag to explore · tap a country"}</Text>
     </View>}
@@ -257,6 +295,11 @@ const stylesSheet = themedStyles((p) => ({
     width: BUBBLE, height: BUBBLE, borderRadius: BUBBLE / 2, borderWidth: 2,
     alignItems: "center", justifyContent: "center", paddingHorizontal: 6,
     shadowColor: p.shadow, shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3,
+  },
+  bubbleHere: { borderWidth: 3, shadowOpacity: 0.22 },
+  hereBadge: {
+    position: "absolute", top: 0, right: 2, width: 22, height: 22, borderRadius: 11, backgroundColor: p.blue,
+    borderWidth: 2, borderColor: p.white, alignItems: "center", justifyContent: "center",
   },
   flag: { fontSize: 28, lineHeight: 33 },
   name: { color: p.ink, fontSize: 9, lineHeight: 10.5, fontWeight: "700", textAlign: "center", maxWidth: BUBBLE - 12 },

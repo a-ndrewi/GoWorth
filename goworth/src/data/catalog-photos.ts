@@ -18,8 +18,8 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "church of santa maria assunta|positano, italy": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8b/Church_of_Santa_Maria_Assunta%2C_Positano_01.jpg/960px-Church_of_Santa_Maria_Assunta%2C_Positano_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Church_of_Santa_Maria_Assunta,_Positano_01.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Church_of_Santa_Maria_Assunta%2C_Positano_25.jpg/960px-Church_of_Santa_Maria_Assunta%2C_Positano_25.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Church_of_Santa_Maria_Assunta,_Positano_25.jpg",
     "artist": "Simon Burchell",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
@@ -45,13 +45,6 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
-  "akrotiri archaeological site|santorini, greece": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/Akrotiri_Archaeological_Site_in_Santorini_by_Joy_of_Museums.jpg/960px-Akrotiri_Archaeological_Site_in_Santorini_by_Joy_of_Museums.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Akrotiri_Archaeological_Site_in_Santorini_by_Joy_of_Museums.jpg",
-    "artist": "Joyofmuseums",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
-  },
   "red beach|santorini, greece": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Red_Beach%2C_Santorini.jpg/960px-Red_Beach%2C_Santorini.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
     "pageUrl": "https://commons.wikimedia.org/wiki/File:Red_Beach,_Santorini.jpg",
@@ -67,8 +60,8 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "museum of prehistoric thera|santorini, greece": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0d/Santorini_Museum_Prehistoric_Thera_Plaster_cast.jpg/960px-Santorini_Museum_Prehistoric_Thera_Plaster_cast.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Santorini_Museum_Prehistoric_Thera_Plaster_cast.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4d/Santorini_Museum_Prehistoric_Thera_Linear_A.jpg/960px-Santorini_Museum_Prehistoric_Thera_Linear_A.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Santorini_Museum_Prehistoric_Thera_Linear_A.jpg",
     "artist": "Ad Meskens You are free to use this picture for any purpose as long as you credit its author, Ad Meskens . Example: © Ad",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
@@ -88,11 +81,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
   },
   "tirta empul temple|bali, indonesia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d8/Tirta_Empul_temple_%2817057183591%29.jpg/960px-Tirta_Empul_temple_%2817057183591%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Tirta_Empul_temple_(17057183591).jpg",
-    "artist": "Jorge Láscar from Melbourne, Australia",
-    "license": "CC BY 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bd/Pura_Tirta_Empul%2C_Ubud%2C_Bali%2C_Indonesia.JPG/960px-Pura_Tirta_Empul%2C_Ubud%2C_Bali%2C_Indonesia.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Pura_Tirta_Empul,_Ubud,_Bali,_Indonesia.JPG",
+    "artist": "Saranabhi",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "uluwatu temple|bali, indonesia": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/aa/Kuta_Bali_Indonesia_Pura-Luhur-Uluwatu-03.jpg/960px-Kuta_Bali_Indonesia_Pura-Luhur-Uluwatu-03.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -109,8 +102,8 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "tanah lot|bali, indonesia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f5/Tanah_Lot%2C_Bali%2C_Indonesia%2C_20220827_1008_1159.jpg/960px-Tanah_Lot%2C_Bali%2C_Indonesia%2C_20220827_1008_1159.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Tanah_Lot,_Bali,_Indonesia,_20220827_1008_1159.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Tanah_Lot%2C_Bali%2C_Indonesia%2C_20220827_0957_1098.jpg/960px-Tanah_Lot%2C_Bali%2C_Indonesia%2C_20220827_0957_1098.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Tanah_Lot,_Bali,_Indonesia,_20220827_0957_1098.jpg",
     "artist": "Jakub Hałun",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
@@ -158,15 +151,15 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0"
   },
   "thingvellir national park|iceland, iceland": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/National_park_%C3%9Eingvellir_Thingvellir_Iceland_2007.jpg/960px-National_park_%C3%9Eingvellir_Thingvellir_Iceland_2007.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:National_park_%C3%9Eingvellir_Thingvellir_Iceland_2007.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/07/National_park_%C3%9Eingvellir_Thingvellir_Iceland_July_2007.jpg/960px-National_park_%C3%9Eingvellir_Thingvellir_Iceland_July_2007.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:National_park_%C3%9Eingvellir_Thingvellir_Iceland_July_2007.jpg",
     "artist": "Kristof Magnusson",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "gullfoss|iceland, iceland": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4e/Gullfoss%2C_Iceland%2C_20230501_0944_3788.jpg/960px-Gullfoss%2C_Iceland%2C_20230501_0944_3788.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Gullfoss,_Iceland,_20230501_0944_3788.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/12/Gullfoss%2C_Iceland%2C_20230501_1002_3834.jpg/960px-Gullfoss%2C_Iceland%2C_20230501_1002_3834.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Gullfoss,_Iceland,_20230501_1002_3834.jpg",
     "artist": "Jakub Hałun",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
@@ -179,8 +172,8 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
   },
   "jokulsarlon glacier lagoon|iceland, iceland": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c9/J%C3%B6kuls%C3%A1rl%C3%B3n_glacier_lagoon%2C_Iceland%2C_20240719_0937_2454.jpg/960px-J%C3%B6kuls%C3%A1rl%C3%B3n_glacier_lagoon%2C_Iceland%2C_20240719_0937_2454.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:J%C3%B6kuls%C3%A1rl%C3%B3n_glacier_lagoon,_Iceland,_20240719_0937_2454.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f1/J%C3%B6kuls%C3%A1rl%C3%B3n_glacier_lagoon%2C_Iceland%2C_20240718_1607_2323.jpg/960px-J%C3%B6kuls%C3%A1rl%C3%B3n_glacier_lagoon%2C_Iceland%2C_20240718_1607_2323.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:J%C3%B6kuls%C3%A1rl%C3%B3n_glacier_lagoon,_Iceland,_20240718_1607_2323.jpg",
     "artist": "Jakub Hałun",
     "license": "CC BY 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
@@ -228,11 +221,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
   },
   "oeschinen lake|swiss alps, switzerland": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/ISS067-E-152533_-_View_of_Switzerland_-_Bernese_Alps_-_Bl%C3%BCemlisalp_massif_-_lake_Oeschinen_-_Kanderfirn_-_Kiental_valley_-_Sefinental_-_M%C3%BCrren_%28cropped%29.jpg/960px-ISS067-E-152533_-_View_of_Switzerland_-_Bernese_Alps_-_Bl%C3%BCemlisalp_massif_-_lake_Oeschinen_-_Kanderfirn_-_Kiental_valley_-_Sefinental_-_M%C3%BCrren_%28cropped%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:ISS067-E-152533_-_View_of_Switzerland_-_Bernese_Alps_-_Bl%C3%BCemlisalp_massif_-_lake_Oeschinen_-_Kanderfirn_-_Kiental_valley_-_Sefinental_-_M%C3%BCrren_(cropped).jpg",
-    "artist": "Earth Science and Remote Sensing Unit , Lyndon B. Johnson Space Center",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:ISS067-E-152533_-_View_of_Switzerland_-_Bernese_Alps_-_Bl%C3%BCemlisalp_massif_-_lake_Oeschinen_-_Kanderfirn_-_Kiental_valley_-_Sefinental_-_M%C3%BCrren_(cropped).jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/97/Boats_on_the_shoreline_of_Lake_Oeschinen.jpg/960px-Boats_on_the_shoreline_of_Lake_Oeschinen.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Boats_on_the_shoreline_of_Lake_Oeschinen.jpg",
+    "artist": "Gdmolena",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "zermatt|swiss alps, switzerland": {
     "url": "https://upload.wikimedia.org/wikipedia/commons/9/9c/Zermatt_Gorner_Gorge_Valais_Alps_of_Switzerland.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
@@ -263,11 +256,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://commons.wikimedia.org/wiki/File:Notre-Dame_de_Paris,_4_October_2017.jpg"
   },
   "luxembourg gardens|paris, france": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/59/Luxembourg_Gardens%2C_the_Medici_fountains%2C_Paris%2C_France%2C_ca._1890-1900.jpg/960px-Luxembourg_Gardens%2C_the_Medici_fountains%2C_Paris%2C_France%2C_ca._1890-1900.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Luxembourg_Gardens,_the_Medici_fountains,_Paris,_France,_ca._1890-1900.jpg",
-    "artist": "Unknown author Unknown author",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Luxembourg_Gardens,_the_Medici_fountains,_Paris,_France,_ca._1890-1900.jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a3/Luxembourg_Gardens%2C_Paris_22_July_2017.jpg/960px-Luxembourg_Gardens%2C_Paris_22_July_2017.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Luxembourg_Gardens,_Paris_22_July_2017.jpg",
+    "artist": "Mustang Joe",
+    "license": "CC0",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Luxembourg_Gardens,_Paris_22_July_2017.jpg"
   },
   "musee d'orsay|paris, france": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7c/Mus%C3%A9e_d%27Orsay%2C_North-West_view%2C_Paris_7e_140402.jpg/960px-Mus%C3%A9e_d%27Orsay%2C_North-West_view%2C_Paris_7e_140402.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -277,11 +270,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "montmartre|paris, france": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/10/View_from_Notre-Dame_de_Paris%2C_24_June_2014_004.jpg/960px-View_from_Notre-Dame_de_Paris%2C_24_June_2014_004.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:View_from_Notre-Dame_de_Paris,_24_June_2014_004.jpg",
-    "artist": "Navin75",
-    "license": "CC BY-SA 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/69/Montmartre_l%27atelier_de_Suzanne_Valadon_%28Paris%2C_XVIIIe_Ar.%29.jpg/960px-Montmartre_l%27atelier_de_Suzanne_Valadon_%28Paris%2C_XVIIIe_Ar.%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Montmartre_l%27atelier_de_Suzanne_Valadon_(Paris,_XVIIIe_Ar.).jpg",
+    "artist": "Pierre André Leclercq",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
   },
   "colosseum|rome, italy": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/960px-Colosseo_2020.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -403,11 +396,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
   },
   "time out market lisboa|lisbon, portugal": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/27/Time_Out_Market_Lisboa_%2835733604313%29.jpg/960px-Time_Out_Market_Lisboa_%2835733604313%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Time_Out_Market_Lisboa_(35733604313).jpg",
-    "artist": "mat Walker from Brighton, UK",
-    "license": "CC BY-SA 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/Time_Out_Market%2C_Lisboa_%2840935702680%29.jpg/960px-Time_Out_Market%2C_Lisboa_%2840935702680%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Time_Out_Market,_Lisboa_(40935702680).jpg",
+    "artist": "FlyingCrimsonPig",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
   },
   "central park|new york city, united states": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f1/Global_Citizen_Festival_Central_Park_New_York_City_from_NYonAir_%2815351915006%29.jpg/960px-Global_Citizen_Festival_Central_Park_New_York_City_from_NYonAir_%2815351915006%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -480,11 +473,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
   },
   "montjuic|barcelona, spain": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/85/Montjuic%2C_Barcelona_%28P1170636%29.jpg/960px-Montjuic%2C_Barcelona_%28P1170636%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Montjuic,_Barcelona_(P1170636).jpg",
-    "artist": "Matti Blume",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/deed.en"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/35/Montjuic2.jpg/960px-Montjuic2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Montjuic2.jpg",
+    "artist": "Elemaki",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0"
   },
   "la boqueria|barcelona, spain": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ee/La_Boqueria%2C_Barcelona.jpg/960px-La_Boqueria%2C_Barcelona.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -550,8 +543,8 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://commons.wikimedia.org/wiki/File:Vincent_van_Gogh_-_De_slaapkamer_-_Google_Art_Project.jpg"
   },
   "anne frank house|amsterdam, netherlands": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a0/Anne_Frank_House_%28Museum%29%2C_Amsterdam_04.jpg/960px-Anne_Frank_House_%28Museum%29%2C_Amsterdam_04.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Anne_Frank_House_(Museum),_Amsterdam_04.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1e/Anne_Frank_House_%28Museum%29%2C_Amsterdam_01.jpg/960px-Anne_Frank_House_%28Museum%29%2C_Amsterdam_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Anne_Frank_House_(Museum),_Amsterdam_01.jpg",
     "artist": "Ank Kumar",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
@@ -592,15 +585,15 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "topkapi palace|istanbul, turkey": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/40/Lewis_Vulliamy_-_Topkapi_Palace%2C_Istanbul_-_B1975.2.739_-_Yale_Center_for_British_Art.jpg/960px-Lewis_Vulliamy_-_Topkapi_Palace%2C_Istanbul_-_B1975.2.739_-_Yale_Center_for_British_Art.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Lewis_Vulliamy_-_Topkapi_Palace,_Istanbul_-_B1975.2.739_-_Yale_Center_for_British_Art.jpg",
-    "artist": "Lewis Vulliamy",
-    "license": "CC0",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Lewis_Vulliamy_-_Topkapi_Palace,_Istanbul_-_B1975.2.739_-_Yale_Center_for_British_Art.jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d5/Grand_Kiosk_of_Topkap%C4%B1_Palace_in_Istanbul%2C_Turkey_002.jpg/960px-Grand_Kiosk_of_Topkap%C4%B1_Palace_in_Istanbul%2C_Turkey_002.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Grand_Kiosk_of_Topkap%C4%B1_Palace_in_Istanbul,_Turkey_002.jpg",
+    "artist": "Moonik",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "grand bazaar|istanbul, turkey": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/64/Grand_Bazaar%2C_Istanbul%2C_Turkey_%28Ank_Kumar%29_05.jpg/960px-Grand_Bazaar%2C_Istanbul%2C_Turkey_%28Ank_Kumar%29_05.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Grand_Bazaar,_Istanbul,_Turkey_(Ank_Kumar)_05.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/14/Grand_Bazaar%2C_Istanbul%2C_Turkey_%28Ank_Kumar%29_04.jpg/960px-Grand_Bazaar%2C_Istanbul%2C_Turkey_%28Ank_Kumar%29_04.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Grand_Bazaar,_Istanbul,_Turkey_(Ank_Kumar)_04.jpg",
     "artist": "Ank Kumar",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
@@ -627,8 +620,8 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "museum of the future|dubai, united arab emirates": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f8/Museum_of_the_Future_DNA_Library-Dubai_UAE-Andres_Larin.jpg/960px-Museum_of_the_Future_DNA_Library-Dubai_UAE-Andres_Larin.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Museum_of_the_Future_DNA_Library-Dubai_UAE-Andres_Larin.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ec/Museum_of_the_Future_inside-Dubai_UAE-Andres_Larin.jpg/960px-Museum_of_the_Future_inside-Dubai_UAE-Andres_Larin.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Museum_of_the_Future_inside-Dubai_UAE-Andres_Larin.jpg",
     "artist": "Saaremees",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
@@ -669,9 +662,9 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/deed.en"
   },
   "marina bay sands skypark|singapore, singapore": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/93/Singapore_%28SG%29%2C_Marina_Bay_--_2019_--_4701-6.jpg/960px-Singapore_%28SG%29%2C_Marina_Bay_--_2019_--_4701-6.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Singapore_(SG),_Marina_Bay_--_2019_--_4701-6.jpg",
-    "artist": "Dietmar Rabich",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e0/Infinity_Pool_at_Marina_Bay_Sands_SkyPark_Singapore_Ank_Kumar_Infosys_Limited_05.jpg/960px-Infinity_Pool_at_Marina_Bay_Sands_SkyPark_Singapore_Ank_Kumar_Infosys_Limited_05.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Infinity_Pool_at_Marina_Bay_Sands_SkyPark_Singapore_Ank_Kumar_Infosys_Limited_05.jpg",
+    "artist": "Ank Kumar",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
@@ -711,11 +704,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "wat pho|bangkok, thailand": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4e/Wat_Pho%2C_Stupa%2C_Bangkok%2C_Thailand.jpg/960px-Wat_Pho%2C_Stupa%2C_Bangkok%2C_Thailand.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Wat_Pho,_Stupa,_Bangkok,_Thailand.jpg",
-    "artist": "Vyacheslav Argenberg",
-    "license": "CC BY 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/33/Wat_Pho%2C_Bangkok%2C_Tailandia%2C_2013-08-22%2C_DD_37.jpg/960px-Wat_Pho%2C_Bangkok%2C_Tailandia%2C_2013-08-22%2C_DD_37.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Wat_Pho,_Bangkok,_Tailandia,_2013-08-22,_DD_37.jpg",
+    "artist": "Diego Delso",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "wat arun|bangkok, thailand": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1f/Wat_Arun%2C_entrance_2.jpg/960px-Wat_Arun%2C_entrance_2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -753,11 +746,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "bukchon hanok village|seoul, south korea": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/23/Gyedong-gil_street_with_climbing_plants_at_golden_hour_in_Seoul_South_Korea.jpg/960px-Gyedong-gil_street_with_climbing_plants_at_golden_hour_in_Seoul_South_Korea.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Gyedong-gil_street_with_climbing_plants_at_golden_hour_in_Seoul_South_Korea.jpg",
-    "artist": "Basile Morin",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/ff/Bukchon_Hanok_Village_03.jpg/960px-Bukchon_Hanok_Village_03.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Bukchon_Hanok_Village_03.jpg",
+    "artist": "Bgag",
+    "license": "CC0",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Bukchon_Hanok_Village_03.jpg"
   },
   "n seoul tower|seoul, south korea": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b4/N_Seoul_Tower_complex_staircase.jpg/960px-N_Seoul_Tower_complex_staircase.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -844,18 +837,18 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://commons.wikimedia.org/wiki/File:Sugarloaf_Mountain,_Rio_de_Janeiro,_Brazil.jpg"
   },
   "copacabana beach|rio de janeiro, brazil": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Praia_de_Copacabana_-_Rio_de_Janeiro%2C_Brasil.jpg/960px-Praia_de_Copacabana_-_Rio_de_Janeiro%2C_Brasil.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Praia_de_Copacabana_-_Rio_de_Janeiro,_Brasil.jpg",
-    "artist": "[www.flickr.com/photos/26912057@N02/ bisonlux]",
-    "license": "CC BY 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a6/Copacabana_Beach_at_night%2C_Rio_de_Janeiro%2C_Brazil.jpg/960px-Copacabana_Beach_at_night%2C_Rio_de_Janeiro%2C_Brazil.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Copacabana_Beach_at_night,_Rio_de_Janeiro,_Brazil.jpg",
+    "artist": "Wilfredor",
+    "license": "CC0",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Copacabana_Beach_at_night,_Rio_de_Janeiro,_Brazil.jpg"
   },
   "ipanema beach|rio de janeiro, brazil": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d2/Ipanema_beach_and_neighborhood_-_Rio_de_Janeiro%2C_Brazil_%285269505608%29.jpg/960px-Ipanema_beach_and_neighborhood_-_Rio_de_Janeiro%2C_Brazil_%285269505608%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Ipanema_beach_and_neighborhood_-_Rio_de_Janeiro,_Brazil_(5269505608).jpg",
-    "artist": "David Berkowitz from New York, NY, USA",
-    "license": "CC BY 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6a/Ipanema_and_Leblon_as_seen_from_Morro_Dois_Irm%C3%A3os%2C_with_Lagoa_and_Cantagalo_in_the_background%2C_Rio_de_Janeiro%2C_Brazil.jpg/960px-Ipanema_and_Leblon_as_seen_from_Morro_Dois_Irm%C3%A3os%2C_with_Lagoa_and_Cantagalo_in_the_background%2C_Rio_de_Janeiro%2C_Brazil.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Ipanema_and_Leblon_as_seen_from_Morro_Dois_Irm%C3%A3os,_with_Lagoa_and_Cantagalo_in_the_background,_Rio_de_Janeiro,_Brazil.jpg",
+    "artist": "Wilfredor",
+    "license": "CC0",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Ipanema_and_Leblon_as_seen_from_Morro_Dois_Irm%C3%A3os,_with_Lagoa_and_Cantagalo_in_the_background,_Rio_de_Janeiro,_Brazil.jpg"
   },
   "rio de janeiro botanical garden|rio de janeiro, brazil": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cc/Rio_de_Janeiro_Botanical_Garden_%28001%29.jpg/960px-Rio_de_Janeiro_Botanical_Garden_%28001%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -893,8 +886,8 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
   },
   "kirstenbosch national botanical garden|cape town, south africa": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a2/Kirstenbosch_National_Botanical_Garden%2C_Cape_Town_%28P1060025%29.jpg/960px-Kirstenbosch_National_Botanical_Garden%2C_Cape_Town_%28P1060025%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Kirstenbosch_National_Botanical_Garden,_Cape_Town_(P1060025).jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/90/Kirstenbosch_National_Botanical_Garden%2C_Cape_Town_%28P1060068%29.jpg/960px-Kirstenbosch_National_Botanical_Garden%2C_Cape_Town_%28P1060068%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Kirstenbosch_National_Botanical_Garden,_Cape_Town_(P1060068).jpg",
     "artist": "Matti Blume",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
@@ -921,11 +914,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "bahia palace|marrakech, morocco": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/21/Bahia_Palace_Marrakech_Back_Courtyard_LL.JPG/960px-Bahia_Palace_Marrakech_Back_Courtyard_LL.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Bahia_Palace_Marrakech_Back_Courtyard_LL.JPG",
-    "artist": "Lionel Leo",
-    "license": "CC BY-SA 3.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fc/Bahia_Palace_large_court.jpg/960px-Bahia_Palace_large_court.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Bahia_Palace_large_court.jpg",
+    "artist": "Val Traveler",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "jardin majorelle|marrakech, morocco": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/Jardin_Majorelle_%28Marrakech%29.jpg/960px-Jardin_Majorelle_%28Marrakech%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -956,15 +949,15 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0"
   },
   "palacio de bellas artes|mexico city, mexico": {
-    "url": "https://upload.wikimedia.org/wikipedia/commons/7/73/Palacio_de_Bellas_Artes%2C_Mexico_City%2C_1915.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Palacio_de_Bellas_Artes,_Mexico_City,_1915.jpg",
-    "artist": "Wikimedia Commons contributor",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Palacio_de_Bellas_Artes,_Mexico_City,_1915.jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/21/Palacio_de_Bellas_Artes%2C_Mexico_City.jpg/960px-Palacio_de_Bellas_Artes%2C_Mexico_City.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Palacio_de_Bellas_Artes,_Mexico_City.jpg",
+    "artist": "Rohini Lakshané",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0"
   },
   "national museum of anthropology|mexico city, mexico": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f1/Unidentified_disk_-_Aztecs_-_National_Museum_of_Anthropology_-_Mexico_2024.jpg/960px-Unidentified_disk_-_Aztecs_-_National_Museum_of_Anthropology_-_Mexico_2024.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Unidentified_disk_-_Aztecs_-_National_Museum_of_Anthropology_-_Mexico_2024.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6d/Great_Pyramids_room_-_Teotihuac%C3%A1n_-_National_Museum_of_Anthropology_-_Mexico_2024.jpg/960px-Great_Pyramids_room_-_Teotihuac%C3%A1n_-_National_Museum_of_Anthropology_-_Mexico_2024.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Great_Pyramids_room_-_Teotihuac%C3%A1n_-_National_Museum_of_Anthropology_-_Mexico_2024.jpg",
     "artist": "José Luiz",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
@@ -1019,9 +1012,9 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "east side gallery|berlin, germany": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9d/East_Side_Gallery_-_Dmitri_Vrubel_-_Le_baiser_%28Berlin%29.jpg/960px-East_Side_Gallery_-_Dmitri_Vrubel_-_Le_baiser_%28Berlin%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:East_Side_Gallery_-_Dmitri_Vrubel_-_Le_baiser_(Berlin).jpg",
-    "artist": "Gzen92",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2d/East_side_gallery%2C_Berlin_Wall_%28Ank_Kumar%2C_Infosys_Limited_%29_07.jpg/960px-East_side_gallery%2C_Berlin_Wall_%28Ank_Kumar%2C_Infosys_Limited_%29_07.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:East_side_gallery,_Berlin_Wall_(Ank_Kumar,_Infosys_Limited_)_07.jpg",
+    "artist": "Ank Kumar",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
@@ -1096,11 +1089,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "old town square|prague, czechia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/46/Old_Town_Square_of_Prague%2C_c1920.jpg/960px-Old_Town_Square_of_Prague%2C_c1920.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Old_Town_Square_of_Prague,_c1920.jpg",
-    "artist": "Unknown author Unknown author",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Old_Town_Square_of_Prague,_c1920.jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9f/Old_Town_Square_Praga_01.jpg/960px-Old_Town_Square_Praga_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Old_Town_Square_Praga_01.jpg",
+    "artist": "Mihael Grmek",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "prague astronomical clock|prague, czechia": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/69/Prague_Astronomical_Clock_Prague_Orloj_5.jpg/960px-Prague_Astronomical_Clock_Prague_Orloj_5.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1110,11 +1103,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "josefov|prague, czechia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5b/Josefov_1891.jpg/960px-Josefov_1891.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Josefov_1891.jpg",
-    "artist": "Alfred Hurtig",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Josefov_1891.jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5b/Josefov_-_Hauseingang.jpg/960px-Josefov_-_Hauseingang.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Josefov_-_Hauseingang.jpg",
+    "artist": "Wolfgang Sauber",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "letna park|prague, czechia": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/83/Letn%C3%A1_Park_in_late_October%2C_Prague.JPG/960px-Letn%C3%A1_Park_in_late_October%2C_Prague.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1131,9 +1124,9 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "qutub minar|delhi, india": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/05/Qutub_Minar_or_Qutb_Minar_or_Qutab_Minar_3.jpg/960px-Qutub_Minar_or_Qutb_Minar_or_Qutab_Minar_3.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Qutub_Minar_or_Qutb_Minar_or_Qutab_Minar_3.jpg",
-    "artist": "Virusism",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fa/Qutub_Minar%2C_Delhi_3.jpg/960px-Qutub_Minar%2C_Delhi_3.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Qutub_Minar,_Delhi_3.jpg",
+    "artist": "Slyronit",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
@@ -1236,11 +1229,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "central market kuala lumpur|kuala lumpur, malaysia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d9/Central_Market_Kuala_Lumpur_before_1916.jpg/960px-Central_Market_Kuala_Lumpur_before_1916.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Central_Market_Kuala_Lumpur_before_1916.jpg",
-    "artist": "Unknown author Unknown author",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Central_Market_Kuala_Lumpur_before_1916.jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4a/Central_Market%2C_Kuala_Lumpur.jpg/960px-Central_Market%2C_Kuala_Lumpur.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Central_Market,_Kuala_Lumpur.jpg",
+    "artist": "Wee Hong",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "perdana botanical gardens|kuala lumpur, malaysia": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2e/Perdana_Botanical_Gardens%2C_Kuala_Lumpur%2C_Federal_Territory_of_Kuala_Lumpur%2C_Malaysia_-_panoramio_%2815%29.jpg/960px-Perdana_Botanical_Gardens%2C_Kuala_Lumpur%2C_Federal_Territory_of_Kuala_Lumpur%2C_Malaysia_-_panoramio_%2815%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1250,8 +1243,8 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/3.0"
   },
   "sky tower|auckland, new zealand": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3d/Sky_Tower_Auckland_01.jpg/960px-Sky_Tower_Auckland_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Sky_Tower_Auckland_01.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Sky_Tower_Auckland_03.jpg/960px-Sky_Tower_Auckland_03.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Sky_Tower_Auckland_03.jpg",
     "artist": "Krzysztof Golik",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
@@ -1264,11 +1257,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
   },
   "maungawhau / mount eden|auckland, new zealand": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4f/Edinburgh_Street%2C_Auckland_PA01.jpg/960px-Edinburgh_Street%2C_Auckland_PA01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Edinburgh_Street,_Auckland_PA01.jpg",
-    "artist": "Paora",
-    "license": "CC0",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Edinburgh_Street,_Auckland_PA01.jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/31/Mount_Eden_from_Maungawhau_%28Mount_Eden%29.jpg/960px-Mount_Eden_from_Maungawhau_%28Mount_Eden%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Mount_Eden_from_Maungawhau_(Mount_Eden).jpg",
+    "artist": "russellstreet",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0"
   },
   "viaduct harbour|auckland, new zealand": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/17/Viaduct_Harbour%2C_Auckland_%282%29.jpg/960px-Viaduct_Harbour%2C_Auckland_%282%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1292,11 +1285,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://commons.wikimedia.org/wiki/File:Auckland_Domain_Sky_Tower.jpg"
   },
   "cn tower|toronto, canada": {
-    "url": "https://upload.wikimedia.org/wikipedia/commons/4/48/CN_Tower_logo.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:CN_Tower_logo.png",
-    "artist": "Unknown author Unknown author",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:CN_Tower_logo.png"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/43/CN_Tower%2C_Toronto%2C_Canada_%28Unsplash_DJ_kOgH5u0o%29.jpg/960px-CN_Tower%2C_Toronto%2C_Canada_%28Unsplash_DJ_kOgH5u0o%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:CN_Tower,_Toronto,_Canada_(Unsplash_DJ_kOgH5u0o).jpg",
+    "artist": "Scott Webb scottwebb",
+    "license": "CC0",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File:CN_Tower,_Toronto,_Canada_(Unsplash_DJ_kOgH5u0o).jpg"
   },
   "royal ontario museum|toronto, canada": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/72/Royal_Ontario_Museum_in_Fall_2021.jpg/960px-Royal_Ontario_Museum_in_Fall_2021.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1355,18 +1348,18 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
   },
   "la boca|buenos aires, argentina": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/42/Teatro_Catalinas_Sur%2C_La_Boca%2C_Ciudad_Aut%C3%B3noma_de_Buenos_Aires%2C_Argentina%2C_2024_2.jpg/960px-Teatro_Catalinas_Sur%2C_La_Boca%2C_Ciudad_Aut%C3%B3noma_de_Buenos_Aires%2C_Argentina%2C_2024_2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Teatro_Catalinas_Sur,_La_Boca,_Ciudad_Aut%C3%B3noma_de_Buenos_Aires,_Argentina,_2024_2.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/38/Teatro_Catalinas_Sur%2C_La_Boca%2C_Ciudad_Aut%C3%B3noma_de_Buenos_Aires%2C_Argentina%2C_2024.jpg/960px-Teatro_Catalinas_Sur%2C_La_Boca%2C_Ciudad_Aut%C3%B3noma_de_Buenos_Aires%2C_Argentina%2C_2024.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Teatro_Catalinas_Sur,_La_Boca,_Ciudad_Aut%C3%B3noma_de_Buenos_Aires,_Argentina,_2024.jpg",
     "artist": "Vlasta x",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "malba|buenos aires, argentina": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/36/MALBA%2C_Buenos_Aires%2C_Argentina.jpg/960px-MALBA%2C_Buenos_Aires%2C_Argentina.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:MALBA,_Buenos_Aires,_Argentina.jpg",
-    "artist": "OneEuropeanHeart",
-    "license": "CC BY 3.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/3.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9a/Malba_-_Buenos_Aires.jpg/960px-Malba_-_Buenos_Aires.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Malba_-_Buenos_Aires.jpg",
+    "artist": "brunocambraia",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
   },
   "san telmo market|buenos aires, argentina": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/10/San_Telmo_Market%2C_Buenos_Aires%2C_Argentina.jpg/960px-San_Telmo_Market%2C_Buenos_Aires%2C_Argentina.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1376,11 +1369,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
   },
   "plaza mayor de lima|lima, peru": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/Plaza_Mayor_de_Lima%2C_1907.jpg/960px-Plaza_Mayor_de_Lima%2C_1907.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Plaza_Mayor_de_Lima,_1907.jpg",
-    "artist": "Enock, C. Reginald (Charles Reginald), 1868-1970",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Plaza_Mayor_de_Lima,_1907.jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ac/Plaza_Mayor_de_Lima_%281%29.jpg/960px-Plaza_Mayor_de_Lima_%281%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Plaza_Mayor_de_Lima_(1).jpg",
+    "artist": "Jonathan M. Corredor O.",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "larco museum|lima, peru": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f3/Larco_Museum%2C_Lima%2C_Peru_-_Laslovarga_%2830%29.jpg/960px-Larco_Museum%2C_Lima%2C_Peru_-_Laslovarga_%2830%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1418,11 +1411,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0"
   },
   "pyramids of giza|cairo, egypt": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/36/A_horse_and_rider_touring_the_pyramids_of_Giza%2C_in_Cairo_Egypt.jpg/960px-A_horse_and_rider_touring_the_pyramids_of_Giza%2C_in_Cairo_Egypt.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:A_horse_and_rider_touring_the_pyramids_of_Giza,_in_Cairo_Egypt.jpg",
-    "artist": "Jim Joel",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/96/Giza_Pyramids%2C_Cairo_%2853723848834%29.jpg/960px-Giza_Pyramids%2C_Cairo_%2853723848834%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Giza_Pyramids,_Cairo_(53723848834).jpg",
+    "artist": "Mustang Joe",
+    "license": "CC0",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Giza_Pyramids,_Cairo_(53723848834).jpg"
   },
   "egyptian museum|cairo, egypt": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/33/1897_bis_1902_wurde_das_%C3%84gyptische_Museum_in_Kairo_gebaut._04.jpg/960px-1897_bis_1902_wurde_das_%C3%84gyptische_Museum_in_Kairo_gebaut._04.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1439,11 +1432,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/3.0"
   },
   "citadel of saladin|cairo, egypt": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/93/Flickr_-_HuTect_ShOts_-_Citadel_of_Salah_El.Din_and_Masjid_Muhammad_Ali_%D9%82%D9%84%D8%B9%D8%A9_%D8%B5%D9%84%D8%A7%D8%AD_%D8%A7%D9%84%D8%AF%D9%8A%D9%86_%D8%A7%D9%84%D8%A3%D9%8A%D9%88%D8%A8%D9%8A_%D9%88%D9%85%D8%B3%D8%AC%D8%AF_%D9%85%D8%AD%D9%85%D8%AF_%D8%B9%D9%84%D9%8A_-_Cairo_-_Egypt_-_17_04_2010_%284%29.jpg/960px-thumbnail.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Flickr_-_HuTect_ShOts_-_Citadel_of_Salah_El.Din_and_Masjid_Muhammad_Ali_%D9%82%D9%84%D8%B9%D8%A9_%D8%B5%D9%84%D8%A7%D8%AD_%D8%A7%D9%84%D8%AF%D9%8A%D9%86_%D8%A7%D9%84%D8%A3%D9%8A%D9%88%D8%A8%D9%8A_%D9%88%D9%85%D8%B3%D8%AC%D8%AF_%D9%85%D8%AD%D9%85%D8%AF_%D8%B9%D9%84%D9%8A_-_Cairo_-_Egypt_-_17_04_2010_(4).jpg",
-    "artist": "Ahmed Al.Badawy from Cairo, Egypt",
-    "license": "CC BY-SA 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/One_of_the_Cairo_Citadel_gates_under_restoration_near_Saladin_Square.jpg/960px-One_of_the_Cairo_Citadel_gates_under_restoration_near_Saladin_Square.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:One_of_the_Cairo_Citadel_gates_under_restoration_near_Saladin_Square.jpg",
+    "artist": "Hassan Hamdy wahidy",
+    "license": "Public domain",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File:One_of_the_Cairo_Citadel_gates_under_restoration_near_Saladin_Square.jpg"
   },
   "al-azhar mosque|cairo, egypt": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/Al-Azhar_Mosque_%288590203917%29.jpg/960px-Al-Azhar_Mosque_%288590203917%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1712,11 +1705,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "helsinki cathedral|helsinki, finland": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/24/Catedral_Luterana_de_Helsinki%2C_Finlandia%2C_2012-08-14%2C_DD_14.JPG/960px-Catedral_Luterana_de_Helsinki%2C_Finlandia%2C_2012-08-14%2C_DD_14.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Catedral_Luterana_de_Helsinki,_Finlandia,_2012-08-14,_DD_14.JPG",
-    "artist": "Diego Delso",
-    "license": "CC BY-SA 3.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5d/Helsinki_Cathedral%2C_Finland_-_Oct2017.jpg/960px-Helsinki_Cathedral%2C_Finland_-_Oct2017.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Helsinki_Cathedral,_Finland_-_Oct2017.jpg",
+    "artist": "CivArmy",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "suomenlinna|helsinki, finland": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/af/Suomenlinna_aerial.JPG/960px-Suomenlinna_aerial.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1768,11 +1761,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://commons.wikimedia.org/wiki/File:Toompea_castle,_Jan_2010.jpg"
   },
   "kadriorg palace|tallinn, estonia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5d/Kadriorg_Palace%2C_-_Port_de_Tallinn_d%27apr%C3%A8s_Alexey_Bogolybov_%281853%29.JPG/960px-Kadriorg_Palace%2C_-_Port_de_Tallinn_d%27apr%C3%A8s_Alexey_Bogolybov_%281853%29.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Kadriorg_Palace,_-_Port_de_Tallinn_d%27apr%C3%A8s_Alexey_Bogolybov_(1853).JPG",
-    "artist": "Alexey Bogolyubov",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/df/Kadriorg_Palace-Tallinn.jpg/960px-Kadriorg_Palace-Tallinn.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Kadriorg_Palace-Tallinn.jpg",
+    "artist": "Acediscovery",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
   },
   "seaplane harbour|tallinn, estonia": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/dd/Seaplane_Harbour.jpg/960px-Seaplane_Harbour.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1780,6 +1773,13 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "artist": "Pk2000",
     "license": "CC BY-SA 3.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "balti jaam market|tallinn, estonia": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/65/Balti_jaam_viewed_from_Balti_Jaama_Turg_in_December.jpg/960px-Balti_jaam_viewed_from_Balti_Jaama_Turg_in_December.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Balti_jaam_viewed_from_Balti_Jaama_Turg_in_December.jpg",
+    "artist": "JIP",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "telliskivi creative city|tallinn, estonia": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Telliskivi_Creative_City.jpg/960px-Telliskivi_Creative_City.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1789,15 +1789,15 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "old town riga|riga, latvia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ef/Old_town%2C_Riga_-_panoramio.jpg/960px-Old_town%2C_Riga_-_panoramio.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Old_town,_Riga_-_panoramio.jpg",
-    "artist": "mini444",
-    "license": "CC BY-SA 3.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6b/Old_town%2C_Riga_%28DSC02312%29.jpg/960px-Old_town%2C_Riga_%28DSC02312%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Old_town,_Riga_(DSC02312).jpg",
+    "artist": "Matti Blume",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/deed.en"
   },
   "house of the black heads|riga, latvia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/House_of_the_Black_Heads_in_2019.02.jpg/960px-House_of_the_Black_Heads_in_2019.02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:House_of_the_Black_Heads_in_2019.02.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/46/House_of_the_Black_Heads_in_2019.04.jpg/960px-House_of_the_Black_Heads_in_2019.04.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:House_of_the_Black_Heads_in_2019.04.jpg",
     "artist": "CAPTAIN RAJU",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
@@ -1817,15 +1817,15 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "riga motor museum|riga, latvia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/83/RigaMotorMuseum.jpg/960px-RigaMotorMuseum.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:RigaMotorMuseum.jpg",
-    "artist": "Liftarn",
-    "license": "CC BY 3.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/3.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f2/R%C4%ABgas_motormuzejs_-_R%C4%ABga_1_%2B_Spr%C4%ABd%C4%ABtis_%2809.09.2022%29.jpg/960px-R%C4%ABgas_motormuzejs_-_R%C4%ABga_1_%2B_Spr%C4%ABd%C4%ABtis_%2809.09.2022%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:R%C4%ABgas_motormuzejs_-_R%C4%ABga_1_%2B_Spr%C4%ABd%C4%ABtis_(09.09.2022).jpg",
+    "artist": "Nenea hartia",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "bastejkalna park|riga, latvia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5e/Bastejkalna_parks%2C_2006_%2801%29.jpg/960px-Bastejkalna_parks%2C_2006_%2801%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Bastejkalna_parks,_2006_(01).jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e8/Bastejkalna_parks%2C_2006_%2802%29.jpg/960px-Bastejkalna_parks%2C_2006_%2802%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Bastejkalna_parks,_2006_(02).jpg",
     "artist": "Bahnfrend",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
@@ -1845,11 +1845,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "uzupis|vilnius, lithuania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/48/Uzupis%2C_Vilnius%2C_Lithuania_%2827628505795%29.jpg/960px-Uzupis%2C_Vilnius%2C_Lithuania_%2827628505795%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Uzupis,_Vilnius,_Lithuania_(27628505795).jpg",
-    "artist": "Bryan Ledgard",
-    "license": "CC BY 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/57/U%C5%BEupis%2C_Vilnius%2C_Lithuania_-_panoramio_%281%29.jpg/960px-U%C5%BEupis%2C_Vilnius%2C_Lithuania_-_panoramio_%281%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:U%C5%BEupis,_Vilnius,_Lithuania_-_panoramio_(1).jpg",
+    "artist": "t.przechlewski",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0"
   },
   "palace of the grand dukes of lithuania|vilnius, lithuania": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a8/Palace_of_the_Grand_Dukes_of_Lithuania_in_Vilnius_in_winter_in_2022.jpg/960px-Palace_of_the_Grand_Dukes_of_Lithuania_in_Vilnius_in_winter_in_2022.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1866,11 +1866,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "bernardine garden|vilnius, lithuania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e1/Wincenty_Sle%C5%84dzi%C5%84ski._Vilnius_Bernardine_Garden_and_Castle_Hill.jpg/960px-Wincenty_Sle%C5%84dzi%C5%84ski._Vilnius_Bernardine_Garden_and_Castle_Hill.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Wincenty_Sle%C5%84dzi%C5%84ski._Vilnius_Bernardine_Garden_and_Castle_Hill.jpg",
-    "artist": "Aliaksei Lastouski",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f6/Skamba_skamba_kanklia_2026%2C_Bernardine_Garden%2C_stage_%282%29.jpg/960px-Skamba_skamba_kanklia_2026%2C_Bernardine_Garden%2C_stage_%282%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Skamba_skamba_kanklia_2026,_Bernardine_Garden,_stage_(2).jpg",
+    "artist": "Bdx",
     "license": "CC0",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Wincenty_Sle%C5%84dzi%C5%84ski._Vilnius_Bernardine_Garden_and_Castle_Hill.jpg"
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Skamba_skamba_kanklia_2026,_Bernardine_Garden,_stage_(2).jpg"
   },
   "warsaw old town|warsaw, poland": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b4/Warsaw_Old_Town%2C_Warsaw%2C_Poland_-_panoramio_%2869%29.jpg/960px-Warsaw_Old_Town%2C_Warsaw%2C_Poland_-_panoramio_%2869%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1887,11 +1887,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "lazienki park|warsaw, poland": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/Lazienki_Park_Warsaw_about_1900.jpg/960px-Lazienki_Park_Warsaw_about_1900.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Lazienki_Park_Warsaw_about_1900.jpg",
-    "artist": "Unknown author Unknown author",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Lazienki_Park_Warsaw_about_1900.jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/05/POL_Lazienki_Park_Warsaw_%283%29.JPG/960px-POL_Lazienki_Park_Warsaw_%283%29.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:POL_Lazienki_Park_Warsaw_(3).JPG",
+    "artist": "Ala z Alina Zienowicz",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0"
   },
   "polin museum|warsaw, poland": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/POLIN_Museum_of_the_History_of_Polish_Jews_%28Warsaw%29.jpg/960px-POLIN_Museum_of_the_History_of_Polish_Jews_%28Warsaw%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -1929,9 +1929,9 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/3.0"
   },
   "fisherman's bastion|budapest, hungary": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4a/Fisherman%27s_Bastion%2C_Budapest_%28Ank_Kumar%29_08.jpg/960px-Fisherman%27s_Bastion%2C_Budapest_%28Ank_Kumar%29_08.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Fisherman%27s_Bastion,_Budapest_(Ank_Kumar)_08.jpg",
-    "artist": "Ank Kumar",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cf/Fisherman%27s_Bastion%2C_Budapest%2C_Hungary.jpg/960px-Fisherman%27s_Bastion%2C_Budapest%2C_Hungary.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Fisherman%27s_Bastion,_Budapest,_Hungary.jpg",
+    "artist": "Veronika.szappanos",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
@@ -2041,11 +2041,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "ljubljana castle|ljubljana, slovenia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/Ljubljana_Castle_coat_of_arms.jpg/960px-Ljubljana_Castle_coat_of_arms.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Ljubljana_Castle_coat_of_arms.jpg",
-    "artist": "Sebastian Bergmann",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Ljubljana_Castle_coat_of_arms.jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/19/Ljubljana_Castle%2C_2025.jpg/960px-Ljubljana_Castle%2C_2025.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Ljubljana_Castle,_2025.jpg",
+    "artist": "Unomano",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "triple bridge|ljubljana, slovenia": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/Triple_Bridge_in_Ljubljana_in_late_June.jpg/960px-Triple_Bridge_in_Ljubljana_in_late_June.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -2090,25 +2090,25 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "romanian athenaeum|bucharest, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0b/Ateneo_Rumano%2C_Bucarest%2C_Ruman%C3%ADa%2C_2016-05-29%2C_DD_73.jpg/960px-Ateneo_Rumano%2C_Bucarest%2C_Ruman%C3%ADa%2C_2016-05-29%2C_DD_73.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Ateneo_Rumano,_Bucarest,_Ruman%C3%ADa,_2016-05-29,_DD_73.jpg",
-    "artist": "Diego Delso",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/19/Romanian-Athenaeum-Bucharest-2.JPG/960px-Romanian-Athenaeum-Bucharest-2.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Romanian-Athenaeum-Bucharest-2.JPG",
+    "artist": "Mastermindsro",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Romanian-Athenaeum-Bucharest-2.JPG"
   },
   "dimitrie gusti national village museum|bucharest, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7a/%282023%29_Biserica_de_lemn_din_Dragomire%C8%99ti%2C_Maramure%C8%99%2C_1722_-_img_18.jpg/960px-%282023%29_Biserica_de_lemn_din_Dragomire%C8%99ti%2C_Maramure%C8%99%2C_1722_-_img_18.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:(2023)_Biserica_de_lemn_din_Dragomire%C8%99ti,_Maramure%C8%99,_1722_-_img_18.jpg",
-    "artist": "Chainwit.",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Dimitrie_Gusti_national_village_museum_Bucharest_house_veranda.jpg/960px-Dimitrie_Gusti_national_village_museum_Bucharest_house_veranda.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Dimitrie_Gusti_national_village_museum_Bucharest_house_veranda.jpg",
+    "artist": "Cris Coman",
+    "license": "Public domain",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Dimitrie_Gusti_national_village_museum_Bucharest_house_veranda.jpg"
   },
   "carturesti carusel|bucharest, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c5/View_of_Sala_Rapsodia_and_C%C4%83rture%C8%99ti_Carusel_on_Strada_Lipscani_in_Bucharest%2C_Romania.jpg/960px-View_of_Sala_Rapsodia_and_C%C4%83rture%C8%99ti_Carusel_on_Strada_Lipscani_in_Bucharest%2C_Romania.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:View_of_Sala_Rapsodia_and_C%C4%83rture%C8%99ti_Carusel_on_Strada_Lipscani_in_Bucharest,_Romania.jpg",
-    "artist": "Neoclassicism Enthusiast",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6f/Bistro_Carusel%2C_C%C4%83rture%C8%99ti_Carusel%2C_Bucharest%2C_2017.jpg/960px-Bistro_Carusel%2C_C%C4%83rture%C8%99ti_Carusel%2C_Bucharest%2C_2017.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Bistro_Carusel,_C%C4%83rture%C8%99ti_Carusel,_Bucharest,_2017.jpg",
+    "artist": "DimiTalen",
+    "license": "CC0",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Bistro_Carusel,_C%C4%83rture%C8%99ti_Carusel,_Bucharest,_2017.jpg"
   },
   "cismigiu gardens|bucharest, romania": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/41/Cygnus_atratus_-Cismigiu_Gardens%2C_Bucharest%2C_Romania_-swimming-8a.jpg/960px-Cygnus_atratus_-Cismigiu_Gardens%2C_Bucharest%2C_Romania_-swimming-8a.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -2132,46 +2132,46 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "ancient serdica|sofia, bulgaria": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cf/Sofia_-_The_Eastern_Gate_of_Serdica_Fortress_at_the_Serdika_Metro_Station_%28Panorama%29.jpg/960px-Sofia_-_The_Eastern_Gate_of_Serdica_Fortress_at_the_Serdika_Metro_Station_%28Panorama%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Sofia_-_The_Eastern_Gate_of_Serdica_Fortress_at_the_Serdika_Metro_Station_(Panorama).jpg",
-    "artist": "Ann Wuyts",
-    "license": "CC BY 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7d/Western_gate_of_ancient_Serdica_E74.jpg/960px-Western_gate_of_ancient_Serdica_E74.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Western_gate_of_ancient_Serdica_E74.jpg",
+    "artist": "Eola",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "national gallery of bulgaria|sofia, bulgaria": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3e/Sofia-NHG-imagesfrombulgaria3.JPG/960px-Sofia-NHG-imagesfrombulgaria3.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Sofia-NHG-imagesfrombulgaria3.JPG",
-    "artist": "Nenko Lazarov",
-    "license": "CC BY 2.5",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.5"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c2/National_Art_Gallery_of_Bulgaria_E2.jpg/960px-National_Art_Gallery_of_Bulgaria_E2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:National_Art_Gallery_of_Bulgaria_E2.jpg",
+    "artist": "Elena Chochkova",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "sofia central market hall|sofia, bulgaria": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/CentralMarketHall-Sofia-C.jpg/960px-CentralMarketHall-Sofia-C.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:CentralMarketHall-Sofia-C.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5e/Central_Market_Hall_-_Sofia_-_fragment.jpg/960px-Central_Market_Hall_-_Sofia_-_fragment.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Central_Market_Hall_-_Sofia_-_fragment.jpg",
     "artist": "MrPanyGoff",
     "license": "CC BY-SA 3.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "borisova gradina|sofia, bulgaria": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Borisova_Gradina%2C_Sofia.jpg/960px-Borisova_Gradina%2C_Sofia.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Borisova_Gradina,_Sofia.jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/86/Borisova_Gradina%2C_Sofia_2.jpg/960px-Borisova_Gradina%2C_Sofia_2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Borisova_Gradina,_Sofia_2.jpg",
     "artist": "Stolichanin",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "vitosha boulevard|sofia, bulgaria": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cb/Vitosha_Boulevard_Sofia_%282%29.jpg/960px-Vitosha_Boulevard_Sofia_%282%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Vitosha_Boulevard_Sofia_(2).jpg",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b4/Vitosha_Boulevard_Sofia_%281%29.jpg/960px-Vitosha_Boulevard_Sofia_%281%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Vitosha_Boulevard_Sofia_(1).jpg",
     "artist": "Radosław Botev",
     "license": "CC BY 3.0 pl",
     "licenseUrl": "https://creativecommons.org/licenses/by/3.0/pl/deed.en"
   },
   "belgrade fortress|belgrade, serbia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3b/P037152-661920_-_Belgrade_fortress_stand_at_the_downtown_of_Belgrade.jpg/960px-P037152-661920_-_Belgrade_fortress_stand_at_the_downtown_of_Belgrade.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:P037152-661920_-_Belgrade_fortress_stand_at_the_downtown_of_Belgrade.jpg",
-    "artist": "Oliver Bunic",
-    "license": "CC BY 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b9/Belgrade_Fortress_Kalemegdan-9924.NEF.jpg/960px-Belgrade_Fortress_Kalemegdan-9924.NEF.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Belgrade_Fortress_Kalemegdan-9924.NEF.jpg",
+    "artist": "Zcvetkovic",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "kalemegdan park|belgrade, serbia": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0c/Kalemegdan_Park%2C_Belgrade_%282%29.jpg/960px-Kalemegdan_Park%2C_Belgrade_%282%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -2181,9 +2181,9 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/3.0/pl/deed.en"
   },
   "church of saint sava|belgrade, serbia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Hram_svetog_save_beograd_0005_%28edited%29.jpg/960px-Hram_svetog_save_beograd_0005_%28edited%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Hram_svetog_save_beograd_0005_(edited).jpg",
-    "artist": "Npps90",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cf/Church_of_Saint_Sava_%28Belgrade%2C_Serbia%29.jpg/960px-Church_of_Saint_Sava_%28Belgrade%2C_Serbia%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Church_of_Saint_Sava_(Belgrade,_Serbia).jpg",
+    "artist": "Petar Milošević",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
@@ -2195,16 +2195,9 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "skadarlija|belgrade, serbia": {
-    "url": "https://upload.wikimedia.org/wikipedia/commons/4/40/Skadarlija_street%2C_Belgrade%2C_Serbia.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Skadarlija_street,_Belgrade,_Serbia.jpg",
-    "artist": "Zoran Životić Uploader: ZivojinMisic slike",
-    "license": "CC BY 3.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/3.0"
-  },
-  "zemun quay|belgrade, serbia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/91/Dunav_panorama_Zemun_oznake.png/960px-Dunav_panorama_Zemun_oznake.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Dunav_panorama_Zemun_oznake.png",
-    "artist": "Matija & Nikola",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ae/Skadarlija%2C_bohemian_quarter_of_Belgrade%2C_Serbia.jpg/960px-Skadarlija%2C_bohemian_quarter_of_Belgrade%2C_Serbia.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Skadarlija,_bohemian_quarter_of_Belgrade,_Serbia.jpg",
+    "artist": "Remi Jouan",
     "license": "CC BY-SA 3.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
@@ -2216,18 +2209,18 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "atomium|brussels, belgium": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/The_Atomium_during_civil_twilight_%28DSCF1135%29.jpg/960px-The_Atomium_during_civil_twilight_%28DSCF1135%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:The_Atomium_during_civil_twilight_(DSCF1135).jpg",
-    "artist": "Trougnouf (Benoit Brummer)",
-    "license": "CC BY 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/33/Atomium%2C_Bruselas%2C_B%C3%A9lgica%2C_2021-12-15%2C_DD_148-150_HDR.jpg/960px-Atomium%2C_Bruselas%2C_B%C3%A9lgica%2C_2021-12-15%2C_DD_148-150_HDR.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Atomium,_Bruselas,_B%C3%A9lgica,_2021-12-15,_DD_148-150_HDR.jpg",
+    "artist": "Diego Delso",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "royal museums of fine arts of belgium|brussels, belgium": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/67/The_Peacocks_%281896%29%2C_pastel_on_paper%2C_mounted_on_canvas%2C_59.5_x_99_cm.%2C_Royal_Museums_of_Fine_Arts_of_Belgium%2C_Brussels.jpg/960px-The_Peacocks_%281896%29%2C_pastel_on_paper%2C_mounted_on_canvas%2C_59.5_x_99_cm.%2C_Royal_Museums_of_Fine_Arts_of_Belgium%2C_Brussels.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:The_Peacocks_(1896),_pastel_on_paper,_mounted_on_canvas,_59.5_x_99_cm.,_Royal_Museums_of_Fine_Arts_of_Belgium,_Brussels.jpg",
-    "artist": "William Degouve de Nuncques",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:The_Peacocks_(1896),_pastel_on_paper,_mounted_on_canvas,_59.5_x_99_cm.,_Royal_Museums_of_Fine_Arts_of_Belgium,_Brussels.jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/53/Brussels%2C_Royal_Museums_of_Fine_Arts_of_Belgium%2C_Room_55.jpg/960px-Brussels%2C_Royal_Museums_of_Fine_Arts_of_Belgium%2C_Room_55.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Brussels,_Royal_Museums_of_Fine_Arts_of_Belgium,_Room_55.jpg",
+    "artist": "Alta Falisa",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "mont des arts|brussels, belgium": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/06/Mont_des_Arts%2C_Brussels%2C_Belgium.jpg/960px-Mont_des_Arts%2C_Brussels%2C_Belgium.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -2237,9 +2230,9 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://commons.wikimedia.org/wiki/File:Mont_des_Arts,_Brussels,_Belgium.jpg"
   },
   "parc du cinquantenaire|brussels, belgium": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/ba/Arco_del_Cincuentenario%2C_Bruselas%2C_B%C3%A9lgica%2C_2021-12-15%2C_DD_115-135_HDR_PAN.jpg/960px-Arco_del_Cincuentenario%2C_Bruselas%2C_B%C3%A9lgica%2C_2021-12-15%2C_DD_115-135_HDR_PAN.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Arco_del_Cincuentenario,_Bruselas,_B%C3%A9lgica,_2021-12-15,_DD_115-135_HDR_PAN.jpg",
-    "artist": "Diego Delso",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/49/Parc_du_Cinquantenaire%2C_Brussels.jpg/960px-Parc_du_Cinquantenaire%2C_Brussels.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Parc_du_Cinquantenaire,_Brussels.jpg",
+    "artist": "acediscovery",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
@@ -2258,11 +2251,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "black church|brașov, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3d/Brasov_BlackChurch_Nativity_Mural.jpg/960px-Brasov_BlackChurch_Nativity_Mural.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Brasov_BlackChurch_Nativity_Mural.jpg",
-    "artist": "NeuP",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e6/Black_church_Brasov.jpg/960px-Black_church_Brasov.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Black_church_Brasov.jpg",
+    "artist": "Kjetil Ree",
+    "license": "CC BY-SA 2.5",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.5"
   },
   "mount tâmpa|brașov, romania": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3b/Panorama_of_Bra%C8%99ov_old_town_with_the_Black_Church_and_Mount_T%C3%A2mpa_%282025%29.jpg/960px-Panorama_of_Bra%C8%99ov_old_town_with_the_Black_Church_and_Mount_T%C3%A2mpa_%282025%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -2277,13 +2270,6 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "artist": "AnnieGreenSprings",
     "license": "CC BY 2.0",
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
-  },
-  "first romanian school museum|brașov, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/71/First_Romanian_School%2C_Bra%C8%99ov.jpg/960px-First_Romanian_School%2C_Bra%C8%99ov.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:First_Romanian_School,_Bra%C8%99ov.jpg",
-    "artist": "Yair-haklai",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "catherine's gate|brașov, romania": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/20/Catherine%E2%80%99s_Gate_%281096803926%29.jpg/960px-Catherine%E2%80%99s_Gate_%281096803926%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -2334,13 +2320,6 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "license": "CC BY-SA 3.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
-  "sighișoara citadel|sighișoara, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6d/Sighisoara_-_Strada_Turnului.jpg/960px-Sighisoara_-_Strada_Turnului.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Sighisoara_-_Strada_Turnului.jpg",
-    "artist": "Paszczur01",
-    "license": "CC BY-SA 3.0 ro",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/ro/deed.en"
-  },
   "clock tower|sighișoara, romania": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/88/Sighi%C5%9Foara_%28Sch%C3%A4%C3%9Fburg%2C_Segesv%C3%A1r%29_-_Clock_Tower_from_park.JPG/960px-Sighi%C5%9Foara_%28Sch%C3%A4%C3%9Fburg%2C_Segesv%C3%A1r%29_-_Clock_Tower_from_park.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
     "pageUrl": "https://commons.wikimedia.org/wiki/File:Sighi%C5%9Foara_(Sch%C3%A4%C3%9Fburg,_Segesv%C3%A1r)_-_Clock_Tower_from_park.JPG",
@@ -2390,24 +2369,10 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "license": "CC0",
     "licenseUrl": "https://commons.wikimedia.org/wiki/File:St._Michael%27s_Church_in_Cluj-Napoca,_Transylvania,_Romania_(2).jpg"
   },
-  "central park simion bărnuțiu|cluj-napoca, romania": {
-    "url": "https://upload.wikimedia.org/wikipedia/commons/c/c5/Kv%C3%A1r_S%C3%A9tat%C3%A9r_Zenepavillon.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Kv%C3%A1r_S%C3%A9tat%C3%A9r_Zenepavillon.jpg",
-    "artist": "Pasztilla",
-    "license": "CC BY-SA 3.0",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Kv%C3%A1r_S%C3%A9tat%C3%A9r_Zenepavillon.jpg"
-  },
   "alexandru borza botanical garden|cluj-napoca, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/87/Red_Japanese_bridge_in_the_Alexandru_Borza_Botanical_Garden.jpg/960px-Red_Japanese_bridge_in_the_Alexandru_Borza_Botanical_Garden.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Red_Japanese_bridge_in_the_Alexandru_Borza_Botanical_Garden.jpg",
-    "artist": "NicolaMustone",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
-  },
-  "ethnographic museum of transylvania|cluj-napoca, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ce/Muzsnai_szolopres_1841.jpg/960px-Muzsnai_szolopres_1841.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Muzsnai_szolopres_1841.jpg",
-    "artist": "Oguszt",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f3/Cluj-Napoca-Gr%C4%83dina_Botanic%C4%83_-Alexandru_Borza-Inscrip%C8%9Bie-IMG_1280.jpg/960px-Cluj-Napoca-Gr%C4%83dina_Botanic%C4%83_-Alexandru_Borza-Inscrip%C8%9Bie-IMG_1280.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Cluj-Napoca-Gr%C4%83dina_Botanic%C4%83_-Alexandru_Borza-Inscrip%C8%9Bie-IMG_1280.jpg",
+    "artist": "Ana Maria Catalina",
     "license": "CC BY-SA 3.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
@@ -2419,9 +2384,9 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "piața unirii|oradea, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4b/Pia%C8%9Ba_Unirii_Oradea.jpg/960px-Pia%C8%9Ba_Unirii_Oradea.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Pia%C8%9Ba_Unirii_Oradea.jpg",
-    "artist": "Edelheid Amschel",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/26/Piata_Unirii_Oradea2.jpg/960px-Piata_Unirii_Oradea2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Piata_Unirii_Oradea2.jpg",
+    "artist": "Larsvr6",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
@@ -2517,11 +2482,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "copou park|iași, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/19/Copou_Park_%28archival_image%29.jpg/960px-Copou_Park_%28archival_image%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Copou_Park_(archival_image).jpg",
-    "artist": "Editura Horovitz, România",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Copou_Park_(archival_image).jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/64/Parcul_Copou_%28intrare_secundara_est%29_%28dinspre_Universitatea_%22Alexandru_Ioan_Cuza%22_din_Ia%C5%9Fi%29.jpg/960px-Parcul_Copou_%28intrare_secundara_est%29_%28dinspre_Universitatea_%22Alexandru_Ioan_Cuza%22_din_Ia%C5%9Fi%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Parcul_Copou_(intrare_secundara_est)_(dinspre_Universitatea_%22Alexandru_Ioan_Cuza%22_din_Ia%C5%9Fi).jpg",
+    "artist": "Sb2s3",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "three hierarchs monastery|iași, romania": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8f/Romania_Ia%C8%99i_Three_Holy_Hierarchs_Monastery_Church_Mosaic.jpg/960px-Romania_Ia%C8%99i_Three_Holy_Hierarchs_Monastery_Church_Mosaic.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -2537,13 +2502,6 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "license": "CC BY 3.0",
     "licenseUrl": "https://creativecommons.org/licenses/by/3.0"
   },
-  "anastasie fătu botanical garden|iași, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2d/The_Green_grow_Sphere.jpg/960px-The_Green_grow_Sphere.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:The_Green_grow_Sphere.jpg",
-    "artist": "Vi Ko",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
-  },
   "peleș castle|sinaia, romania": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f9/01_Chateau_Peles.jpg/960px-01_Chateau_Peles.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
     "pageUrl": "https://commons.wikimedia.org/wiki/File:01_Chateau_Peles.jpg",
@@ -2552,11 +2510,11 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "pelișor castle|sinaia, romania": {
-    "url": "https://upload.wikimedia.org/wikipedia/commons/0/06/Peli%C8%99or_Castle_%28Sinaia%2C_Romania%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Peli%C8%99or_Castle_(Sinaia,_Romania).jpg",
-    "artist": "Alexandru Antoniu",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Peli%C8%99or_Castle_(Sinaia,_Romania).jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/be/Pelisor_Castle%2C_Sinaia.jpg/960px-Pelisor_Castle%2C_Sinaia.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Pelisor_Castle,_Sinaia.jpg",
+    "artist": "Cristian Bortes",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
   },
   "sinaia monastery|sinaia, romania": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/96/Sinaia_Monastery_%2853743443033%29.jpg/960px-Sinaia_Monastery_%2853743443033%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
@@ -2566,93 +2524,23 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
   },
   "dimitrie ghica park|sinaia, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/ff/RO_PH_Sinaia_park_02.jpg/960px-RO_PH_Sinaia_park_02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:RO_PH_Sinaia_park_02.jpg",
-    "artist": "Whitepixels",
-    "license": "CC0",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:RO_PH_Sinaia_park_02.jpg"
-  },
-  "stâna regală|sinaia, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/79/Ski_lift_behind_a_wooded_hill_%28Unsplash%29.jpg/960px-Ski_lift_behind_a_wooded_hill_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Ski_lift_behind_a_wooded_hill_(Unsplash).jpg",
-    "artist": "Ciprian Lipenschi ciprianis",
-    "license": "CC0",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Ski_lift_behind_a_wooded_hill_(Unsplash).jpg"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d8/Parcul_Dimitrie_Ghica_-_panoramio_%281%29.jpg/960px-Parcul_Dimitrie_Ghica_-_panoramio_%281%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Parcul_Dimitrie_Ghica_-_panoramio_(1).jpg",
+    "artist": "Mister No",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0"
   },
   "cota 2000|sinaia, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/06/Erebia_pronoe_Bucegi_Cota_2000_Sinaia_1.jpg/960px-Erebia_pronoe_Bucegi_Cota_2000_Sinaia_1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Erebia_pronoe_Bucegi_Cota_2000_Sinaia_1.jpg",
-    "artist": "Xulescu g",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3f/Bucegi_-_view_from_Cota_2000.JPG/960px-Bucegi_-_view_from_Cota_2000.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Bucegi_-_view_from_Cota_2000.JPG",
+    "artist": "Pudelek (Marcin Szala)",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "alba carolina citadel|alba iulia, romania": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/88/Cetatea_Alba_Iulia_din_aer_toamna.jpg/960px-Cetatea_Alba_Iulia_din_aer_toamna.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
     "pageUrl": "https://commons.wikimedia.org/wiki/File:Cetatea_Alba_Iulia_din_aer_toamna.jpg",
     "artist": "Kiki Vasilescu",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
-  },
-  "st. michael's cathedral|alba iulia, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fa/Alba_Iulia_-_Catedrala_Sf.Mihail_Aprilie_2013.JPG/960px-Alba_Iulia_-_Catedrala_Sf.Mihail_Aprilie_2013.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Alba_Iulia_-_Catedrala_Sf.Mihail_Aprilie_2013.JPG",
-    "artist": "Daniel JURCA",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
-  },
-  "national museum of the union|alba iulia, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/23/National_Museum_of_the_Union_%2837767622664%29.jpg/960px-National_Museum_of_the_Union_%2837767622664%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:National_Museum_of_the_Union_(37767622664).jpg",
-    "artist": "David Stanley from Nanaimo, Canada",
-    "license": "CC BY 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
-  },
-  "principia museum|alba iulia, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/db/Roman_Soldier_statue_-_3bca2260d7f2447b92fa2f17ca7ebaca.jpg/960px-Roman_Soldier_statue_-_3bca2260d7f2447b92fa2f17ca7ebaca.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Roman_Soldier_statue_-_3bca2260d7f2447b92fa2f17ca7ebaca.jpg",
-    "artist": "Calin Suteu",
-    "license": "CC BY 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
-  },
-  "sulina beach|danube delta, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e8/Danubedelta_chilia_lobe_satellite_image.jpg/960px-Danubedelta_chilia_lobe_satellite_image.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Danubedelta_chilia_lobe_satellite_image.jpg",
-    "artist": "NASA",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Danubedelta_chilia_lobe_satellite_image.jpg"
-  },
-  "sulina old lighthouse|danube delta, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0b/Golful_Musura_5.jpg/960px-Golful_Musura_5.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Golful_Musura_5.jpg",
-    "artist": "Nenea hartia",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
-  },
-  "letea forest|danube delta, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/01/Letea0_cropped.jpg/960px-Letea0_cropped.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Letea0_cropped.jpg",
-    "artist": "Moroyanu at Romanian Wikipedia",
-    "license": "Public domain",
-    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Letea0_cropped.jpg"
-  },
-  "mila 23|danube delta, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b5/Danube-Delta-Caraorman2008.jpg/960px-Danube-Delta-Caraorman2008.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Danube-Delta-Caraorman2008.jpg",
-    "artist": "Ben Skála, Benfoto",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
-  },
-  "sfântu gheorghe beach|danube delta, romania": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/Danube-Delta-Sf%C3%A2ntu-Gheorghe2008zl.jpg/960px-Danube-Delta-Sf%C3%A2ntu-Gheorghe2008zl.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Danube-Delta-Sf%C3%A2ntu-Gheorghe2008zl.jpg",
-    "artist": "Ben Skála, Benfoto",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
-  },
-  "balti jaam market|tallinn, estonia": {
-    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/65/Balti_jaam_viewed_from_Balti_Jaama_Turg_in_December.jpg/960px-Balti_jaam_viewed_from_Balti_Jaama_Turg_in_December.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "pageUrl": "https://commons.wikimedia.org/wiki/File:Balti_jaam_viewed_from_Balti_Jaama_Turg_in_December.jpg",
-    "artist": "JIP",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
@@ -2663,11 +2551,109 @@ export const catalogPhotos: Record<string, PlacePhoto> = {
     "license": "CC BY 2.0",
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
   },
+  "st. michael's cathedral|alba iulia, romania": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9e/Roman_Catholic_Cathedral_Alba_Iulia_St.Michael_-_38abcb7f20964be6beafca74d8a69411.jpg/960px-Roman_Catholic_Cathedral_Alba_Iulia_St.Michael_-_38abcb7f20964be6beafca74d8a69411.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Roman_Catholic_Cathedral_Alba_Iulia_St.Michael_-_38abcb7f20964be6beafca74d8a69411.jpg",
+    "artist": "Calin Suteu",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+  },
   "coronation cathedral|alba iulia, romania": {
     "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/37/Catedrala_Reintregirii_Neamului_-_Alba_Iulia.jpg/960px-Catedrala_Reintregirii_Neamului_-_Alba_Iulia.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
     "pageUrl": "https://commons.wikimedia.org/wiki/File:Catedrala_Reintregirii_Neamului_-_Alba_Iulia.jpg",
     "artist": "Ela Vaida",
     "license": "CC BY-SA 3.0 ro",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/ro/deed.en"
+  },
+  "national museum of the union|alba iulia, romania": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/23/National_Museum_of_the_Union_%2837767622664%29.jpg/960px-National_Museum_of_the_Union_%2837767622664%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:National_Museum_of_the_Union_(37767622664).jpg",
+    "artist": "David Stanley from Nanaimo, Canada",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
+  },
+  "letea forest|danube delta, romania": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/01/Letea0_cropped.jpg/960px-Letea0_cropped.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Letea0_cropped.jpg",
+    "artist": "Moroyanu at Romanian Wikipedia",
+    "license": "Public domain",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File:Letea0_cropped.jpg"
+  },
+  "mila 23|danube delta, romania": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/11/Mila_23%2C_Tulcea_23.jpg/960px-Mila_23%2C_Tulcea_23.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Mila_23,_Tulcea_23.jpg",
+    "artist": "Joe Mabel",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "sfântu gheorghe beach|danube delta, romania": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/Danube-Delta-Sf%C3%A2ntu-Gheorghe2008zl.jpg/960px-Danube-Delta-Sf%C3%A2ntu-Gheorghe2008zl.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Danube-Delta-Sf%C3%A2ntu-Gheorghe2008zl.jpg",
+    "artist": "Ben Skála, Benfoto",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "akrotiri archaeological site|santorini, greece": {
+    "url": "https://upload.wikimedia.org/wikipedia/commons/b/be/Excavations_at_Akrotiri%2C_Santorini_-_sisaphus.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Excavations_at_Akrotiri,_Santorini_-_sisaphus.jpg",
+    "artist": "Roland Turner from Birmingham, Great Britain",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0"
+  },
+  "fira to oia trail|santorini, greece": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7e/Fira_and_Oia_-_Santorini_-_Greece.jpg/960px-Fira_and_Oia_-_Santorini_-_Greece.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Fira_and_Oia_-_Santorini_-_Greece.jpg",
+    "artist": "Norbert Nagel",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "zemun quay|belgrade, serbia": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/86/Zemunski_kej%2C_Beograd.jpg/960px-Zemunski_kej%2C_Beograd.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Zemunski_kej,_Beograd.jpg",
+    "artist": "Dalibor1997",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "first romanian school museum|brașov, romania": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1e/Bra%C8%99ov_-_Prima_%C8%99coal%C4%83_Rom%C3%A2neasc%C4%83_%282023%29_-_img_02.jpg/960px-Bra%C8%99ov_-_Prima_%C8%99coal%C4%83_Rom%C3%A2neasc%C4%83_%282023%29_-_img_02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Bra%C8%99ov_-_Prima_%C8%99coal%C4%83_Rom%C3%A2neasc%C4%83_(2023)_-_img_02.jpg",
+    "artist": "Chainwit.",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+  },
+  "sighișoara citadel|sighișoara, romania": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1b/Sighi%C8%99oara_Citadel_%288153590103%29.jpg/960px-Sighi%C8%99oara_Citadel_%288153590103%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Sighi%C8%99oara_Citadel_(8153590103).jpg",
+    "artist": "Antony Stanley from Gloucester, UK",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0"
+  },
+  "central park simion bărnuțiu|cluj-napoca, romania": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a8/Parcul_Central_din_Cluj.jpg/960px-Parcul_Central_din_Cluj.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Parcul_Central_din_Cluj.jpg",
+    "artist": "Norbert Csaba",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "ethnographic museum of transylvania|cluj-napoca, romania": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/aa/Muzeul_Etnografic_al_Transilvaniei_%286073973245%29.jpg/960px-Muzeul_Etnografic_al_Transilvaniei_%286073973245%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Muzeul_Etnografic_al_Transilvaniei_(6073973245).jpg",
+    "artist": "Cristian Bortes www.eyeem.com/bortescristian from Cluj-Napoca, Romania",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
+  },
+  "anastasie fătu botanical garden|iași, romania": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b6/The_Ia%C8%99i_Botanical_Garden%2C_main_entrance_%28east%29.JPG/960px-The_Ia%C8%99i_Botanical_Garden%2C_main_entrance_%28east%29.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:The_Ia%C8%99i_Botanical_Garden,_main_entrance_(east).JPG",
+    "artist": "Sb2s3",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "sulina old lighthouse|danube delta, romania": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6a/Sulina_-_the_old_lighthouse.JPG/960px-Sulina_-_the_old_lighthouse.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Sulina_-_the_old_lighthouse.JPG",
+    "artist": "Mpb eu",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   }
 };

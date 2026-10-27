@@ -20,7 +20,9 @@ import { citiesForDay, nextActivitySlot } from "@/utils/trip";
 import { uniqueRouteStops } from "@/data/trip-route";
 import { formatMessage, translate, translateAccessibility, translateLocation } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
-import { citiesForCountry, cityForId, countries, countryFlag, countryForCode } from "@/data/geography";
+import { citiesForCountry, cityForId, countries, countryFlag, countryForCode, nearestCity } from "@/data/geography";
+import type { Coordinates } from "@/data/discovery";
+import { deviceLocation } from "@/utils/device-location";
 import { loadNearbyPlaces, venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
 import { venueFilterIcons } from "@/components/goworth/venue-art";
 import { unseenNearbyPlaces, type PlaceVisit } from "@/utils/explore-history";
@@ -77,7 +79,8 @@ export function HomeScreen() {
   const [query, setQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [gridActive, setGridActive] = useState(false);
-  const [nearbyResult, setNearbyResult] = useState<{ key: string; status: "ready" | "error"; places: NearbyPlace[] } | null>(null);
+  const [nearbyResults, setNearbyResults] = useState<Record<string, { status: "ready" | "error"; places: NearbyPlace[] }>>({});
+  const [here, setHere] = useState<Coordinates | null>(null);
   const [nearbyAttempt, setNearbyAttempt] = useState(0);
   const filtered = useMemo(() => countries.filter((country) =>
     normalizeSearchText(`${country.name} ${translate(country.name, language)}`).includes(normalizeSearchText(query.trim()))), [query, language]);
@@ -117,24 +120,45 @@ export function HomeScreen() {
       location: `${cityName}, ${countryName}`,
       label: placeVisit.searchTerm || placeVisit.place.name };
   }, [exploreHistory]);
-  const showMore = browsing && !!recommendationSeed;
-  const seedKey = recommendationSeed?.key ?? "";
+  // Before anything has been browsed, and while a browsed place is still loading, suggestions come from around the
+  // device (or the trip's destination when location is off).
+  useFocusEffect(useCallback(() => { void deviceLocation().then((position) => { if (position) setHere(position); }); }, []));
+  const tripPin = destinationPins.find((pin) => pin.id === trip?.destinationId);
+  const localSeed = useMemo(() => {
+    const point = here ?? tripPin;
+    const city = point ? nearestCity(point.latitude, point.longitude) : undefined;
+    if (!point || !city) return null;
+    const countryName = countryForCode(city.countryCode)?.name ?? city.countryCode;
+    return { key: `here:${point.latitude.toFixed(2)}|${point.longitude.toFixed(2)}`, latitude: point.latitude, longitude: point.longitude,
+      countryCode: city.countryCode, cityId: city.id, location: `${city.name}, ${countryName}`, label: "" };
+  }, [here, tripPin]);
+  const seeds = useMemo(() => [recommendationSeed, localSeed].filter((seed) => !!seed), [recommendationSeed, localSeed]);
+  const seedKeys = seeds.map((seed) => seed.key).join(",");
+  const showMore = browsing && seeds.length > 0;
   useEffect(() => {
-    if (!showMore || !recommendationSeed) return;
+    if (!showMore) return;
     let active = true;
-    loadNearbyPlaces(recommendationSeed, 10)
-      .then((places) => { if (active) setNearbyResult({ key: recommendationSeed.key, status: "ready", places }); })
-      .catch(() => { if (active) setNearbyResult({ key: recommendationSeed.key, status: "error", places: [] }); });
+    for (const seed of seeds) {
+      loadNearbyPlaces(seed, 10)
+        .then((places) => { if (active) setNearbyResults((current) => ({ ...current, [seed.key]: { status: "ready", places } })); })
+        .catch(() => { if (active) setNearbyResults((current) => ({ ...current, [seed.key]: { status: "error", places: [] } })); });
+    }
     return () => { active = false; };
-    // The seed object changes with every history write; only a new key needs a new lookup.
+    // The seed objects change with every history write; only new keys need a new lookup.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showMore, seedKey, nearbyAttempt]);
+  }, [showMore, seedKeys, nearbyAttempt]);
   // A lookup that failed (offline, a slow provider) is tried again whenever Explore comes back into view.
+  const anyFailed = seeds.some((seed) => nearbyResults[seed.key]?.status === "error");
   useFocusEffect(useCallback(() => {
-    if (nearbyResult?.status === "error") setNearbyAttempt((count) => count + 1);
-  }, [nearbyResult?.status]));
-  const suggestions = recommendationSeed && nearbyResult?.key === recommendationSeed.key
-    ? unseenNearbyPlaces(nearbyResult.places, exploreHistory, 12).filter(showable).slice(0, 4) : [];
+    if (anyFailed) setNearbyAttempt((count) => count + 1);
+  }, [anyFailed]));
+  const suggestionsFor = (key: string) => nearbyResults[key]
+    ? unseenNearbyPlaces(nearbyResults[key].places, exploreHistory, 12).filter(showable).slice(0, 4) : [];
+  // The latest browsed place leads; until its places arrive, or when it has none, the places around the device stand in.
+  const shownSeed = seeds.find((seed) => suggestionsFor(seed.key).length) ?? seeds[0];
+  const suggestions = shownSeed ? suggestionsFor(shownSeed.key) : [];
+  const shownResult = shownSeed ? nearbyResults[shownSeed.key] : undefined;
+  const nearbyLoading = !suggestions.length && seeds.some((seed) => !nearbyResults[seed.key]);
   const placeRoute = (visit: PlaceVisit) => ({ pathname: "/place", params: {
     country: visit.countryCode, city: visit.cityId, place: visit.place.id,
     name: visit.place.name, latitude: String(visit.place.latitude), longitude: String(visit.place.longitude),
@@ -204,18 +228,18 @@ export function HomeScreen() {
         </Pressable>)}
         </ScrollView>
       </View>}
-      {showMore && recommendationSeed && <View style={styles.personalSection}>
+      {showMore && shownSeed && <View style={styles.personalSection}>
         <View style={{ gap: 2 }}>
-          <Text style={styles.eyebrow}>{formatMessage("BECAUSE YOU LOOKED AT {query}", { query: recommendationSeed.label.toLocaleUpperCase() }, language)}</Text>
-          <Heading style={styles.personalHeading}>{formatMessage("More to see near {place}", { place: translateLocation(recommendationSeed.location, language).split(",")[0] }, language)}</Heading>
+          <Text style={styles.eyebrow}>{shownSeed.label ? formatMessage("BECAUSE YOU LOOKED AT {query}", { query: shownSeed.label.toLocaleUpperCase() }, language) : translate("NEAR YOU", language)}</Text>
+          <Heading style={styles.personalHeading}>{formatMessage("More to see near {place}", { place: translateLocation(shownSeed.location, language).split(",")[0] }, language)}</Heading>
         </View>
-        {nearbyResult?.key !== recommendationSeed.key && <View style={{ gap: 10 }}><Shimmer style={styles.featured} /><Row style={{ gap: 10 }}><Shimmer style={styles.tile} /><Shimmer style={styles.tile} /></Row></View>}
+        {nearbyLoading && <View style={{ gap: 10 }}><Shimmer style={styles.featured} /><Row style={{ gap: 10 }}><Shimmer style={styles.tile} /><Shimmer style={styles.tile} /></Row></View>}
         {!!suggestions.length && (() => {
           const [first, ...rest] = suggestions;
-          const open = (place: NearbyPlace) => router.push(placeRoute({ countryCode: recommendationSeed.countryCode, cityId: recommendationSeed.cityId, place, viewedAt: 0 }));
+          const open = (place: NearbyPlace) => router.push(placeRoute({ countryCode: shownSeed.countryCode, cityId: shownSeed.cityId, place, viewedAt: 0 }));
           return <>
             <Pressable accessibilityRole="button" accessibilityLabel={`${translate("Place", language)}: ${first.name}`} onPress={() => open(first)} style={({ pressed }) => [styles.featured, pressed && styles.personalCardPressed]}>
-              <PlaceThumbnail name={first.name} location={recommendationSeed.location} latitude={first.latitude} longitude={first.longitude} sourceUrl={first.sourceUrl} style={styles.photoFill} thumbWidth={500} venue={venueFromCategory(first.category)} onPhotoAvailable={(available) => reportPhoto(first.id, available)} />
+              <PlaceThumbnail name={first.name} location={shownSeed.location} latitude={first.latitude} longitude={first.longitude} sourceUrl={first.sourceUrl} style={styles.photoFill} thumbWidth={500} venue={venueFromCategory(first.category)} onPhotoAvailable={(available) => reportPhoto(first.id, available)} />
               <LinearGradient colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0)", "rgba(10,20,40,0.85)"]} style={StyleSheet.absoluteFill} />
               <View style={styles.featuredTop}>
                 <View style={styles.recentPill}><Text style={styles.recentPillText}>{translate("Top pick", language)}</Text></View>
@@ -224,12 +248,12 @@ export function HomeScreen() {
               <View style={styles.recentBody}>
                 <Text numberOfLines={1} style={styles.featuredCategory}>{translate(publicPlaceCategory(first.category) || first.category, language)}</Text>
                 <Text numberOfLines={2} style={styles.featuredName}>{first.name}</Text>
-                <Row style={{ gap: 4 }}><Icon name="pin" size={13} color="rgba(255,255,255,0.85)" /><Text numberOfLines={1} style={styles.recentMeta}>{translateLocation(recommendationSeed.location, language)}</Text></Row>
+                <Row style={{ gap: 4 }}><Icon name="pin" size={13} color="rgba(255,255,255,0.85)" /><Text numberOfLines={1} style={styles.recentMeta}>{translateLocation(shownSeed.location, language)}</Text></Row>
               </View>
             </Pressable>
             {!!rest.length && <View style={styles.tiles}>
               {rest.slice(0, rest.length > 1 ? Math.min(6, rest.length - (rest.length % 2)) : 1).map((place) => <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`${translate("Place", language)}: ${place.name}`} onPress={() => open(place)} style={({ pressed }) => [styles.tile, pressed && styles.personalCardPressed]}>
-                <PlaceThumbnail name={place.name} location={recommendationSeed.location} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} style={styles.photoFill} thumbWidth={330} venue={venueFromCategory(place.category)} onPhotoAvailable={(available) => reportPhoto(place.id, available)} />
+                <PlaceThumbnail name={place.name} location={shownSeed.location} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} style={styles.photoFill} thumbWidth={330} venue={venueFromCategory(place.category)} onPhotoAvailable={(available) => reportPhoto(place.id, available)} />
                 <LinearGradient colors={["rgba(0,0,0,0)", "rgba(10,20,40,0.8)"]} style={StyleSheet.absoluteFill} />
                 <View style={styles.recentBody}>
                   <Text numberOfLines={1} style={styles.tileCategory}>{translate(publicPlaceCategory(place.category) || place.category, language)}</Text>
@@ -239,10 +263,10 @@ export function HomeScreen() {
             </View>}
           </>;
         })()}
-        {nearbyResult?.key === recommendationSeed.key && !suggestions.length && <View style={styles.personalEmpty}>
+        {!nearbyLoading && !suggestions.length && <View style={styles.personalEmpty}>
           <Icon name="compass" size={24} color={p.blue} />
-          <Copy muted style={{ textAlign: "center", fontSize: 13 }}>{translate(nearbyResult.status === "error" ? "Nearby places are unavailable right now." : "No places found nearby", language)}</Copy>
-          {nearbyResult.status === "error" && <Pressable accessibilityRole="button" onPress={() => setNearbyAttempt((count) => count + 1)} hitSlop={8}><Copy style={{ color: p.blue, fontWeight: "700", fontSize: 13 }}>{translate("Retry", language)}</Copy></Pressable>}
+          <Copy muted style={{ textAlign: "center", fontSize: 13 }}>{translate(shownResult?.status === "error" ? "Nearby places are unavailable right now." : "No places found nearby", language)}</Copy>
+          {shownResult?.status === "error" && <Pressable accessibilityRole="button" onPress={() => setNearbyAttempt((count) => count + 1)} hitSlop={8}><Copy style={{ color: p.blue, fontWeight: "700", fontSize: 13 }}>{translate("Retry", language)}</Copy></Pressable>}
         </View>}
       </View>}
     </Screen>

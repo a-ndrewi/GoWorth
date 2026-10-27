@@ -6,7 +6,8 @@ import { externalPlaceFromSaved } from "@/data/external-places";
 import { syncStoreEntitlement } from "@/lib/entitlements";
 import { purchasesConfigured } from "@/lib/purchases";
 import { useAuth } from "@/state/auth-context";
-import { placeFitsTripDay } from "@/utils/trip-place";
+import { dayCityNames, placeFitsTripDayChecked } from "@/utils/trip-place";
+import { formatMessage } from "@/data/i18n";
 import { describeSyncFailure, isFreeLimitFailure, SyncFailure } from "@/utils/sync-error";
 import { tripDays, validateTrip } from "@/utils/trip";
 import { emptyExploreHistory, parseExploreHistory, rememberCountry, rememberPlace, type ExploreHistory } from "@/utils/explore-history";
@@ -64,6 +65,14 @@ const blankPreferences: TravelPreferences = {
   budget: 2500,
   pace: "Balanced",
 };
+
+/** A place saved to a day must lie in a city planned for that day; free-form activities without a place are not checked. */
+async function ensurePlaceFitsDay(trip: Trip, activity: Pick<Activity, "day" | "placeId" | "latitude" | "longitude">) {
+  if (!activity.placeId) return;
+  const point = activity.latitude !== undefined && activity.longitude !== undefined ? { latitude: activity.latitude, longitude: activity.longitude } : null;
+  if (point && await placeFitsTripDayChecked(trip, activity.day, { ...point, placeId: activity.placeId })) return;
+  throw new Error(formatMessage("Day {day} is planned for {city}. Only places in {city} can be added to it.", { day: activity.day, city: dayCityNames(trip, activity.day).join(", ") }));
+}
 
 function useTravelState() {
   const { user } = useAuth();
@@ -334,9 +343,7 @@ function useTravelState() {
   const addActivity = async (activity: Omit<Activity, "id">) => {
     if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
     if (activity.day < 1 || activity.day > tripDays(trip.start, trip.end)) throw new Error("Choose a day in this trip.");
-    if (activity.placeId && (activity.latitude === undefined || activity.longitude === undefined || !placeFitsTripDay(trip, activity.day, { latitude: activity.latitude, longitude: activity.longitude }))) {
-      throw new Error("This place is outside the cities planned for that day. Add its city to the day first.");
-    }
+    await ensurePlaceFitsDay(trip, activity);
     const next = { ...activity, id: `activity-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
     await persist(() => saveActivity(user.id, next, activities.length));
     setActivities((current) => [...current, next]);
@@ -344,9 +351,7 @@ function useTravelState() {
 
   const updateActivity = async (activity: Activity) => {
     if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
-    if (activity.placeId && (activity.latitude === undefined || activity.longitude === undefined || !placeFitsTripDay(trip, activity.day, { latitude: activity.latitude, longitude: activity.longitude }))) {
-      throw new Error("This place is outside the destination assigned to that day.");
-    }
+    await ensurePlaceFitsDay(trip, activity);
     const position = activities.findIndex((item) => item.id === activity.id);
     if (position < 0) throw new Error("Activity not found. Reload your itinerary.");
     await persist(() => saveActivity(user.id, activity, position));

@@ -13,7 +13,7 @@ import { useTravel } from "@/state/travel-context";
 
 const wording = {
   en: {
-    title: "Membership", current: "Current plan", monthlyUsage: "This month", trip: "Trips", places: "Saved places", destinations: "Saved destinations",
+    title: "Membership", current: "Current plan", monthlyUsage: "This month", trip: "Trips", places: "Saved places",
     free: "Free", premium: "Premium monthly", lifetime: "Lifetime", loading: "Checking store prices…",
     unavailable: "Store price unavailable", monthlyDetail: "Unlimited trips and saves. Renews every month until you cancel. After cancelling, Premium stays active until the end of the paid month. No refunds.",
     lifetimeDetail: "Unlimited trips and saves for this GoWorth account. One-time payment with no renewal. Cannot be cancelled and is not refundable.",
@@ -21,7 +21,7 @@ const wording = {
     cancelRenewal: "Cancel subscription", renewalCancelled: "Subscription canceled. Premium remains active until", cancellationFailed: "Could not confirm the cancellation. Please try again.",
     cancelConfirmation: "Your next renewal will stop. Premium stays active until the end of the month you already paid for, and that month is not refunded. After confirming, you can also buy Lifetime.", keepRenewal: "Keep monthly renewal",
     lifetimeNoSubscription: "Lifetime is a one-time purchase with no renewal to cancel.",
-    freeDetail: "1 trip, 5 new saved places and 5 new saved destinations each calendar month.",
+    freeDetail: "1 trip and 5 new saved places each calendar month.",
     monthlyAction: "Subscribe monthly", lifetimeAction: "Get lifetime access", active: "Your plan", paidActive: "Unlimited access is active.",
     setup: "Purchases are being set up. Prices and purchase buttons will appear when the stores are connected.",
     verify: "Purchase verification is unavailable. Purchases are paused until access can be confirmed.",
@@ -36,7 +36,7 @@ const wording = {
     renewsOn: "Renews on", activeUntil: "Active until", limitsReset: "Limits reset on the 1st of every month.",
   },
   ro: {
-    title: "Abonament", current: "Planul actual", monthlyUsage: "Luna aceasta", trip: "Călătorii", places: "Locuri salvate", destinations: "Destinații salvate",
+    title: "Abonament", current: "Planul actual", monthlyUsage: "Luna aceasta", trip: "Călătorii", places: "Locuri salvate",
     free: "Gratuit", premium: "Premium lunar", lifetime: "Pe viață", loading: "Se verifică prețurile din magazin…",
     unavailable: "Preț indisponibil", monthlyDetail: "Călătorii și salvări nelimitate. Se reînnoiește lunar până îl anulezi. După anulare, Premium rămâne activ până la sfârșitul lunii plătite. Fără rambursări.",
     lifetimeDetail: "Călătorii și salvări nelimitate pentru acest cont GoWorth. Plată unică, fără reînnoire. Nu poate fi anulat și nu este rambursabil.",
@@ -44,7 +44,7 @@ const wording = {
     cancelRenewal: "Anulează abonamentul", renewalCancelled: "Abonamentul este anulat. Premium rămâne activ până la", cancellationFailed: "Nu am putut confirma anularea. Încearcă din nou.",
     cancelConfirmation: "Următoarea reînnoire se oprește. Premium rămâne activ până la sfârșitul lunii deja plătite, iar acea lună nu se rambursează. După confirmare, poți cumpăra și planul pe viață.", keepRenewal: "Păstrează reînnoirea lunară",
     lifetimeNoSubscription: "Planul pe viață este o plată unică și nu are reînnoire de anulat.",
-    freeDetail: "1 călătorie, 5 locuri noi și 5 destinații noi salvate în fiecare lună calendaristică.",
+    freeDetail: "1 călătorie și 5 locuri noi salvate în fiecare lună calendaristică.",
     monthlyAction: "Abonează-te lunar", lifetimeAction: "Obține acces pe viață", active: "Planul tău", paidActive: "Accesul nelimitat este activ.",
     setup: "Plățile sunt în curs de configurare. Prețurile și butoanele de cumpărare vor apărea după conectarea magazinelor.",
     verify: "Verificarea cumpărăturilor nu este disponibilă. Cumpărarea rămâne oprită până când accesul poate fi confirmat.",
@@ -207,7 +207,6 @@ export function MembershipScreen() {
       {plan === "free" && <View style={{ gap: 12, marginTop: 8 }}>
         <Usage label={t.trip} used={monthlyUsage.trip} limit={1} />
         <Usage label={t.places} used={monthlyUsage.place} limit={5} />
-        <Usage label={t.destinations} used={monthlyUsage.destination} limit={5} />
       </View>}
     </View>
 

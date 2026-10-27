@@ -1,9 +1,9 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { useEffect, useState } from "react";
+import { AppState, Pressable, StyleSheet, View } from "react-native";
 import { useIsFocused } from "expo-router";
 import Animated, {
-  cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming,
+  cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming,
 } from "react-native-reanimated";
 import Svg, { Circle } from "react-native-svg";
 import { themedStyles } from "@/constants/design";
@@ -11,6 +11,7 @@ import { usePalette, useStyles } from "@/state/theme-context";
 import { GlyphIcon } from "@/components/goworth/icons";
 
 const SIZE = 48;
+const START_DELAY = 400;
 
 /** Explore's itinerary shortcut: a plane orbiting a globe on a dashed route, with a soft pulse. */
 export function TripShortcut({ label, onPress }: { label: string; onPress: () => void }) {
@@ -20,14 +21,23 @@ export function TripShortcut({ label, onPress }: { label: string; onPress: () =>
   const pulse = useSharedValue(0);
   const press = useSharedValue(1);
   const focused = useIsFocused();
+  // Returning from the background leaves Explore focused, so the app's own state also restarts the flight.
+  const [foreground, setForeground] = useState(AppState.currentState !== "background");
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => setForeground(state !== "background"));
+    return () => sub.remove();
+  }, []);
   useEffect(() => {
     // A couple of turns each time Explore is shown: an endless loop would redraw every frame and keep the CPU busy.
-    if (!focused) return;
+    if (!focused || !foreground) return;
     orbit.set(0);
-    orbit.set(withRepeat(withTiming(1, { duration: 5200, easing: Easing.linear }), 2));
-    pulse.set(withRepeat(withSequence(withTiming(1, { duration: 1500, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 0 })), 3));
-    return () => { cancelAnimation(orbit); cancelAnimation(pulse); };
-  }, [focused, orbit, pulse]);
+    pulse.set(0);
+    // Waits for the screen transition and splash to clear, so the first turn is actually seen.
+    orbit.set(withDelay(START_DELAY, withRepeat(withTiming(1, { duration: 5200, easing: Easing.linear }), 2)));
+    pulse.set(withDelay(START_DELAY, withRepeat(withSequence(withTiming(1, { duration: 1500, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 0 })), 3)));
+    // Back to the start of the route rather than frozen mid-orbit when interrupted.
+    return () => { cancelAnimation(orbit); cancelAnimation(pulse); orbit.set(0); pulse.set(0); };
+  }, [focused, foreground, orbit, pulse]);
   const orbitStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${orbit.value * 360}deg` }] }));
   const pulseStyle = useAnimatedStyle(() => ({ opacity: 0.45 * (1 - pulse.value), transform: [{ scale: 1 + pulse.value * 0.32 }] }));
   const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press.value }, { rotate: `${(1 - press.value) * -40}deg` }] }));

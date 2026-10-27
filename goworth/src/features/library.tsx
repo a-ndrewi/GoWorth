@@ -19,6 +19,7 @@ import { currentExchangeRate, useAppLanguage } from "@/data/formatting";
 import { formatMessage, translate, translateAccessibility, translateLocation } from "@/data/i18n";
 import { publicActivityNote, publicPlaceCategory } from "@/utils/public-activity";
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
+import { GlyphIcon } from "@/components/goworth/icons";
 import { venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
 
 type SavedPreview = {
@@ -26,7 +27,6 @@ type SavedPreview = {
   latitude?: number; longitude?: number; sourceUrl?: string;
   /** Set for places saved from the map or Explore, which are re-saved from this record. */
   external?: NearbyPlace;
-  mapParams: Record<string, string>;
 };
 
 // Saved place cards have one fixed height, so the list can place them without measuring each one; measuring left it
@@ -108,14 +108,14 @@ export function SavedScreen() {
       return { key: place.id, name: place.name, category: place.category, location: `${destination.name}, ${destination.country}`,
         latitude: undefined, longitude: undefined, sourceUrl: undefined, near: destinationPins.find((pin) => pin.id === place.destinationId),
         onOpen: () => setPreview({ id: place.id, name: place.name, category: place.category, detail: translate(place.detail, language),
-          location: `${destination.name}, ${destination.country}`, mapParams: { place: place.id } }),
+          location: `${destination.name}, ${destination.country}`}),
         onUnsave: () => togglePlace(place.id) };
     }),
     ...externalPlaces.map((place) => ({ key: place.id, name: place.name, category: place.category, location: place.location || place.detail,
       latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl, near: undefined,
       onOpen: () => setPreview({ id: place.id, name: place.name, category: place.category, detail: publicActivityNote(place.detail),
         location: place.location || "", latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl,
-        external: place, mapParams: { external: place.id } }),
+        external: place }),
       onUnsave: () => void toggleExternalPlace(place) })),
   ], [savedPlaceRecords, externalPlaces, togglePlace, toggleExternalPlace, language]);
   // Photos for the whole list are looked up in bulk, a page at a time, before the cards each search on their own.
@@ -227,7 +227,6 @@ export function SavedScreen() {
               ? `https://www.google.com/maps/dir/?api=1&destination=${preview.latitude},${preview.longitude}`
               : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${preview.name}, ${preview.location}`)}`)}>Directions</Button>
           </Row>
-          <Button secondary icon="map" onPress={() => { const params = preview.mapParams; setPreview(null); router.navigate({ pathname: "/map", params } as Href); }}>Show on map</Button>
           {!!previewError && <Copy style={s.error}>{previewError}</Copy>}
         </>}
       </Sheet>
@@ -307,7 +306,9 @@ export function ProfileScreen() {
           </Pressable>
         </Row>
         <Pressable accessibilityRole="button" accessibilityLabel={translate("Change profile photo", language)} accessibilityState={{ disabled: avatarBusy, busy: avatarBusy }} disabled={avatarBusy} onPress={() => void changeAvatar()} style={styles.avatarRing}>
-          {avatarBusy ? <ActivityIndicator color={p.blue} /> : <Image source={avatarUrl ? { uri: avatarUrl } : photos.avatar} contentFit="cover" transition={200} style={styles.avatar} />}
+          {avatarBusy ? <ActivityIndicator color={p.blue} /> : avatarUrl
+            ? <Image source={{ uri: avatarUrl }} contentFit="cover" transition={200} style={styles.avatar} />
+            : <View style={[styles.avatar, styles.avatarPlaceholder]}><GlyphIcon name="person" size={56} color={p.blue} /></View>}
           {!avatarBusy && <View style={styles.cameraBadge}><Icon name="camera" size={14} color={p.blue} /></View>}
         </Pressable>
         <View style={{ alignItems: "center", gap: 2, maxWidth: "100%" }}>
@@ -418,6 +419,7 @@ const stylesSheet = themedStyles((p) => ({
   avatarRing: { width: 98, height: 98, borderRadius: 49, alignItems: "center", justifyContent: "center", backgroundColor: p.onColor,
     shadowColor: "#1E3A8A", shadowOpacity: 0.25, shadowRadius: 0, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
   avatar: { width: 90, height: 90, borderRadius: 45 },
+  avatarPlaceholder: { alignItems: "center", justifyContent: "center", backgroundColor: p.blueSoft },
   cameraBadge: { position: "absolute", right: -2, bottom: 0, width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: p.white, borderWidth: 2, borderColor: p.blueSoft },
   profileName: { color: p.onColor, fontSize: 22, fontWeight: "800" },
   profileHandle: { color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: "600" },

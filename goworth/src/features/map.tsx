@@ -10,7 +10,7 @@ import { destinationPins, usStatePins, searchCatalogPlace, searchMap, type MapPi
 import { cityForId, countries, countryAnchor, countryFlag, countryForCode, searchCities, usStates } from "@/data/geography";
 import { loadNearbyPlaces, venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
 import { useTravel } from "@/state/travel-context";
-import { placeFitsTripDay } from "@/utils/trip-place";
+import { placeFitsTripDay, useTripAreas } from "@/utils/trip-place";
 import { nextActivitySlot } from "@/utils/trip";
 import { routeStopForDay } from "@/data/trip-route";
 import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
@@ -68,6 +68,7 @@ export function MapScreen() {
   const language = useAppLanguage();
   const { destination, place, external, suggestion, q, lat, lon, name, pinKind, category, detail, sourceUrl, location, country: routeCountry, city: routeCity, day: dayParam } = useLocalSearchParams<{ destination?: string; place?: string; external?: string; suggestion?: string; q?: string; lat?: string; lon?: string; name?: string; pinKind?: string; category?: string; detail?: string; sourceUrl?: string; location?: string; country?: string; city?: string; day?: string }>();
   const { saved, savedPlaces, toggleSaved, externalPlaces, toggleExternalPlace, trip, activities, addActivity, removeActivity } = useTravel();
+  const tripAreas = useTripAreas(trip);
   const itineraryDay = trip ? Math.min(Math.max(1, Math.trunc(Number(dayParam)) || 1), tripDays(trip.start, trip.end)) : 1;
   const initialExternal = externalPlaces.find((item) => item.id === external);
   const initialPlace = places.find((item) => item.id === place);
@@ -118,7 +119,7 @@ export function MapScreen() {
   const globeDots = useMemo(() => [...results, ...nearby].map((item) => ({ id: item.id, latitude: item.latitude, longitude: item.longitude })), [results, nearby]);
   const openCountry = useCallback((code: string) => router.push({ pathname: "/country", params: { code } } as Href), []);
   const compatibleDays = (item: MapPin) => trip ? Array.from({ length: tripDays(trip.start, trip.end) }, (_, index) => index + 1)
-    .filter((day) => placeFitsTripDay(trip, day, item)) : [];
+    .filter((day) => placeFitsTripDay(trip, day, { ...item, placeId: place || external || item.id }, tripAreas)) : [];
   const openPreview = (item: SearchResult | NearbyPlace | (typeof destinations)[number]) => {
     setPreview(item);
     const days = "latitude" in item ? compatibleDays(item) : [];
@@ -372,7 +373,7 @@ export function MapScreen() {
           </View>
           <Button icon={addedDays.includes(selectedDay) ? "check" : "plus"} busy={actionBusy} disabled={addedDays.includes(selectedDay)} onPress={() => void addPlaceToTrip(preview)}>{addedDays.includes(selectedDay) ? formatMessage("Added to Day {day}", { day: selectedDay }, language) : "Add to itinerary"}</Button>
           {!!addedDays.length && <Button secondary onPress={() => { setPreview(null); router.push("/itinerary" as Href); }}>View itinerary</Button>}
-        </> : <>{trip && <Copy muted>This place is outside the cities assigned to your trip. Create a route with this city to add it.</Copy>}<Button onPress={() => planPlace(preview)}>{trip ? "Plan a new route" : "Plan a trip"}</Button></>}
+        </> : <>{trip && <Copy muted>Each day of your trip only takes places in the city planned for it, and this place is in none of them. Plan a new route to visit it.</Copy>}<Button onPress={() => planPlace(preview)}>{trip ? "Plan a new route" : "Plan a trip"}</Button></>}
         <Button secondary icon="map" onPress={() => void openDirections(preview)}>Google Maps directions</Button>
         {!!actionError && <Copy style={{ color: p.danger }}>{actionError}</Copy>}
       </>)}

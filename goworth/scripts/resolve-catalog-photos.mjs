@@ -10,7 +10,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const root = new URL("..", import.meta.url).pathname;
 const { places, destinationCatalog } = await import(`${root}src/data/catalog.ts`);
-const { findPlacePhoto, prefetchPlacePhotos, photoSource } = await import(`${root}src/data/place-photo.ts`);
+const { findPlacePhoto, prefetchPlacePhotos, photoSource, setBundledPhotos } = await import(`${root}src/data/place-photo.ts`);
+setBundledPhotos(false);
 
 // Destination centres live in map.ts, which uses app path aliases; read them from its source instead.
 const mapSource = readFileSync(`${root}src/data/map.ts`, "utf8");
@@ -24,12 +25,32 @@ const manual = {
   "third-gate-alba-iulia": "File:Citadel Alba-Carolina (26700229779).jpg",
   "coronation-cathedral": "File:Catedrala Reintregirii Neamului - Alba Iulia.jpg",
   "balti-jaam-market": "File:Balti jaam viewed from Balti Jaama Turg in December.jpg",
+  "cota-2000": "File:Bucegi - view from Cota 2000.JPG",
+  "helsinki-cathedral": "File:Helsinki Cathedral, Finland - Oct2017.jpg",
+  "museum-of-the-future": "File:Museum of the Future inside-Dubai UAE-Andres Larin.jpg",
+  "national-gallery-sofia": "File:National Art Gallery of Bulgaria E2.jpg",
+  "sighisoara-citadel": "File:Sighișoara Citadel (8153590103).jpg",
+  "akrotiri": "File:Excavations at Akrotiri, Santorini - sisaphus.jpg",
+  "first-romanian-school": "File:Brașov - Prima școală Românească (2023) - img 02.jpg",
+  "sulina-old-lighthouse": "File:Sulina - the old lighthouse.JPG",
+  "central-park-cluj": "File:Parcul Central din Cluj.jpg",
+  "ethnographic-museum-cluj": "File:Muzeul Etnografic al Transilvaniei (6073973245).jpg",
+  "botanical-garden-iasi": "File:The Iași Botanical Garden, main entrance (east).JPG",
+  "zemun-quay": "File:Zemunski kej, Beograd.jpg",
+  "fira-oia-trail": "File:Fira and Oia - Santorini - Greece.jpg",
 };
 const only = process.argv.find((arg) => arg.startsWith("--only="))?.slice(7).split(",");
 
 async function commonsFile(title, name, location) {
   const params = new URLSearchParams({ action: "query", titles: title, prop: "imageinfo", iiprop: "url|mime|extmetadata", iiurlwidth: "960", format: "json", origin: "*" });
-  const data = await (await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, { headers })).json();
+  let data;
+  // Wikimedia answers a busy client with HTTP 429 and plain text; wait and ask again rather than losing the whole run.
+  for (let attempt = 0; !data; attempt++) {
+    const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, { headers });
+    if (response.ok) data = await response.json();
+    else if (attempt < 4) await wait(5000 * (attempt + 1));
+    else throw new Error(`Commons refused ${title}: HTTP ${response.status}`);
+  }
   const page = Object.values(data.query?.pages ?? {})[0];
   const info = page?.imageinfo?.[0];
   if (!info?.thumburl) return null;
@@ -70,10 +91,13 @@ for (const request of requests) {
     catch { await wait(4000 * (attempt + 1)); }
   }
   if (photo && !(await downloads(photo).catch(() => false))) photo = null;
-  if (photo) found[`${request.name}|${request.location}`.toLowerCase()] = {
-    url: photo.url, pageUrl: photo.pageUrl, artist: photo.artist, license: photo.license, licenseUrl: photo.licenseUrl,
-  };
-  else missing.push(`${request.place.id} (${request.name}, ${request.location})`);
+  const key = `${request.name}|${request.location}`.toLowerCase();
+  if (photo) found[key] = { url: photo.url, pageUrl: photo.pageUrl, artist: photo.artist, license: photo.license, licenseUrl: photo.licenseUrl };
+  else {
+    // A place redone with --only that no longer passes the checks loses its old photo rather than keeping a wrong one.
+    delete found[key];
+    missing.push(`${request.place.id} (${request.name}, ${request.location})`);
+  }
   process.stdout.write(photo ? "." : "x");
   await wait(250);
 }

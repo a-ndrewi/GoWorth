@@ -78,7 +78,6 @@ export function themedStyles<S extends Parameters<typeof StyleSheet.create>[0]>(
 export const photos = {
   brandMark: require("@/assets/images/goworth/brand-mark.png"),
   brandName: require("@/assets/images/goworth/brand-name.png"),
-  avatar: require("@/assets/images/goworth/avatar.png"),
   positano: require("@/assets/images/destinations/positano.jpg"),
   santorini: require("@/assets/images/destinations/santorini.jpg"),
   bali: require("@/assets/images/destinations/bali.jpg"),
