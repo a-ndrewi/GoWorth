@@ -15,6 +15,7 @@ import { usePalette, useStyles } from "@/state/theme-context";
 import { Icon } from "@/components/goworth/ui";
 import { GlobeSurface } from "@/components/goworth/globe-surface";
 import { projectPoint as project } from "@/components/goworth/globe-math";
+import { deviceCountry } from "@/utils/device-location";
 
 const HEIGHT = 390;
 const BUBBLE = 42;
@@ -42,13 +43,14 @@ function revealFor(zoom: number, minZoom: number) {
 
 const HIDDEN = { opacity: 0, transform: [{ translateX: 0 }, { translateY: 0 }, { scale: 0 }] };
 
-const GlobeBubble = memo(function GlobeBubble({ country, latitude, longitude, index, minZoom, lam, phi, zoom, pressed, radius, cx, cy, dimmed, emphasized, language, onSelect }: {
+const GlobeBubble = memo(function GlobeBubble({ country, latitude, longitude, index, minZoom, lam, phi, zoom, pressed, radius, cx, cy, dimmed, emphasized, here, language, onSelect }: {
   country: Country; latitude: number; longitude: number; index: number; minZoom: number;
   lam: SharedValue<number>; phi: SharedValue<number>; zoom: SharedValue<number>; pressed: SharedValue<number>;
-  radius: number; cx: number; cy: number; dimmed: boolean; emphasized: boolean;
+  radius: number; cx: number; cy: number; dimmed: boolean; emphasized: boolean; here: boolean;
   language: ReturnType<typeof useAppLanguage>; onSelect: (code: string) => void;
 }) {
   const styles = useStyles(stylesSheet);
+  const p = usePalette();
   const style = useAnimatedStyle(() => {
     const view = project(longitude, latitude, lam.value, phi.value, radius * zoom.value);
     const reveal = revealFor(zoom.value, minZoom);
@@ -61,19 +63,20 @@ const GlobeBubble = memo(function GlobeBubble({ country, latitude, longitude, in
     };
   });
   const labelStyle = useAnimatedStyle(() => ({
-    opacity: emphasized ? 1 : dimmed ? 0 : interpolate(zoom.value, [minZoom + 1.3, minZoom + 1.9], [0, 1], Extrapolation.CLAMP),
+    opacity: emphasized || here ? 1 : dimmed ? 0 : interpolate(zoom.value, [minZoom + 1.3, minZoom + 1.9], [0, 1], Extrapolation.CLAMP),
   }));
   const name = translate(country.name, language);
   return <Animated.View
     accessible
     accessibilityRole="button"
-    accessibilityLabel={language === "ro" ? `Explorează ${name}` : `Explore ${name}`}
+    accessibilityLabel={language === "ro" ? `Explorează ${name}${here ? ", ești aici" : ""}` : `Explore ${name}${here ? ", you are here" : ""}`}
     accessibilityActions={[{ name: "activate" }]}
     onAccessibilityAction={() => onSelect(country.code)}
     pointerEvents="none"
-    style={[styles.bubbleSlot, { left: cx - BUBBLE / 2, top: cy - BUBBLE / 2, zIndex: emphasized ? 2 : 1 }, style]}
+    style={[styles.bubbleSlot, { left: cx - BUBBLE / 2, top: cy - BUBBLE / 2, zIndex: here ? 3 : emphasized ? 2 : 1 }, style]}
   >
-    <View style={[styles.bubble, emphasized && styles.bubbleEmphasized]}><Text style={styles.flag}>{countryFlag(country.code)}</Text></View>
+    <View style={[styles.bubble, emphasized && styles.bubbleEmphasized, here && styles.bubbleHere]}><Text style={styles.flag}>{countryFlag(country.code)}</Text></View>
+    {here && <View style={styles.hereBadge}><Icon name="pin" size={9} color={p.white} /></View>}
     <Animated.View style={[styles.label, labelStyle]}><Text numberOfLines={1} style={styles.labelText}>{name}</Text></Animated.View>
   </Animated.View>;
 });
@@ -95,6 +98,7 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
   useEffect(() => { selectRef.current = onSelect; }, [onSelect]);
   const select = useCallback((code: string) => selectRef.current(code), []);
   const [width, setWidth] = useState(0);
+  const [hereCode, setHereCode] = useState<string | null>(null);
   const anchored = useMemo(() => countries.flatMap((country) => {
     const anchor = countryAnchor(country);
     return anchor ? [{ country, ...anchor }] : [];
@@ -105,8 +109,9 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
   const highlightSet = useMemo(() => highlighted ? new Set(highlighted) : null, [highlighted]);
   const minZooms = useMemo(() => {
     const ranks = new Map([...anchored].sort((a, b) => b.country.cityCount - a.country.cityCount).map((item, rank) => [item.country.code, rank]));
-    return codes.map((code) => highlightSet?.has(code) ? 1 : (ranks.get(code) ?? 0) < 45 ? 1 : (ranks.get(code) ?? 0) < 110 ? 1.9 : 3);
-  }, [anchored, codes, highlightSet]);
+    // The device's country always shows, even when it is one of the small ones revealed only up close.
+    return codes.map((code) => highlightSet?.has(code) || code === hereCode ? 1 : (ranks.get(code) ?? 0) < 45 ? 1 : (ranks.get(code) ?? 0) < 110 ? 1.9 : 3);
+  }, [anchored, codes, highlightSet, hereCode]);
   const dimmedFlags = useMemo(() => codes.map((code) => !!highlightSet && !highlightSet.has(code)), [codes, highlightSet]);
   const dotCoordinates = useMemo(() => dots.flatMap((dot) => [dot.longitude, dot.latitude]), [dots]);
   const cx = width / 2, cy = HEIGHT / 2;
@@ -139,15 +144,38 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
     return () => cancelAnimation(markerPulse);
   }, [focused, marker, markerPulse]);
 
-  useEffect(() => {
-    if (!focus) return;
+  const flyTo = useCallback((target: Omit<GlobeFocus, "key">) => {
     cancelAnimation(lam);
     const current = lam.value;
-    const delta = ((((focus.longitude - current) % 360) + 540) % 360) - 180;
+    const delta = ((((target.longitude - current) % 360) + 540) % 360) - 180;
     lam.set(withTiming(current + delta, { duration: 900, easing: Easing.inOut(Easing.cubic) }));
-    phi.set(withTiming(Math.max(-70, Math.min(70, focus.latitude)), { duration: 900, easing: Easing.inOut(Easing.cubic) }));
-    zoom.set(withTiming(focus.zoom ?? 2.2, { duration: 900, easing: Easing.inOut(Easing.cubic) }));
-  }, [focus, lam, phi, zoom]);
+    phi.set(withTiming(Math.max(-70, Math.min(70, target.latitude)), { duration: 900, easing: Easing.inOut(Easing.cubic) }));
+    zoom.set(withTiming(target.zoom ?? 2.2, { duration: 900, easing: Easing.inOut(Easing.cubic) }));
+  }, [lam, phi, zoom]);
+  useEffect(() => {
+    if (focus) flyTo(focus);
+  }, [focus, flyTo]);
+
+  // Only a permission given earlier is used here; the location button is what asks for it.
+  // The globe turns to the device's country unless the screen opened on a place of its own.
+  const openedOnFocus = useRef(!!focus);
+  useEffect(() => {
+    let active = true;
+    deviceCountry(false).then((here) => {
+      if (!active || !here) return;
+      setHereCode(here.countryCode);
+      if (!openedOnFocus.current) flyTo({ latitude: here.latitude, longitude: here.longitude, zoom: 2.2 });
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [flyTo]);
+  const locate = () => {
+    // Asks for location (once) and refreshes it, so a trip abroad shows the new country.
+    deviceCountry(true).then((here) => {
+      if (!here) return;
+      setHereCode(here.countryCode);
+      flyTo({ latitude: here.latitude, longitude: here.longitude, zoom: 2.2 });
+    }).catch(() => {});
+  };
 
   const markerStyle = useAnimatedStyle(() => {
     if (!marker) return { opacity: 0 };
@@ -255,6 +283,7 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
             radius={radius} cx={cx} cy={cy}
             dimmed={dimmedFlags[index]}
             emphasized={!!highlightSet && highlightSet.has(item.country.code) && highlightSet.size <= 12}
+            here={item.country.code === hereCode}
             language={language}
             onSelect={select}
           />)}
@@ -266,6 +295,7 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
       </View>
     </GestureDetector>
     <View style={styles.controls}>
+      <Pressable accessibilityRole="button" accessibilityLabel={language === "ro" ? "Arată țara în care mă aflu" : "Show the country I'm in"} onPress={locate} style={({ pressed: down }) => [styles.control, down && styles.controlPressed]}><Icon name="target" size={18} color={p.blue} /></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={language === "ro" ? "Mărește" : "Zoom in"} onPress={() => zoomBy(1.6)} style={({ pressed: down }) => [styles.control, down && styles.controlPressed]}><Icon name="plus" size={20} color={p.blue} /></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={language === "ro" ? "Micșorează" : "Zoom out"} onPress={() => zoomBy(1 / 1.6)} style={({ pressed: down }) => [styles.control, down && styles.controlPressed]}><View style={styles.minus} /></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={language === "ro" ? "Vezi tot globul" : "Show the whole globe"} onPress={reset} style={({ pressed: down }) => [styles.control, down && styles.controlPressed]}><Icon name="globe" size={19} color={p.blue} /></Pressable>
@@ -282,6 +312,11 @@ const stylesSheet = themedStyles((p) => ({
     shadowColor: "#1E3A8A", shadowOpacity: 0.3, shadowRadius: 0, shadowOffset: { width: 0, height: 3 }, elevation: 4,
   },
   bubbleEmphasized: { borderColor: p.orange, borderWidth: 3 },
+  bubbleHere: { borderColor: p.blue, borderWidth: 3 },
+  hereBadge: {
+    position: "absolute", top: -3, right: -3, width: 18, height: 18, borderRadius: 9, backgroundColor: p.blue,
+    borderWidth: 2, borderColor: p.white, alignItems: "center", justifyContent: "center",
+  },
   flag: { fontSize: 22, lineHeight: 27 },
   label: { position: "absolute", top: BUBBLE + 3, width: 110, alignItems: "center" },
   labelText: { color: p.ink, fontSize: 11, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, overflow: "hidden", backgroundColor: p.white, borderWidth: 1, borderColor: p.line },

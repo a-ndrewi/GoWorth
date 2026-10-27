@@ -6,13 +6,13 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
-import * as Location from "expo-location";
-import { countryFlag, nearestCity, type Country } from "@/data/geography";
+import { countryFlag, type Country } from "@/data/geography";
 import { translate } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
 import { themedStyles, type Palette } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
 import { Icon } from "@/components/goworth/ui";
+import { deviceCountry } from "@/utils/device-location";
 
 const BUBBLE = 76;
 const SPACING = BUBBLE + 10;
@@ -26,15 +26,6 @@ const continentTint = (p: Palette): Record<string, { bg: string; ring: string }>
   OC: { bg: p.purpleSoft, ring: "#C5BDF2" },
   AN: { bg: p.soft, ring: p.line },
 });
-
-/** The country the device is in, from the nearest known city; asks for permission only when `ask` is set. */
-async function locateCountry(ask: boolean): Promise<string | null> {
-  const permission = ask ? await Location.requestForegroundPermissionsAsync() : await Location.getForegroundPermissionsAsync();
-  if (permission.status !== "granted") return null;
-  const position = await Location.getLastKnownPositionAsync()
-    ?? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-  return nearestCity(position.coords.latitude, position.coords.longitude)?.countryCode ?? null;
-}
 
 /** Axial hex coordinates walked outward ring by ring, so the first items sit in the middle. */
 function spiral(count: number) {
@@ -167,7 +158,7 @@ export function CountryHoneycomb({
   // Only a permission given earlier is used here; the location button is what asks for it.
   useEffect(() => {
     let active = true;
-    locateCountry(false).then((code) => { if (active && code) setHereCode(code); }).catch(() => {});
+    deviceCountry(false).then((here) => { if (active && here) setHereCode(here.countryCode); }).catch(() => {});
     return () => { active = false; };
   }, []);
 
@@ -250,10 +241,10 @@ export function CountryHoneycomb({
   const locate = () => {
     glide(homeX, homeY);
     // Asks for location (once) and refreshes it, so a trip abroad shows the new country.
-    locateCountry(true).then((code) => {
-      if (!code) return;
-      setHereCode(code);
-      const index = codes.indexOf(code);
+    deviceCountry(true).then((here) => {
+      if (!here) return;
+      setHereCode(here.countryCode);
+      const index = codes.indexOf(here.countryCode);
       if (index >= 0) glide(-cells[index].x, -cells[index].y);
     }).catch(() => {});
   };

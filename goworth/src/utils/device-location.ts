@@ -1,5 +1,6 @@
 import * as Location from "expo-location";
 import type { Coordinates } from "../data/discovery";
+import { nearestCity } from "../data/geography";
 
 let request: { at: number; position: Promise<Coordinates | null> } | null = null;
 
@@ -18,4 +19,15 @@ export function deviceLocation(): Promise<Coordinates | null> {
   // A refusal or failure is asked again next time rather than remembered.
   void position.then((value) => { if (!value && request?.position === position) request = null; });
   return position;
+}
+
+/** Where the device is and the country it is in, from the nearest known city; asks for permission only when `ask` is set. */
+export async function deviceCountry(ask: boolean): Promise<(Coordinates & { countryCode: string }) | null> {
+  const permission = ask ? await Location.requestForegroundPermissionsAsync() : await Location.getForegroundPermissionsAsync();
+  if (permission.status !== "granted") return null;
+  const position = await Location.getLastKnownPositionAsync()
+    ?? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+  const { latitude, longitude } = position.coords;
+  const countryCode = nearestCity(latitude, longitude)?.countryCode;
+  return countryCode ? { latitude, longitude, countryCode } : null;
 }
