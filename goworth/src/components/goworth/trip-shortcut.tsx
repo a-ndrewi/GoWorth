@@ -72,8 +72,9 @@ export function TripShortcut({ label, onPress }: { label: string; onPress: () =>
 const stylesSheet = themedStyles((p) => ({
   hit: { width: SIZE, minHeight: SIZE, alignItems: "center", justifyContent: "center" },
   pulse: { position: "absolute", width: SIZE, height: SIZE, borderRadius: 17, backgroundColor: p.blue },
+  // Filled with the gradient's colour so iOS can draw the shadow from the shape rather than from the animated content.
   button: {
-    width: SIZE, height: SIZE, borderRadius: 17, alignItems: "center", justifyContent: "center",
+    width: SIZE, height: SIZE, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: p.blue,
     shadowColor: p.blue, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5,
   },
   clip: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 17, overflow: "hidden" },

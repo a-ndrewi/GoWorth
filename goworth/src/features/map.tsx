@@ -18,6 +18,7 @@ import { useAppLanguage, type AppLanguage } from "@/data/formatting";
 import { normalizeSearchText } from "@/utils/search";
 import { CountryGrid } from "@/components/goworth/country-grid";
 import { CountryGlobe, type GlobeFocus } from "@/components/goworth/country-globe";
+import { useTimedMessage } from "@/hooks/use-timed-message";
 
 const regions = ["Worldwide", "US states", "Europe", "Asia", "Americas", "Africa", "Oceania"];
 const continents: Record<string, string[]> = { Europe: ["EU"], Asia: ["AS"], Americas: ["NA", "SA"], Africa: ["AF"], Oceania: ["OC"] };
@@ -92,12 +93,12 @@ export function MapScreen() {
   const [nearbyVisibleCount, setNearbyVisibleCount] = useState(12);
   const [countryVisibleCount, setCountryVisibleCount] = useState(24);
   const [busy, setBusy] = useState(!!place || !!q);
-  const [error, setError] = useState("");
+  const [error, setError] = useTimedMessage();
   const [searched, setSearched] = useState(false);
   const [selectedDay, setSelectedDay] = useState(1);
   const [addedDays, setAddedDays] = useState<number[]>([]);
   const [actionBusy, setActionBusy] = useState(false);
-  const [actionError, setActionError] = useState("");
+  const [actionError, setActionError] = useTimedMessage();
   const [globeActive, setGlobeActive] = useState(false);
   const visibleCountries = useMemo(() => countries.filter((item) => region === "Worldwide" || region === "US states" && item.code === "US" || continents[region]?.includes(item.continent)), [region]);
   const countryQuery = normalizeSearchText(query.trim());
@@ -222,7 +223,7 @@ export function MapScreen() {
     }).catch(() => { if (!cancelled) setError("This place could not be located on the map right now."); })
       .finally(() => { if (!cancelled) setBusy(false); });
     return () => { cancelled = true; };
-  }, [place, q]);
+  }, [place, q, setError]);
 
   const search = async () => {
     Keyboard.dismiss();
@@ -276,7 +277,7 @@ export function MapScreen() {
   return <Screen active="map" style={{ gap: 16 }} scrollEnabled={!globeActive}>
     <Header title="Map" back={false} centered />
     <Row style={{ gap: 8 }}>
-      <Row style={{ flex: 1, minWidth: 0, borderWidth: 1, borderColor: p.line, borderRadius: 6, paddingHorizontal: 12, gap: 8 }}>
+      <Row style={{ flex: 1, minWidth: 0, borderWidth: 1, borderColor: p.line, borderRadius: 16, backgroundColor: p.white, paddingHorizontal: 14, gap: 8 }}>
         <Icon name="search" color={p.muted} size={18} />
         <TextInput accessibilityLabel={translate("Search the world map", language)} placeholder={translate("Country, city or place", language)} placeholderTextColor={p.muted} value={query} onChangeText={setQuery} onSubmitEditing={() => void search()} returnKeyType="search" style={{ flex: 1, height: 45, fontSize: 14, color: p.ink }} />
       </Row>

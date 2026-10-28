@@ -1,27 +1,19 @@
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
-import { Linking, Platform, Pressable, Share, View } from "react-native";
-import { Button, Copy, Field, Header, Heading, Icon, Screen, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
+import { Linking, Platform, Share, View } from "react-native";
+import { Button, Copy, Field, Header, Heading, ListGroup, ListRow, Screen, Sheet, sharedSheet } from "@/components/goworth/ui";
 import { usePalette, useStyles } from "@/state/theme-context";
-import { legalDocuments, legalIdentity, type LegalDocumentId } from "@/data/legal";
+import { legalDocuments, legalIdentity, legalIdentityPending, type LegalDocumentId } from "@/data/legal";
 import { legalDocumentsRo } from "@/data/legal-ro";
 import { useAppLanguage } from "@/data/formatting";
 import { translate } from "@/data/i18n";
 import { useAuth } from "@/state/auth-context";
 import { useTravel } from "@/state/travel-context";
-
-const documents: { id: LegalDocumentId; icon: IconName }[] = [
-  { id: "privacy", icon: "lock" },
-  { id: "terms", icon: "book" },
-  { id: "subscriptions", icon: "wallet" },
-  { id: "credits", icon: "map" },
-];
+import { useTimedMessage } from "@/hooks/use-timed-message";
 
 export function LegalScreen() {
   const s = useStyles(sharedSheet);
-  const p = usePalette();
   const language = useAppLanguage();
-  const localizedDocuments = language === "ro" ? legalDocumentsRo : legalDocuments;
   const { user, deleteAccount } = useAuth();
   const {
     profile, preferences, saved, savedPlaces, externalPlaces, trip, activities, expenses,
@@ -30,7 +22,7 @@ export function LegalScreen() {
   const [confirming, setConfirming] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useTimedMessage();
 
   const exportData = async () => {
     if (!user) return;
@@ -71,39 +63,24 @@ export function LegalScreen() {
     } finally { setBusy(false); }
   };
 
+  // The legal documents themselves are listed under Information in Profile.
   return <Screen style={{ gap: 20 }}>
-    <Header title="Legal & privacy" />
-    <View style={{ gap: 2 }}>
-      {documents.map(({ id, icon }) => <Pressable
-        key={id}
-        accessibilityRole="button"
-        onPress={() => router.push({ pathname: "/legal-document", params: { type: id } } as Href)}
-        style={[s.row, { minHeight: 56, gap: 13, borderBottomWidth: 1, borderColor: p.line }]}
-      >
-        <Icon name={icon} color={p.blue} size={20} />
-        <Copy style={{ flex: 1, fontWeight: "600" }}>{localizedDocuments[id].title}</Copy>
-        <Icon name="right" color={p.muted} size={18} />
-      </Pressable>)}
-    </View>
-    <View style={{ gap: 12, borderTopWidth: 1, borderColor: p.line, paddingTop: 18 }}>
-      <Heading style={{ fontSize: 19, lineHeight: 25 }}>Your data</Heading>
-      {user ? <>
-        <Button secondary icon="share" onPress={() => void exportData()}>Export my data</Button>
-        <Button secondary icon="logout" onPress={() => { setError(""); setConfirmation(""); setConfirming(true); }}>Delete account</Button>
-      </> : <Copy muted>Sign in to export data or delete your account.</Copy>}
-      {!!error && !confirming && <Copy style={s.error}>{error}</Copy>}
-    </View>
-    <View style={{ gap: 4, borderTopWidth: 1, borderColor: p.line, paddingTop: 18 }}>
-      <Copy muted style={{ fontSize: 12 }}>Operator: {translate(legalIdentity.operator, language)}</Copy>
+    <Header title="Your data" />
+    {user ? <>
+      <ListGroup footer="The export is a JSON file with your profile, preferences, saved places and trips.">
+        <ListRow icon="share" label="Export my data" chevron={false} onPress={() => void exportData()} />
+      </ListGroup>
+      <ListGroup footer="All account data, including saved items and trip history, will be permanently deleted. This cannot be undone.">
+        <ListRow icon="trash" label="Delete account" destructive chevron={false} onPress={() => { setError(""); setConfirmation(""); setConfirming(true); }} />
+      </ListGroup>
+    </> : <Copy muted>Sign in to export data or delete your account.</Copy>}
+    {!!error && !confirming && <Copy style={s.error}>{error}</Copy>}
+    <View style={{ gap: 4, paddingHorizontal: 6 }}>
       <Copy muted style={{ fontSize: 12 }}>Contact: {translate(legalIdentity.contact, language)}</Copy>
     </View>
     <Sheet visible={confirming} title="Delete your account?" onClose={() => setConfirming(false)}>
       <Copy>All account data, including saved items and trip history, will be permanently deleted. This cannot be undone.</Copy>
-      {plan === "premium" && <View style={{ gap: 10, padding: 12, borderRadius: 8, backgroundColor: p.dangerSoft }}>
-        <Copy style={{ color: p.danger, fontSize: 13, lineHeight: 19 }}>Deleting your account does not cancel your monthly subscription. Cancel it in Membership first, or you may continue to be charged.</Copy>
-        <Button secondary icon="crown" onPress={() => { setConfirming(false); router.push("/membership" as Href); }}>Open Membership</Button>
-      </View>}
-      {plan !== "free" && <Copy muted style={{ fontSize: 12, lineHeight: 18 }}>Remaining Premium time and Lifetime access end when the account is deleted and are not refunded.</Copy>}
+      {plan !== "free" && <Copy muted style={{ fontSize: 12, lineHeight: 18 }}>Remaining Premium time and Lifetime access end when the account is deleted.</Copy>}
       <Field label="Type DELETE to confirm" value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" />
       {!!error && <Copy style={s.error}>{error}</Copy>}
       <Button disabled={confirmation !== "DELETE"} busy={busy} onPress={() => void removeAccount()}>Delete account permanently</Button>
@@ -122,7 +99,9 @@ export function LegalDocumentScreen() {
   const validLicenseUrl = photoLicenseUrl?.startsWith("https://creativecommons.org/licenses/") || photoLicenseUrl?.startsWith("https://creativecommons.org/publicdomain/") || photoLicenseUrl === photoPageUrl;
   return <Screen style={{ gap: 20 }}>
     <Header title={document.title} />
-    <Copy style={{ color: p.danger, fontSize: 12, fontWeight: "600" }}>{document.updated} · {translate("Operator details pending", language)}</Copy>
+    {legalIdentityPending && (id === "privacy" || id === "terms")
+      ? <Copy style={{ color: p.danger, fontSize: 12, fontWeight: "600" }}>{document.updated} · {translate("Operator details pending", language)}</Copy>
+      : <Copy muted style={{ fontSize: 12 }}>{document.updated}</Copy>}
     {id === "credits" && validPhotoSource && <View style={{ gap: 8 }}>
       <Heading style={{ fontSize: 18, lineHeight: 24 }}>{photoName}</Heading>
       <Copy>{photoArtist} · {photoLicense}</Copy>

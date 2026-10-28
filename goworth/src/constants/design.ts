@@ -18,10 +18,12 @@ const light = {
   purpleSoft: "#ECE9FB",
   ink: "#132238",
   muted: "#667085",
-  line: "#E5E9F0",
-  soft: "#F3F6FA",
-  /** Page and card surface. */
+  line: "#E7EAF0",
+  soft: "#F1F3F8",
+  /** Card, sheet and input surface. */
   white: "#FFFFFF",
+  /** Page background behind grouped cards. */
+  canvas: "#F4F6FA",
   danger: "#ED5365",
   dangerSoft: "#FFF1F2",
   /** Text and icons drawn on blue, photos or gradients: white in both themes. */
@@ -37,7 +39,7 @@ export type Palette = Record<keyof typeof light, string>;
 
 const dark: Palette = {
   blue: "#5B86F5",
-  blueSoft: "#1C2A4A",
+  blueSoft: "#18264A",
   blueTint: "#131D33",
   blueLine: "#2E4170",
   teal: "#2DBDB5",
@@ -51,17 +53,18 @@ const dark: Palette = {
   pinkSoft: "#3A1A25",
   purple: "#8F82E6",
   purpleSoft: "#251F45",
-  ink: "#E8EDF5",
-  muted: "#98A2B3",
-  line: "#253149",
-  soft: "#18233A",
-  white: "#0E1626",
+  ink: "#EEF2F8",
+  muted: "#9AA4B5",
+  line: "#232C3D",
+  soft: "#1A2231",
+  white: "#131A26",
+  canvas: "#0A0E16",
   danger: "#F26B7B",
   dangerSoft: "#3A1820",
   onColor: "#FFFFFF",
-  night: "#24324D",
+  night: "#1E2A40",
   shadow: "#000000",
-  backdrop: "#070C16",
+  backdrop: "#05080E",
 };
 
 export type ColorScheme = "light" | "dark";

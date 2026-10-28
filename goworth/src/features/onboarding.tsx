@@ -1,4 +1,3 @@
-import Slider from "@react-native-community/slider";
 import { Image } from "expo-image";
 import * as Linking from "expo-linking";
 import { router, useLocalSearchParams, type Href } from "expo-router";
@@ -13,18 +12,20 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { BudgetInput } from "@/components/goworth/budget-input";
 import { Brand, Button, Copy, Field, Header, Heading, Icon, IconButton, Row, Screen, Sheet, sharedSheet } from "@/components/goworth/ui";
 import { photos, themedStyles } from "@/constants/design";
 import { usePalette, useStyles, useThemePreference } from "@/state/theme-context";
 import { venueFilters } from "@/data/nearby-places";
 import { venueFilterIcons, venueFilterLabels } from "@/components/goworth/venue-art";
-import { destinations, money } from "@/data/travel";
+import { destinations } from "@/data/travel";
 import { cityForGlobalId, countryForCode, searchCities } from "@/data/geography";
 import { useTravel } from "@/state/travel-context";
 import { useAuth } from "@/state/auth-context";
 import { supabase } from "@/lib/supabase";
 import { translate } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
+import { useTimedMessage } from "@/hooks/use-timed-message";
 
 const authRedirectUrl = () =>
   Platform.OS === "web" ? `${window.location.origin}/auth` : Linking.createURL("auth");
@@ -129,8 +130,8 @@ export function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [error, setError] = useTimedMessage();
+  const [notice, setNotice] = useTimedMessage();
   const [confirmationEmail, setConfirmationEmail] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -341,7 +342,7 @@ export function PreferencesScreen() {
   const [preferences, setPreferences] = useState(storedPreferences);
   const [discoverySettings, setDiscoverySettings] = useState(storedDiscoverySettings);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useTimedMessage();
   const [choosingCenter, setChoosingCenter] = useState(false);
   const [cityQuery, setCityQuery] = useState("");
   const selectedCity = cityForGlobalId(discoverySettings.centerId);
@@ -389,10 +390,8 @@ export function PreferencesScreen() {
       </View>
       <View style={prefStyles.card}>
         <Row style={{ gap: 10 }}><View style={prefStyles.cardIcon}><Icon name="wallet" size={19} color={p.blue} /></View><Heading style={prefStyles.cardTitle}>Budget range</Heading></Row>
-        <Text style={prefStyles.budget}>{money(preferences.budget)} <Text style={prefStyles.budgetHint}>{translate("per person", language)}</Text></Text>
-        <Slider accessibilityLabel="Travel budget" minimumValue={500} maximumValue={10000} step={100} value={preferences.budget}
-          onValueChange={(budget) => setPreferences({ ...preferences, budget })} minimumTrackTintColor={p.blue} maximumTrackTintColor={p.line} thumbTintColor={p.blue} />
-        <Row style={{ justifyContent: "space-between" }}><Copy muted style={{ fontSize: 12 }}>{money(500)}</Copy><Copy muted style={{ fontSize: 12 }}>{money(10000)}</Copy></Row>
+        <Text style={prefStyles.budgetHint}>{translate("per person", language)}</Text>
+        <BudgetInput label="Travel budget" value={preferences.budget} onChange={(budget) => setPreferences({ ...preferences, budget })} />
         <Copy muted style={{ fontSize: 12 }}>Used as the starting budget for new trips.</Copy>
       </View>
       <View style={prefStyles.card}>

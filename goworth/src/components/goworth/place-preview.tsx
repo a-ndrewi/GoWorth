@@ -15,7 +15,7 @@ const noFailedUrls: string[] = [];
 
 /** Restaurants, bars, cafés and clubs rarely have a free photo, so they show their venue art instead of searching for one. */
 export function PlacePreviewPhoto({ venue, ...props }: PlacePhotoProps & { badge?: string; venue?: Venue }) {
-  if (venue) return <View style={{ height: 215, borderRadius: 6, overflow: "hidden" }}>
+  if (venue) return <View style={{ height: 215, borderRadius: 20, overflow: "hidden" }}>
     <VenueArt venue={venue} compact />
     {!!props.badge && <View pointerEvents="none" style={{ position: "absolute", left: 10, bottom: 10, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "rgba(16, 28, 48, 0.86)" }}><Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>{props.badge}</Text></View>}
   </View>;
@@ -47,7 +47,7 @@ function PlaceSearchPhoto({ name, location, latitude, longitude, sourceUrl, badg
   // The shimmer stays under the photo until it has downloaded, so the frame never flashes empty.
   const shimmering = status === "loading" || (showPhoto && loadedUrl !== photo.url);
   return <View style={{ gap: 7 }}>
-    <View style={{ height: 215, borderRadius: 6, overflow: "hidden", backgroundColor: p.blueSoft, alignItems: "center", justifyContent: "center" }}>
+    <View style={{ height: 215, borderRadius: 20, overflow: "hidden", backgroundColor: p.blueSoft, alignItems: "center", justifyContent: "center" }}>
       {shimmering && <Shimmer style={StyleSheet.absoluteFill} />}
       {showPhoto
         ? <Image source={photoSource(photo.url, 960)} cachePolicy="memory-disk" transition={160} contentFit="cover" accessibilityLabel={translateAccessibility(`Photo of ${name}`, language)} onLoad={() => setLoadedUrl(photo.url)} onError={() => setFailed({ key, urls: [...failedUrls, photo.url] })} style={{ width: "100%", height: "100%" }} />

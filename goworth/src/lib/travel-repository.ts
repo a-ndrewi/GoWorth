@@ -225,9 +225,9 @@ export async function uploadProfileAvatar(userId: string, base64: string) {
   }
 }
 
-export type SupportTopic = "bug" | "account" | "billing" | "feedback" | "other";
+export type SupportTopic = "bug" | "account" | "premium" | "feedback" | "other";
 
-export async function sendSupportMessage(message: { topic: SupportTopic; subject: string; message: string; email: string; name: string; device: string }) {
+export async function sendSupportMessage(message: { topic: SupportTopic; subject: string; message: string; name: string; device: string }) {
   const result = await client().functions.invoke("contact-support", { body: message });
   if (!result.error) return;
   const response = result.error.context;

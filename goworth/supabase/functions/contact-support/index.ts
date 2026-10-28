@@ -3,9 +3,9 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const headers = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Content-Type": "application/json" };
 const reply = (status: number, body: object) => new Response(JSON.stringify(body), { status, headers });
 
-const topics = ["bug", "account", "billing", "feedback", "other"] as const;
+const topics = ["bug", "account", "premium", "feedback", "other"] as const;
 const topicLabels: Record<(typeof topics)[number], string> = {
-  bug: "Bug report", account: "Account", billing: "Membership & billing", feedback: "Feedback", other: "Other",
+  bug: "Bug report", account: "Account", premium: "Premium & daily wheel", feedback: "Feedback", other: "Other",
 };
 
 const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -34,16 +34,18 @@ Deno.serve(async (request) => {
   const topic = topics.find((item) => item === body.topic);
   const subject = text(body.subject, 120);
   const message = text(body.message, 4000);
-  const replyTo = text(body.email, 254);
+  // Replies always go to the signed-in account, so a typed address cannot redirect them.
+  const replyTo = auth.user.email ?? "";
   const name = text(body.name, 80);
   const device = text(body.device, 300);
-  if (!topic || subject.length < 3 || message.length < 10 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo)) {
-    return reply(400, { error: "Check the topic, subject, message and email." });
+  if (!topic || subject.length < 3 || message.length < 10) {
+    return reply(400, { error: "Check the topic, subject and message." });
   }
+  if (!replyTo) return reply(400, { error: "Your account has no email address we can reply to." });
 
   const rows: [string, string][] = [
     ["Topic", topicLabels[topic]], ["From", name ? `${name} <${replyTo}>` : replyTo],
-    ["Account", `${auth.user.email ?? "no email"} · ${auth.user.id}`], ...(device ? [["Device", device] as [string, string]] : []),
+    ["Account", auth.user.id], ...(device ? [["Device", device] as [string, string]] : []),
   ];
   const html = `<h2 style="font-family:system-ui">${escapeHtml(subject)}</h2>
 <table style="font-family:system-ui;font-size:14px;border-collapse:collapse">${rows.map(([label, value]) =>

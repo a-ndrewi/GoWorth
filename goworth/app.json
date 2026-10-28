@@ -33,16 +33,49 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#FFFFFF",
-          "image": "./assets/images/goworth/brand-mark.png",
-          "imageWidth": 130,
+          "image": "./assets/images/goworth/splash.png",
+          "imageWidth": 285,
           "dark": {
-            "backgroundColor": "#0E1626",
-            "image": "./assets/images/goworth/brand-mark.png"
+            "backgroundColor": "#131A26",
+            "image": "./assets/images/goworth/splash-dark.png"
           }
         }
       ],
       "expo-sqlite",
-      ["expo-location", { "locationWhenInUsePermission": "Allow GoWorth to find destinations and places near you." }]
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow GoWorth to find destinations and places near you.",
+          "locationAlwaysAndWhenInUsePermission": "Allow GoWorth to tell you about places worth seeing when you arrive somewhere new, even while the app is closed."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false,
+          "color": "#2457E6"
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          "widgets": [
+            {
+              "name": "TripWidget",
+              "displayName": "Current trip",
+              "description": "Your active GoWorth trip at a glance.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium"
+                ],
+                "initialLayout": "./src/widgets/trip-widget.tsx"
+              },
+              "android": null
+            }
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

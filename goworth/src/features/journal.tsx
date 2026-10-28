@@ -16,6 +16,7 @@ import { getLanguage, useAppLanguage } from "@/data/formatting";
 import { publicActivityNote, publicPlaceCategory, translatedActivityNote } from "@/utils/public-activity";
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
 import { venueFromCategory } from "@/data/nearby-places";
+import { useTimedMessage } from "@/hooks/use-timed-message";
 
 type TripRecord = {
   id: string;
@@ -50,7 +51,7 @@ export function JournalTripScreen() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useTimedMessage();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [placePreview, setPlacePreview] = useState<PreviewPlace | null>(null);
   const archived = journalEntries.find((entry) => entry.id === id);
@@ -154,14 +155,17 @@ export function JournalTripScreen() {
       </View>)}
     </View>}
 
-    {!!placeCount && <View style={{ gap: 6 }}>
+    {!!placeCount && <View style={{ gap: 8 }}>
       <Heading style={styles.section}>{formatMessage("Places ({count})", { count: placeCount }, language)}</Heading>
+      <View style={styles.listCard}>
       {[...localPlaces.map((place): PreviewPlace => ({ id: place.id, name: place.name, category: place.category, location: `${findDestination(place.destinationId).name}, ${findDestination(place.destinationId).country}` })),
         ...linkedExternalPlaces.map((place): PreviewPlace => ({ id: place.id, name: place.name, category: publicPlaceCategory(place.category), location: place.location || "", latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl }))]
-        .map((place) => <Pressable key={place.id} accessibilityRole="button" onPress={() => setPlacePreview(place)} style={({ pressed }) => [styles.placeRow, pressed && { backgroundColor: p.soft }]}>
+        .map((place, index) => <Pressable key={place.id} accessibilityRole="button" onPress={() => setPlacePreview(place)} style={({ pressed }) => [styles.placeRow, index > 0 && styles.placeDivider, pressed && { backgroundColor: p.soft }]}>
           <PlaceThumbnail name={place.name} location={place.location} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} style={styles.placeThumb} venue={venueFromCategory(place.category)} />
           <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "600", fontSize: 14 }}>{place.name}</Copy>{!!place.category && <Copy muted style={{ fontSize: 12 }}>{translate(place.category, language)}</Copy>}</View>
+          <Icon name="right" size={17} color={p.muted} />
         </Pressable>)}
+      </View>
     </View>}
 
     {record.status !== "current" && <Button secondary icon="trash" onPress={() => { setError(""); setConfirmDelete(true); }}>Delete trip record</Button>}
@@ -195,7 +199,7 @@ export function JournalTripScreen() {
 
 const stylesSheet = themedStyles((p) => ({
   section: { fontSize: 18, lineHeight: 24 },
-  stat: { flex: 1, minWidth: 0, gap: 3, padding: 12, borderRadius: 14, backgroundColor: p.soft },
+  stat: { flex: 1, minWidth: 0, gap: 3, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
   statValue: { fontSize: 16, fontWeight: "800" },
   noteCard: { gap: 8, padding: 16, borderRadius: 18, backgroundColor: p.blueTint, borderWidth: 1, borderColor: p.blueLine },
   dayCard: { gap: 10, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
@@ -206,5 +210,7 @@ const stylesSheet = themedStyles((p) => ({
   track: { height: 8, borderRadius: 4, overflow: "hidden", backgroundColor: p.soft },
   fill: { height: 8, borderRadius: 4, backgroundColor: p.blue },
   placeThumb: { width: 48, height: 48, borderRadius: 12, backgroundColor: p.blueSoft },
-  placeRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 10 },
+  listCard: { borderRadius: 20, borderWidth: 1, borderColor: p.line, backgroundColor: p.white, overflow: "hidden" },
+  placeRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingHorizontal: 14 },
+  placeDivider: { borderTopWidth: 1, borderColor: p.line },
 }));

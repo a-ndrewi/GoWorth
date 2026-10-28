@@ -6,8 +6,10 @@ import { Image } from "expo-image";
 import { memo, useEffect, useMemo, useState } from "react";
 import { destinationPins } from "@/data/map";
 import { prefetchPlacePhotos } from "@/data/place-photo";
-import { ActivityIndicator, FlatList, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Button, Chip, Copy, Field, Header, Heading, Icon, IconButton, Row, Screen, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
+import { ActivityIndicator, FlatList, Linking, Platform, Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { Button, Chip, Copy, Field, Header, Heading, Icon, IconButton, ListGroup, ListRow, Row, Screen, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
+import { socialLinks } from "@/constants/links";
+import { openStoreReview, reviewStoreName } from "@/lib/store-review";
 import { TripHero, heroStylesSheet } from "@/components/goworth/trip-hero";
 import { PastTripCard } from "@/components/goworth/past-trip-card";
 import { photos, themedStyles } from "@/constants/design";
@@ -15,12 +17,16 @@ import { usePalette, useThemePreference, useStyles } from "@/state/theme-context
 import { findDestination, money, places } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
 import { useAuth } from "@/state/auth-context";
-import { currentExchangeRate, useAppLanguage } from "@/data/formatting";
+import { useAppLanguage } from "@/data/formatting";
 import { formatMessage, translate, translateAccessibility, translateLocation } from "@/data/i18n";
 import { publicActivityNote, publicPlaceCategory } from "@/utils/public-activity";
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
 import { GlyphIcon } from "@/components/goworth/icons";
 import { venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
+import { useTimedMessage } from "@/hooks/use-timed-message";
+import {
+  requestNotificationPermission, sendTestNotifications, syncNearbyWatch, updateNotificationPrefs, useNotificationPrefs, type NotificationKind,
+} from "@/lib/notifications";
 
 type SavedPreview = {
   id: string; name: string; category: string; detail: string; location: string;
@@ -83,7 +89,7 @@ export function SavedScreen() {
   // A saved place opens in a sheet over the list; leaving it returns to Saved exactly as it was.
   const [preview, setPreview] = useState<SavedPreview | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
-  const [previewError, setPreviewError] = useState("");
+  const [previewError, setPreviewError] = useTimedMessage();
   const previewSaved = !!preview && (preview.external ? externalPlaces.some((place) => place.id === preview.id) : savedPlaces.includes(preview.id));
   const togglePreviewSaved = async () => {
     if (!preview) return;
@@ -240,16 +246,16 @@ export function ProfileScreen() {
   const p = usePalette();
   const language = useAppLanguage();
   const { user, signOut } = useAuth();
-  const { profile, setProfile, avatarUrl, uploadAvatar, removeAvatar, plan, trip, clearTrip } = useTravel();
+  const { profile, setProfile, avatarUrl, uploadAvatar, removeAvatar, plan } = useTravel();
   const { preference: themePreference, setPreference: setThemePreference } = useThemePreference();
   const [dialog, setDialog] = useState("");
   const appVersion = Constants.expoConfig?.version || "1.0.0";
   const currentYear = new Date().getFullYear();
   const [name, setName] = useState(profile.name);
   const [username, setUsername] = useState(profile.username);
-  const [error, setError] = useState("");
+  const [error, setError] = useTimedMessage();
   const [busy, setBusy] = useState(false);
-  const [avatarError, setAvatarError] = useState("");
+  const [avatarError, setAvatarError] = useTimedMessage();
   const [avatarBusy, setAvatarBusy] = useState(false);
   const save = async () => {
     if (!name.trim() || name.trim().length > 50 || (username && !/^[A-Za-z0-9_]{3,24}$/.test(username))) {
@@ -289,6 +295,50 @@ export function ProfileScreen() {
     catch (caught) { setAvatarError(caught instanceof Error ? caught.message : "Could not remove the photo."); }
     finally { setAvatarBusy(false); }
   };
+  const { prefs: notificationPrefs } = useNotificationPrefs();
+  const [notificationNote, setNotificationNote] = useTimedMessage();
+  const [notificationBusy, setNotificationBusy] = useState(false);
+  const toggleNotification = async (kind: NotificationKind, next: boolean) => {
+    if (notificationBusy) return;
+    setNotificationBusy(true);
+    setNotificationNote("");
+    try {
+      if (next && !(await requestNotificationPermission())) {
+        setNotificationNote("Notifications are off for GoWorth. Turn them on in your phone's Settings.");
+        return;
+      }
+      if (kind === "nearby" && next && !(await syncNearbyWatch(true, profile.language, true))) {
+        setNotificationNote("Nearby places need location access set to Always for GoWorth in your phone's Settings.");
+        return;
+      }
+      await updateNotificationPrefs({ [kind]: next });
+    } finally { setNotificationBusy(false); }
+  };
+  const sendTests = async () => {
+    setNotificationBusy(true);
+    setNotificationNote("");
+    try {
+      const sent = await sendTestNotifications(profile.language);
+      setNotificationNote(sent ? formatMessage("{count} test notifications arrive over the next 20 seconds. Lock the phone to see them as banners.", { count: sent }, language)
+        : "Notifications are off for GoWorth. Turn them on in your phone's Settings.");
+    } finally { setNotificationBusy(false); }
+  };
+  const notificationRows: { kind: NotificationKind; icon: IconName; label: string; detail: string }[] = [
+    { kind: "nearby", icon: "pin", label: "Places near you", detail: "When you arrive somewhere new, hear about a place worth seeing nearby." },
+    { kind: "trip", icon: "plane", label: "Trip ideas", detail: "A nudge to plan your next trip after a few days without one." },
+    { kind: "wheel", icon: "crown", label: "Daily wheel", detail: "An hour before your next free spin, and when it is ready." },
+  ];
+  const [linkError, setLinkError] = useTimedMessage();
+  const openLink = async (url: string) => {
+    setLinkError("");
+    await Linking.openURL(url).catch(() => setLinkError(translate("Could not open the link.", language)));
+  };
+  const rate = async () => {
+    setLinkError("");
+    await openStoreReview().catch((caught) => setLinkError(translate(caught instanceof Error ? caught.message : "Could not open the store.", language)));
+  };
+  const openDocument = (type: "privacy" | "terms" | "premium" | "credits") =>
+    router.push({ pathname: "/legal-document", params: { type } } as Href);
   const changeSetting = async (next: { language?: "en" | "ro"; currency?: "EUR" | "USD" }) => {
     setBusy(true); setError("");
     try { await setProfile(next); }
@@ -296,62 +346,69 @@ export function ProfileScreen() {
     finally { setBusy(false); }
   };
   return (
-    <Screen active="profile" style={{ gap: 16 }}>
-      <View style={styles.profileHero}>
-        <LinearGradient colors={[p.blue, "#3B7BF0", p.teal]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-        <Row style={{ justifyContent: "space-between", alignSelf: "stretch" }}>
-          <Text style={styles.profileTitle}>{translate("Profile", language)}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={translate("Account settings", language)} onPress={() => setDialog("Account settings")} style={({ pressed }) => [styles.heroIcon, pressed && { opacity: 0.8 }]}>
-            <Icon name="settings" size={20} color={p.onColor} />
-          </Pressable>
-        </Row>
+    <Screen active="profile" style={{ gap: 22 }}>
+      <Text accessibilityRole="header" style={styles.largeTitle}>{translate("Profile", language)}</Text>
+
+      <View style={styles.profileCard}>
         <Pressable accessibilityRole="button" accessibilityLabel={translate("Change profile photo", language)} accessibilityState={{ disabled: avatarBusy, busy: avatarBusy }} disabled={avatarBusy} onPress={() => void changeAvatar()} style={styles.avatarRing}>
           {avatarBusy ? <ActivityIndicator color={p.blue} /> : avatarUrl
             ? <Image source={{ uri: avatarUrl }} contentFit="cover" transition={200} style={styles.avatar} />
-            : <View style={[styles.avatar, styles.avatarPlaceholder]}><GlyphIcon name="person" size={56} color={p.blue} /></View>}
-          {!avatarBusy && <View style={styles.cameraBadge}><Icon name="camera" size={14} color={p.blue} /></View>}
+            : <View style={[styles.avatar, styles.avatarPlaceholder]}><GlyphIcon name="person" size={38} color={p.blue} /></View>}
+          {!avatarBusy && <View style={styles.cameraBadge}><Icon name="camera" size={12} color={p.onColor} /></View>}
         </Pressable>
-        <View style={{ alignItems: "center", gap: 2, maxWidth: "100%" }}>
+        <Pressable accessibilityRole="button" onPress={edit} style={({ pressed }) => [{ flex: 1, minWidth: 0, gap: 3 }, pressed && { opacity: 0.7 }]}>
           <Text numberOfLines={1} style={styles.profileName}>{profile.name}</Text>
           <Text numberOfLines={1} style={styles.profileHandle}>{profile.username ? `@${profile.username}` : user?.email}</Text>
-        </View>
-        <Row style={{ gap: 8 }}>
-          <View style={styles.planPill}><Icon name="crown" size={14} color={plan === "free" ? p.onColor : "#FFD27A"} /><Text style={styles.planPillText}>{translate(plan === "free" ? "Free" : plan === "premium" ? "Premium" : "Lifetime", language)}</Text></View>
-          <Pressable accessibilityRole="button" onPress={edit} style={({ pressed }) => [styles.editPill, pressed && { opacity: 0.85 }]}>
-            <Icon name="edit" size={14} color={p.blue} /><Text style={styles.editPillText}>{translate("Edit profile", language)}</Text>
-          </Pressable>
-        </Row>
+          <Text style={styles.profileEdit}>{translate("Edit profile", language)}</Text>
+        </Pressable>
       </View>
       {!!avatarError && <View accessibilityLiveRegion="polite"><Copy style={[s.error, { textAlign: "center" }]}>{avatarError}</Copy></View>}
 
-      <Pressable accessibilityRole="button" onPress={() => router.push("/membership" as Href)} style={({ pressed }) => [styles.memberCard, plan !== "free" && styles.memberCardPaid, pressed && { transform: [{ scale: 0.99 }] }]}>
-        <View style={[styles.rowIcon, { backgroundColor: plan === "free" ? p.orangeSoft : "rgba(255,255,255,0.18)" }]}><Icon name="crown" size={20} color={plan === "free" ? p.orange : "#FFD27A"} /></View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.rowTitle, plan !== "free" && { color: p.onColor }]}>{plan === "free" ? translate("Go unlimited", language) : formatMessage("Membership · {plan}", { plan: translate(plan === "premium" ? "Premium" : "Lifetime", language) }, language)}</Text>
-          <Text numberOfLines={2} style={[styles.rowDetail, plan !== "free" && { color: "rgba(255,255,255,0.8)" }]}>{translate(plan === "free" ? "Unlimited trips and saves with Premium or Lifetime." : "Unlimited trips and saves are active.", language)}</Text>
+      <Pressable accessibilityRole="button" onPress={() => router.push("/membership" as Href)} style={({ pressed }) => [styles.planCard, pressed && { transform: [{ scale: 0.99 }] }]}>
+        <LinearGradient colors={plan === "free" ? ["#FFE3A3", "#F5B83D"] : [p.blue, "#6E5BF5"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planBadge}>
+          <Icon name="crown" size={24} color={plan === "free" ? "#5A3B00" : p.onColor} />
+        </LinearGradient>
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text style={styles.planTitle}>GoWorth Premium</Text>
+          <Text numberOfLines={2} style={styles.planDetail}>{translate(plan === "free" ? "Spin the daily wheel to win Premium for free." : "Unlimited trips and saves are active.", language)}</Text>
         </View>
-        <Icon name="right" size={18} color={plan === "free" ? p.muted : p.onColor} />
+        <View style={[styles.planPill, plan !== "free" && { backgroundColor: p.blueSoft }]}>
+          <Text style={[styles.planPillText, plan !== "free" && { color: p.blue }]}>{translate(plan === "free" ? "Free" : plan === "premium" ? "Premium" : "Lifetime", language)}</Text>
+        </View>
       </Pressable>
 
-      <View style={styles.group}>
-        {([
-          { icon: "compass", tone: p.blue, soft: p.blueSoft, label: "Travel preferences", detail: "Destinations, budget, nearby discovery", onPress: () => router.push("/preferences" as Href) },
-          { icon: "globe", tone: p.teal, soft: p.tealSoft, label: "Language, currency & appearance", detail: `${profile.language === "ro" ? "Română" : "English"} · ${profile.currency} · ${translate(themePreference === "system" ? "System" : themePreference === "dark" ? "Dark" : "Light", language)}`, onPress: () => setDialog("Account settings") },
-          { icon: "help", tone: p.orange, soft: p.orangeSoft, label: "Help & support", detail: "Report a problem or send feedback", onPress: () => router.push("/support" as Href) },
-          { icon: "lock", tone: p.purple, soft: p.purpleSoft, label: "Legal & privacy", detail: "Terms, privacy, your data", onPress: () => router.push("/legal" as Href) },
-        ] as const).map((row, index) => <Pressable key={row.label} accessibilityRole="button" onPress={row.onPress} style={({ pressed }) => [styles.row, index > 0 && styles.rowDivider, pressed && { backgroundColor: p.soft }]}>
-          <View style={[styles.rowIcon, { backgroundColor: row.soft }]}><Icon name={row.icon} size={19} color={row.tone} /></View>
-          <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.rowTitle}>{translate(row.label, language)}</Text><Text numberOfLines={1} style={styles.rowDetail}>{row.label === "Language, currency & appearance" ? row.detail : translate(row.detail, language)}</Text></View>
-          <Icon name="right" size={17} color={p.muted} />
-        </Pressable>)}
-      </View>
+      <ListGroup title="Social media">
+        <ListRow icon="instagram" label="Instagram" accessibilityRole="link" onPress={() => void openLink(socialLinks.instagram)} />
+        <ListRow icon="tiktok" label="TikTok" accessibilityRole="link" onPress={() => void openLink(socialLinks.tiktok)} />
+      </ListGroup>
 
-      <Pressable accessibilityRole="button" onPress={() => setDialog("Log out")} style={({ pressed }) => [styles.group, styles.row, pressed && { backgroundColor: p.dangerSoft }]}>
-        <View style={[styles.rowIcon, { backgroundColor: p.dangerSoft }]}><Icon name="logout" size={19} color={p.danger} /></View>
-        <Text style={[styles.rowTitle, { flex: 1, color: p.danger }]}>{translate("Log out", language)}</Text>
-      </Pressable>
+      <ListGroup title="Preferences">
+        <ListRow icon="compass" label="Travel preferences" onPress={() => router.push("/preferences" as Href)} />
+        <ListRow icon="globe" label="Language & currency" value={`${profile.language.toUpperCase()} · ${profile.currency}`} onPress={() => { setError(""); setDialog("Language & currency"); }} />
+        <ListRow icon="sun" label="Appearance" value={translate(themePreference === "system" ? "System" : themePreference === "dark" ? "Dark" : "Light", language)} onPress={() => setDialog("Appearance")} />
+        {Platform.OS !== "web" && <ListRow icon="bell" label="Notifications" value={translate(Object.values(notificationPrefs).some(Boolean) ? "On" : "Off", language)} onPress={() => { setNotificationNote(""); setDialog("Notifications"); }} />}
+      </ListGroup>
 
-      <View style={{ alignItems: "center", gap: 4, paddingTop: 6, paddingBottom: 8 }}>
+      <ListGroup title="Support">
+        <ListRow icon="chat" label="Feedback & support" onPress={() => router.push("/support" as Href)} />
+        {reviewStoreName && <ListRow icon="star" label={formatMessage("Rate us on {store}", { store: reviewStoreName }, language)} onPress={() => void rate()} />}
+      </ListGroup>
+
+      <ListGroup title="Information">
+        <ListRow icon="lock" label="Privacy policy" onPress={() => openDocument("privacy")} />
+        <ListRow icon="book" label="Terms of use" onPress={() => openDocument("terms")} />
+        <ListRow icon="crown" label="Premium & wheel rules" onPress={() => openDocument("premium")} />
+        <ListRow icon="map" label="Licenses & credits" onPress={() => openDocument("credits")} />
+        <ListRow icon="info" label="App version" value={appVersion} />
+      </ListGroup>
+
+      <ListGroup title="Your data">
+        <ListRow icon="share" label="Export or delete your data" detail="Download a copy of your account or delete it permanently." onPress={() => router.push("/legal" as Href)} />
+        <ListRow icon="logout" label="Log out" destructive chevron={false} onPress={() => setDialog("Log out")} />
+      </ListGroup>
+      {!!linkError && <Copy style={[s.error, { textAlign: "center" }]}>{linkError}</Copy>}
+
+      <View style={{ alignItems: "center", gap: 4, paddingTop: 2, paddingBottom: 8 }}>
         <Image source={photos.brandMark} contentFit="contain" accessibilityLabel="GoWorth" style={{ width: 40, height: 30 }} />
         <Copy muted style={{ fontSize: 11 }}>GoWorth v{appVersion} · © {currentYear}</Copy>
       </View>
@@ -366,34 +423,30 @@ export function ProfileScreen() {
           {!!error && <Copy style={s.error}>{error}</Copy>}
           <Button busy={busy} onPress={save}>Save profile</Button>
         </>}
-        {dialog === "Account settings" && <>
-          <Copy>{profile.name}</Copy>
-          <Copy muted>{user?.email}</Copy>
-          <Button secondary onPress={edit}>Edit profile</Button>
+        {dialog === "Language & currency" && <>
           <Copy style={s.label}>Language</Copy>
           <Row style={{ gap: 7 }}><Chip selected={profile.language === "en"} onPress={() => void changeSetting({ language: "en" })}>English</Chip><Chip selected={profile.language === "ro"} onPress={() => void changeSetting({ language: "ro" })}>Română</Chip></Row>
           <Copy style={s.label}>Currency</Copy>
           <Row style={{ gap: 7 }}><Chip selected={profile.currency === "EUR"} onPress={() => void changeSetting({ currency: "EUR" })}>EUR (€)</Chip><Chip selected={profile.currency === "USD"} onPress={() => void changeSetting({ currency: "USD" })}>USD ($)</Chip></Row>
-          <Copy muted style={{ fontSize: 12 }}>{formatMessage("Budgets are stored in EUR. USD values use the latest available ECB reference rate{date}.", { date: currentExchangeRate() ? ` (${currentExchangeRate()!.date})` : "" }, language)}</Copy>
-          <Copy style={s.label}>Appearance</Copy>
+          <Copy muted style={{ fontSize: 12 }}>Amounts keep their value when you switch currency. Only the symbol changes, with no exchange rate applied.</Copy>
+          {!!error && <Copy style={s.error}>{error}</Copy>}
+        </>}
+        {dialog === "Appearance" && <>
           <Row style={{ gap: 7, flexWrap: "wrap" }}>
             {(["system", "light", "dark"] as const).map((option) => <Chip key={option} selected={themePreference === option} onPress={() => setThemePreference(option)}>{option === "system" ? "System" : option === "light" ? "Light" : "Dark"}</Chip>)}
           </Row>
           {themePreference === "system" && <Copy muted style={{ fontSize: 12 }}>Matches your device setting.</Copy>}
-          {!!error && <Copy style={s.error}>{error}</Copy>}
-          {!!trip && <Button secondary onPress={() => { setError(""); setDialog("Delete trip"); }}>Delete current trip</Button>}
         </>}
-        {dialog === "Delete trip" && <>
-          <Copy muted>Your itinerary and expenses will be deleted. Saved places and your journal will remain.</Copy>
-          {!!error && <Copy style={s.error}>{error}</Copy>}
-          <Button busy={busy} onPress={async () => {
-            setBusy(true);
-            setError("");
-            try { await clearTrip(); setDialog(""); }
-            catch (caught) { setError(caught instanceof Error ? caught.message : "Could not delete the trip."); }
-            finally { setBusy(false); }
-          }}>Delete trip</Button>
-          <Button secondary onPress={() => setDialog("Account settings")}>Cancel</Button>
+        {dialog === "Notifications" && <>
+          <ListGroup>
+            {notificationRows.map((row) => <ListRow key={row.kind} icon={row.icon} label={row.label} detail={row.detail} chevron={false}
+              onPress={() => void toggleNotification(row.kind, !notificationPrefs[row.kind])}
+              right={<Switch value={notificationPrefs[row.kind]} disabled={notificationBusy} trackColor={{ true: p.blue }}
+                accessibilityLabel={translate(row.label, language)} onValueChange={(next) => void toggleNotification(row.kind, next)} />} />)}
+          </ListGroup>
+          {!!notificationNote && <Copy style={s.error}>{notificationNote}</Copy>}
+          {__DEV__ && <Button secondary icon="bell" busy={notificationBusy} onPress={() => void sendTests()}>Send test notifications</Button>}
+          {notificationPrefs.nearby && <Copy muted style={{ fontSize: 12 }}>Uses your location in the background only to notice when you have moved about 2 km, at most one suggestion every few hours.</Copy>}
         </>}
         {dialog === "Log out" && <>
           <Copy muted>Sign out of your account?</Copy>
@@ -413,30 +466,25 @@ export function ProfileScreen() {
 
 const stylesSheet = themedStyles((p) => ({
   section: { color: p.ink, fontSize: 18, fontWeight: "800" },
-  profileHero: { alignItems: "center", gap: 12, padding: 18, paddingBottom: 20, borderRadius: 26, overflow: "hidden" },
-  profileTitle: { color: p.onColor, fontSize: 20, fontWeight: "800" },
-  heroIcon: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.2)" },
-  avatarRing: { width: 98, height: 98, borderRadius: 49, alignItems: "center", justifyContent: "center", backgroundColor: p.onColor,
-    shadowColor: "#1E3A8A", shadowOpacity: 0.25, shadowRadius: 0, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
-  avatar: { width: 90, height: 90, borderRadius: 45 },
+  largeTitle: { color: p.ink, fontSize: 34, lineHeight: 40, fontWeight: "800", letterSpacing: -0.8, marginTop: 6 },
+  profileCard: { flexDirection: "row", alignItems: "center", gap: 16, padding: 16, borderRadius: 24, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
+  avatarRing: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", backgroundColor: p.blueSoft },
+  avatar: { width: 72, height: 72, borderRadius: 36 },
   avatarPlaceholder: { alignItems: "center", justifyContent: "center", backgroundColor: p.blueSoft },
-  cameraBadge: { position: "absolute", right: -2, bottom: 0, width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: p.white, borderWidth: 2, borderColor: p.blueSoft },
-  profileName: { color: p.onColor, fontSize: 22, fontWeight: "800" },
-  profileHandle: { color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: "600" },
-  planPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.2)" },
-  planPillText: { color: p.onColor, fontSize: 13, fontWeight: "800" },
-  editPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, backgroundColor: p.white },
-  editPillText: { color: p.blue, fontSize: 13, fontWeight: "800" },
-  memberCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 20, borderWidth: 1, borderColor: p.orangeLine, backgroundColor: p.orangeSoft },
-  memberCardPaid: { borderColor: p.ink, backgroundColor: p.night },
-  group: { borderRadius: 20, borderWidth: 1, borderColor: p.line, backgroundColor: p.white, overflow: "hidden" },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 13 },
-  rowDivider: { borderTopWidth: 1, borderColor: p.line },
-  rowIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  cameraBadge: { position: "absolute", right: -1, bottom: -1, width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: p.blue, borderWidth: 2, borderColor: p.white },
+  profileName: { color: p.ink, fontSize: 20, lineHeight: 25, fontWeight: "800", letterSpacing: -0.3 },
+  profileHandle: { color: p.muted, fontSize: 13, fontWeight: "500" },
+  profileEdit: { color: p.blue, fontSize: 13, fontWeight: "700", marginTop: 3 },
+  planCard: { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 24, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
+  planBadge: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  planTitle: { color: p.ink, fontSize: 17, lineHeight: 22, fontWeight: "800", letterSpacing: -0.2 },
+  planDetail: { color: p.muted, fontSize: 13, lineHeight: 18 },
+  planPill: { paddingHorizontal: 13, paddingVertical: 7, borderRadius: 14, backgroundColor: p.soft },
+  planPillText: { color: p.ink, fontSize: 13, fontWeight: "700" },
   rowTitle: { color: p.ink, fontSize: 15, fontWeight: "700" },
   rowDetail: { color: p.muted, fontSize: 12, fontWeight: "600", marginTop: 1 },
   year: { color: p.muted, fontSize: 12, fontWeight: "800", letterSpacing: 0.5, marginTop: 4 },
-  segments: { flexDirection: "row", gap: 4, padding: 4, borderRadius: 16, backgroundColor: p.soft },
+  segments: { flexDirection: "row", gap: 4, padding: 4, borderRadius: 16, backgroundColor: p.line },
   segment: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 40, borderRadius: 12 },
   segmentSelected: { backgroundColor: p.white, shadowColor: p.shadow, shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   segmentText: { color: p.muted, fontSize: 14, fontWeight: "700" },
