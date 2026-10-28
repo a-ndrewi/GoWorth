@@ -29,6 +29,10 @@ import { unseenNearbyPlaces, type PlaceVisit } from "@/utils/explore-history";
 import { CountryHoneycomb } from "@/components/goworth/country-honeycomb";
 import { publicPlaceCategory } from "@/utils/public-activity";
 import { TripShortcut } from "@/components/goworth/trip-shortcut";
+import { WheelShortcut } from "@/components/goworth/wheel-shortcut";
+import { useAuth } from "@/state/auth-context";
+import { loadWheelStatus, type WheelStatus } from "@/lib/wheel";
+import { useTimedMessage } from "@/hooks/use-timed-message";
 
 /** Venues keep their own glyph on Explore's cards; every other place gets the pin. */
 function placeIcon(category: string): IconName {
@@ -75,7 +79,16 @@ export function HomeScreen() {
   const styles = useStyles(stylesSheet);
   const p = usePalette();
   const language = useAppLanguage();
-  const { trip, exploreHistory } = useTravel();
+  const { trip, exploreHistory, plan } = useTravel();
+  const { user } = useAuth();
+  const [wheelStatus, setWheelStatus] = useState<WheelStatus | null>(null);
+  // Checked each time Explore is shown, so the badge picks up a spin made on the wheel screen.
+  useFocusEffect(useCallback(() => {
+    if (!user || plan === "lifetime") return;
+    let active = true;
+    loadWheelStatus().then((status) => { if (active) setWheelStatus(status); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [user, plan]));
   const [query, setQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [gridActive, setGridActive] = useState(false);
@@ -189,6 +202,8 @@ export function HomeScreen() {
           </View>}
           </Row>
           {trip && <TripShortcut label={translateAccessibility("My itinerary", language)} onPress={() => router.push("/itinerary" as Href)} />}
+          {plan !== "lifetime" && <WheelShortcut label={translateAccessibility("Daily Premium wheel", language)} status={user ? wheelStatus : null}
+            onPress={() => router.push("/membership" as Href)} />}
         </Row>
       </View>
       {browsing && <DiscoverySwiper />}
@@ -280,7 +295,7 @@ export function TripDetailsScreen() {
   const destination = destinations.find((item) => item.id === id);
   const { saved, savedPlaces, toggleSaved, togglePlace } = useTravel();
   const [tab, setTab] = useState("Overview");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useTimedMessage();
   const [checkedTips, setCheckedTips] = useState<string[]>([]);
   const [photoAvailability, setPhotoAvailability] = useState<Record<string, boolean>>({});
   if (!destination) {
@@ -296,19 +311,20 @@ export function TripDetailsScreen() {
       <Button secondary icon={isSaved ? "heartFill" : "heart"} onPress={() => toggleSaved(destination.id)} style={{ flex: 1 }}>{isSaved ? "Saved" : "Save"}</Button>
       <Button onPress={plan} style={{ flex: 1 }}>Plan a trip</Button>
     </Row>}>
-      <View style={{ height: 270 }}>
+      <View style={{ height: 320 }}>
         <DestinationPhoto destination={destination} style={StyleSheet.absoluteFill} />
         <IconButton name="back" label="Go back" filled onPress={() => router.canGoBack() ? router.back() : router.replace("/home" as Href)} style={{ margin: 14 }} />
       </View>
-      <View style={{ padding: 22, gap: 18 }}>
+      {/* The details slide up over the photo as a rounded sheet. */}
+      <View style={{ marginTop: -30, padding: 22, paddingTop: 26, gap: 18, borderTopLeftRadius: 30, borderTopRightRadius: 30, backgroundColor: p.canvas }}>
         <View>
           <Heading style={{ fontSize: 30 }}>{destination.name}</Heading>
           <Copy muted>{destination.country} · {destination.region}</Copy>
         </View>
-        <Row style={{ borderBottomWidth: 1, borderColor: p.line, justifyContent: "center", gap: 8 }}>
+        <Row style={{ gap: 4, padding: 4, borderRadius: 18, borderWidth: 1, borderColor: p.line, backgroundColor: p.white }}>
           {["Overview", "Places", "Tips"].map((item) => (
-            <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} onPress={() => setTab(item)} style={{ flex: 1, maxWidth: 110, alignItems: "center", paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: tab === item ? p.blue : "transparent" }}>
-              <Copy style={{ color: tab === item ? p.blue : p.muted }}>{item}</Copy>
+            <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} onPress={() => setTab(item)} style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 14, backgroundColor: tab === item ? p.blue : "transparent" }}>
+              <Copy style={{ fontSize: 14, fontWeight: "700", color: tab === item ? p.onColor : p.muted }}>{item}</Copy>
             </Pressable>
           ))}
         </Row>
@@ -405,7 +421,7 @@ export function ExploreScreen() {
   const [selectedDay, setSelectedDay] = useState(1);
   const [addedDays, setAddedDays] = useState<number[]>([]);
   const [adding, setAdding] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useTimedMessage();
   const [photoAvailability, setPhotoAvailability] = useState<Record<string, boolean>>({});
   const requestedId = id;
   const routeCities = trip ? uniqueRouteStops(trip) : [];
@@ -489,7 +505,7 @@ export function ExploreScreen() {
 const stylesSheet = themedStyles((p) => ({
   searchRow: { width: "100%", gap: 8, alignItems: "stretch" },
   homeBrowse: { gap: 12 },
-  search: { borderWidth: 1, borderColor: p.line, borderRadius: 8, backgroundColor: p.soft, position: "relative", minWidth: 0 },
+  search: { borderWidth: 1, borderColor: p.line, borderRadius: 16, backgroundColor: p.white, position: "relative", minWidth: 0 },
   searchFull: { flex: 1 },
   searchWithTrip: { flex: 1 },
   searchInput: { width: "100%", fontSize: 14, color: p.ink, height: 48, textAlign: "center", paddingHorizontal: 16 },
@@ -518,7 +534,7 @@ const stylesSheet = themedStyles((p) => ({
   tileCategory: { color: "#BFD0FF", fontSize: 11, fontWeight: "800" },
   tileName: { color: p.onColor, fontSize: 14, lineHeight: 18, fontWeight: "800" },
   personalEmpty: { alignItems: "center", gap: 10, padding: 20, borderRadius: 18, borderWidth: 1.5, borderStyle: "dashed", borderColor: p.blueLine, backgroundColor: p.blueTint },
-  tipCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, borderWidth: 1, borderColor: p.line, borderRadius: 12, backgroundColor: p.white },
+  tipCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, borderWidth: 1, borderColor: p.line, borderRadius: 18, backgroundColor: p.white },
   tipCardChecked: { borderColor: p.green, backgroundColor: p.greenSoft },
   tipIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
 }));

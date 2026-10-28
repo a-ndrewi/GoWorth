@@ -22,7 +22,7 @@ export function validateTrip(trip: {
   if (days < 1) return "Your return date must be on or after your departure.";
   if (days > 14) return "Choose a trip of up to 14 days for this preview.";
   if (!Number.isFinite(trip.budget) || trip.budget < 100)
-    return "Choose a budget of at least €100.";
+    return "Choose a budget of at least 100.";
   if (trip.dayDestinations && (
     trip.dayDestinations.length !== days ||
     trip.dayDestinations[0] !== trip.destinationId ||

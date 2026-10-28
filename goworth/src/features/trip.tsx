@@ -16,12 +16,14 @@ import {
 import { routeStop, routeTitle } from "@/data/trip-route";
 import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
 import { countryFlag } from "@/data/geography";
-import { useAppLanguage } from "@/data/formatting";
+import { currencySymbol, useAppLanguage } from "@/data/formatting";
+import { BudgetInput, BUDGET_MIN, clampBudget } from "@/components/goworth/budget-input";
 import { useTravel } from "@/state/travel-context";
 import { TripHero, heroStylesSheet, localToday, tripStatus } from "@/components/goworth/trip-hero";
 import { citiesForDay, nextActivitySlot } from "@/utils/trip";
 import { dayRoutePoints, MAX_ROUTE_STOPS, mapsRouteUrl, placeFitsTripDay, useTripAreas } from "@/utils/trip-place";
 import { publicActivityNote, translatedActivityNote } from "@/utils/public-activity";
+import { useTimedMessage } from "@/hooks/use-timed-message";
 
 const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
@@ -42,7 +44,7 @@ export function ItineraryScreen() {
   const [time, setTime] = useState("10:00");
   const [activityDay, setActivityDay] = useState(1);
   const tripAreas = useTripAreas(trip);
-  const [error, setError] = useState("");
+  const [error, setError] = useTimedMessage();
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   if (!trip) {
@@ -278,11 +280,11 @@ export function BudgetScreen() {
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState<ExpenseCategory>("Food & Drinks");
-  const [error, setError] = useState("");
+  const [error, setError] = useTimedMessage();
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [budgetEditor, setBudgetEditor] = useState(false);
-  const [budgetDraft, setBudgetDraft] = useState("");
+  const [budgetDraft, setBudgetDraft] = useState(BUDGET_MIN);
   const openEditor = (expense?: Expense) => {
     setEditing(expense || null);
     setLabel(expense?.label || "");
@@ -295,7 +297,7 @@ export function BudgetScreen() {
   const save = async () => {
     const value = Number(amount.replace(",", "."));
     if (!Number.isFinite(value) || value < 0.01 || value > 1000000) {
-      setError("Enter an amount between €0.01 and €1,000,000.");
+      setError(formatMessage("Enter an amount between {min} and {max}.", { min: money(0.01), max: money(1000000) }, language));
       return;
     }
     setSaving(true);
@@ -327,11 +329,7 @@ export function BudgetScreen() {
   };
   const saveBudget = async () => {
     if (!trip) return;
-    const value = Math.round(Number(budgetDraft.replace(",", ".")));
-    if (!Number.isFinite(value) || value < 100 || value > 1000000) {
-      setError("Enter a budget between €100 and €1,000,000.");
-      return;
-    }
+    const value = clampBudget(budgetDraft);
     setSaving(true);
     setError("");
     try { await updateTrip({ ...trip, budget: value }); setBudgetEditor(false); }
@@ -369,7 +367,7 @@ export function BudgetScreen() {
             <Text style={styles.budgetTotal}>{money(total)}</Text>
             <Copy muted style={{ fontSize: 13 }}>{formatMessage("of {budget} budget", { budget: money(trip.budget) }, language)}</Copy>
           </View>
-          <Pressable accessibilityRole="button" onPress={() => { setBudgetDraft(String(trip.budget)); setError(""); setBudgetEditor(true); }} style={({ pressed }) => [styles.editBudget, pressed && { backgroundColor: p.blueSoft }]}>
+          <Pressable accessibilityRole="button" onPress={() => { setBudgetDraft(clampBudget(trip.budget)); setError(""); setBudgetEditor(true); }} style={({ pressed }) => [styles.editBudget, pressed && { backgroundColor: p.blueSoft }]}>
             <Icon name="edit" size={15} color={p.blue} /><Text style={styles.editBudgetText}>{translate("Edit budget", language)}</Text>
           </Pressable>
         </Row>
@@ -415,8 +413,8 @@ export function BudgetScreen() {
 
       <Sheet visible={editor} title={editing ? "Edit expense" : "New expense"} onClose={() => setEditor(false)}>
         <View style={styles.amountBox}>
-          <Text style={styles.amountCurrency}>€</Text>
-          <TextInput accessibilityLabel={translate("Amount (EUR)", language)} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={p.muted} autoFocus={!editing} style={styles.amountInput} />
+          <Text style={styles.amountCurrency}>{currencySymbol()}</Text>
+          <TextInput accessibilityLabel={translate("Amount", language)} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={p.muted} autoFocus={!editing} style={styles.amountInput} />
         </View>
         <View style={styles.categoryGrid}>
           {expenseCategories.map((cat, index) => {
@@ -437,11 +435,7 @@ export function BudgetScreen() {
       </Sheet>
 
       <Sheet visible={budgetEditor} title={translate("Trip budget", language)} onClose={() => setBudgetEditor(false)}>
-        <View style={styles.amountBox}>
-          <Text style={styles.amountCurrency}>€</Text>
-          <TextInput accessibilityLabel={translate("Trip budget", language)} value={budgetDraft} onChangeText={setBudgetDraft} keyboardType="number-pad" style={styles.amountInput} />
-        </View>
-        <Copy muted style={{ fontSize: 12 }}>Budgets are stored in EUR.</Copy>
+        <BudgetInput value={budgetDraft} onChange={setBudgetDraft} />
         {!!error && <Copy style={s.error}>{error}</Copy>}
         <Button busy={saving} onPress={() => void saveBudget()}>Save budget</Button>
       </Sheet>

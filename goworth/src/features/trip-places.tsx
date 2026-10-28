@@ -21,6 +21,7 @@ import { citiesForDay, nextActivitySlot } from "@/utils/trip";
 import { loadDayAreas, placeFitsTripDay, useTripAreas } from "@/utils/trip-place";
 import { publicActivityNote, publicPlaceCategory } from "@/utils/public-activity";
 import { SyncFailure } from "@/utils/sync-error";
+import { NOTICE_DURATION_MS } from "@/hooks/use-timed-message";
 
 const categoryTone: Record<string, keyof Palette> = {
   Landmarks: "blue", Museums: "purple", Nature: "green", Beaches: "teal", Neighborhoods: "orange", "Food & Markets": "pink",
@@ -99,7 +100,7 @@ export function TripPlacesScreen() {
 
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(() => setToast(null), toast.freeLimit ? 6000 : 2600);
+    const timer = setTimeout(() => setToast(null), NOTICE_DURATION_MS);
     return () => clearTimeout(timer);
   }, [toast]);
 
@@ -171,7 +172,7 @@ export function TripPlacesScreen() {
   const toastView = toast && <Animated.View key={toast.id} entering={FadeInDown.springify().damping(16)} exiting={FadeOutDown.duration(160)} style={[styles.toast, toast.error && { backgroundColor: p.danger }]}>
     <Icon name={toast.error ? "close" : "check"} size={18} color={p.onColor} />
     <Text style={styles.toastText} numberOfLines={2}>{toast.text}</Text>
-    {toast.freeLimit ? <Pressable accessibilityRole="button" onPress={() => router.push("/membership" as Href)}><Text style={styles.toastAction}>{translate("See plans", language)}</Text></Pressable>
+    {toast.freeLimit ? <Pressable accessibilityRole="button" onPress={() => router.push("/membership" as Href)}><Text style={styles.toastAction}>{translate("Spin for Premium", language)}</Text></Pressable>
       : !toast.error && <Pressable accessibilityRole="button" onPress={() => router.navigate({ pathname: "/itinerary", params: { day: String(day) } } as Href)}><Text style={styles.toastAction}>{translate("View day", language)}</Text></Pressable>}
   </Animated.View>;
 
@@ -302,10 +303,10 @@ const stylesSheet = themedStyles((p) => ({
   mapCard: { height: 250, borderRadius: 22, overflow: "hidden", borderWidth: 1, borderColor: p.line, backgroundColor: p.soft },
   mapBadge: { position: "absolute", top: 10, left: 10, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: p.white },
   mapBadgeText: { color: p.ink, fontSize: 12, fontWeight: "700" },
-  search: { gap: 9, minHeight: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: p.soft },
+  search: { gap: 9, minHeight: 48, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
   searchInput: { flex: 1, color: p.ink, fontSize: 14, paddingVertical: 12, outlineWidth: 0 },
-  category: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 16, backgroundColor: p.soft },
-  categorySelected: { backgroundColor: p.blue },
+  category: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
+  categorySelected: { backgroundColor: p.blue, borderColor: p.blue },
   categoryText: { color: p.ink, fontSize: 12, fontWeight: "700" },
   categoryDot: { width: 8, height: 8, borderRadius: 4 },
   card: { flexDirection: "row", alignItems: "center", gap: 12, padding: 10, borderRadius: 18, borderWidth: 1.5, borderColor: p.line, backgroundColor: p.white },

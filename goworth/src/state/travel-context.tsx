@@ -3,15 +3,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Activity, Expense, Trip, TripJournalEntry } from "@/data/travel";
 import { venueFilters, type NearbyPlace, type VenueFilter } from "@/data/nearby-places";
 import { externalPlaceFromSaved } from "@/data/external-places";
-import { syncStoreEntitlement } from "@/lib/entitlements";
-import { purchasesConfigured } from "@/lib/purchases";
+import { loadMembership } from "@/lib/wheel";
 import { useAuth } from "@/state/auth-context";
 import { dayCityNames, placeFitsTripDayChecked } from "@/utils/trip-place";
 import { formatMessage } from "@/data/i18n";
 import { describeSyncFailure, isFreeLimitFailure, SyncFailure } from "@/utils/sync-error";
 import { tripDays, validateTrip } from "@/utils/trip";
 import { emptyExploreHistory, parseExploreHistory, rememberCountry, rememberPlace, type ExploreHistory } from "@/utils/explore-history";
-import { loadUsdRate, setDisplaySettings, type AppCurrency, type AppLanguage } from "@/data/formatting";
+import { setDisplaySettings, type AppCurrency, type AppLanguage } from "@/data/formatting";
 import {
   archiveCurrentTrip,
   deleteActivity,
@@ -35,6 +34,7 @@ import {
   removeProfileAvatar,
   setSavedItem,
 } from "@/lib/travel-repository";
+import { useTimedMessage } from "@/hooks/use-timed-message";
 
 export type TravelPreferences = {
   interests: string[];
@@ -100,7 +100,7 @@ function useTravelState() {
   const [notifications, setNotifications] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
   const [loadError, setLoadError] = useState("");
-  const [syncError, setSyncError] = useState("");
+  const [syncError, setSyncError] = useTimedMessage();
   const [reload, setReload] = useState(0);
   const writeQueue = useRef<Promise<void>>(Promise.resolve());
   const exploreHistoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
@@ -161,12 +161,8 @@ function useTravelState() {
         if (!current) return;
         const language = accountLanguage === "ro" ||
           (!accountLanguage && data.profile?.language === "ro") ? "ro" : "en";
-        let currency: AppCurrency = accountCurrency === "USD" ||
+        const currency: AppCurrency = accountCurrency === "USD" ||
           (!accountCurrency && data.profile?.currency === "USD") ? "USD" : "EUR";
-        if (currency === "USD") {
-          try { await loadUsdRate(); }
-          catch { currency = "EUR"; setSyncError("USD rate unavailable. Amounts are shown in EUR until the ECB rate returns."); }
-        }
         setDisplaySettings({ language, currency });
         setProfileState({
           name: data.profile?.display_name || fallbackName,
@@ -205,15 +201,12 @@ function useTravelState() {
         setJournalAvailable(data.journalAvailable);
         setSyncError("");
         setCloudReady(true);
-        if (purchasesConfigured()) void syncStoreEntitlement()
-          .then((membership) => { if (current) setPlan(membership.plan); })
-          .catch(() => undefined);
       })
       .catch(() => {
         if (current) setLoadError("Could not load your account. Check your connection and try again.");
       });
     return () => { current = false; };
-  }, [userId, fallbackName, accountLanguage, accountCurrency, reload]);
+  }, [userId, fallbackName, accountLanguage, accountCurrency, reload, setSyncError]);
 
   const persist = (work: () => Promise<unknown>, showGlobalError = true) => {
     const next = writeQueue.current.then(work);
@@ -282,7 +275,7 @@ function useTravelState() {
 
   const refreshMembership = useCallback(async () => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
-    const membership = await syncStoreEntitlement();
+    const membership = await loadMembership(user.id);
     setPlan(membership.plan);
     return membership;
   }, [user, cloudReady]);
@@ -396,7 +389,6 @@ function useTravelState() {
   const setProfile = async (next: Partial<TravelProfile>) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
     const merged = { ...profile, ...next };
-    if (next.currency === "USD" && profile.currency !== "USD") await loadUsdRate();
     if (next.name !== undefined || next.username !== undefined) {
       await saveProfile(user.id, merged, notifications);
     } else {

@@ -98,6 +98,14 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
   useEffect(() => { selectRef.current = onSelect; }, [onSelect]);
   const select = useCallback((code: string) => selectRef.current(code), []);
   const [width, setWidth] = useState(0);
+  // The Skia surface and the bubbles take a few hundred milliseconds to mount, which made opening the Map tab stall.
+  // The screen is shown first with the empty frame, and the globe fills it in the next frame.
+  const [painted, setPainted] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const frame = requestAnimationFrame(() => { timer = setTimeout(() => setPainted(true), 0); });
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
+  }, []);
   const [hereCode, setHereCode] = useState<string | null>(null);
   const anchored = useMemo(() => countries.flatMap((country) => {
     const anchor = countryAnchor(country);
@@ -134,8 +142,8 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
   const focused = useIsFocused();
   useEffect(() => {
     // One short turn when the globe appears; it then only redraws while it is touched or animating.
-    lam.set(withTiming(lam.value + 40, { duration: 1400, easing: Easing.out(Easing.cubic) }));
-  }, [lam]);
+    if (painted) lam.set(withTiming(lam.get() + 40, { duration: 1400, easing: Easing.out(Easing.cubic) }));
+  }, [lam, painted]);
   useEffect(() => {
     // The marker pulse stops while the Map tab is hidden.
     if (!focused || !marker) return;
@@ -146,7 +154,7 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
 
   const flyTo = useCallback((target: Omit<GlobeFocus, "key">) => {
     cancelAnimation(lam);
-    const current = lam.value;
+    const current = lam.get();
     const delta = ((((target.longitude - current) % 360) + 540) % 360) - 180;
     lam.set(withTiming(current + delta, { duration: 900, easing: Easing.inOut(Easing.cubic) }));
     phi.set(withTiming(Math.max(-70, Math.min(70, target.latitude)), { duration: 900, easing: Easing.inOut(Easing.cubic) }));
@@ -257,7 +265,7 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
 
   const zoomBy = (factor: number) => {
     cancelAnimation(zoom);
-    zoom.set(withSpring(Math.max(1, Math.min(MAX_ZOOM, zoom.value * factor)), { damping: 16, stiffness: 160 }));
+    zoom.set(withSpring(Math.max(1, Math.min(MAX_ZOOM, zoom.get() * factor)), { damping: 16, stiffness: 160 }));
   };
   const reset = () => {
     cancelAnimation(lam);
@@ -268,7 +276,7 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
   return <View style={styles.frame} onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}>
     <GestureDetector gesture={gesture}>
       <View style={StyleSheet.absoluteFill} collapsable={false}>
-        {width > 0 && <>
+        {width > 0 && painted && <>
           <View pointerEvents="none" style={StyleSheet.absoluteFill}>
             <GlobeSurface width={width} height={HEIGHT} radius={radius} lam={lam} phi={phi} zoom={zoom} dots={dotCoordinates} />
           </View>

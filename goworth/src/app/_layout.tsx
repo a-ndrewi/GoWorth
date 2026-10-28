@@ -11,6 +11,8 @@ import { ThemeProvider as AppThemeProvider, usePalette, useThemePreference } fro
 import { tripDays } from "@/data/travel";
 import { BottomNav, Button, Copy } from "@/components/goworth/ui";
 import { ItineraryNav } from "@/components/goworth/itinerary-nav";
+// Also defines the background task that wakes the app for nearby places, which must exist before the app renders.
+import { DeviceSync } from "@/state/device-sync";
 import { setPhotoStore } from "@/data/place-photo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import "@/global.css";
@@ -56,6 +58,7 @@ function AppNavigator() {
   return (
     <>
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+      <DeviceSync />
       <View
         style={{
           flex: 1,
@@ -68,7 +71,7 @@ function AppNavigator() {
             flex: 1,
             width: "100%",
             maxWidth: Platform.OS === "web" ? 960 : undefined,
-            backgroundColor: palette.white,
+            backgroundColor: palette.canvas,
           }}
         >
           {!!user && loadError ? (
@@ -86,7 +89,7 @@ function AppNavigator() {
           ) : <><Stack
             screenOptions={{
               headerShown: false,
-              contentStyle: { backgroundColor: palette.white },
+              contentStyle: { backgroundColor: palette.canvas },
               animation: "slide_from_right",
             }}
           >
@@ -113,8 +116,8 @@ function AppNavigator() {
               <Stack.Screen name="support" />
             </Stack.Protected>
           </Stack>
-          {!!user && activeTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.white }}><BottomNav active={activeTab} /></SafeAreaView>}
-          {!!user && !!trip && itineraryTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.white }}><ItineraryNav active={itineraryTab} day={itineraryDay} /></SafeAreaView>}
+          {!!user && activeTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.canvas }}><BottomNav active={activeTab} /></SafeAreaView>}
+          {!!user && !!trip && itineraryTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.canvas }}><ItineraryNav active={itineraryTab} day={itineraryDay} /></SafeAreaView>}
           </>}
         </View>
       </View>
@@ -147,7 +150,7 @@ function NavigationTheme({ children }: { children: ReactNode }) {
         ...base,
         colors: {
           ...base.colors,
-          background: palette.white,
+          background: palette.canvas,
           card: palette.white,
           border: palette.line,
           text: palette.ink,

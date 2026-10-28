@@ -25,6 +25,7 @@ import { formatMessage, translate, translateAccessibility, translateLocation } f
 import { useAppLanguage } from "@/data/formatting";
 import { isSavedDiscoverySuggestion } from "@/utils/discovery-suggestions";
 import { SyncFailure } from "@/utils/sync-error";
+import { useTimedMessage } from "@/hooks/use-timed-message";
 
 /** Cities a worldwide deck draws more places from once the catalog runs low, in a fresh order each time the app opens. */
 let worldCityOrder: City[] | null = null;
@@ -241,7 +242,7 @@ export function DiscoverySwiper() {
   const [seenKeys, setSeenKeys] = useState<string[]>([]);
   const [cycle, setCycle] = useState(0);
   const [command, setCommand] = useState<SwipeCommand | null>(null);
-  const [saveError, setSaveError] = useState("");
+  const [saveError, setSaveError] = useTimedMessage();
   const [freeLimitReached, setFreeLimitReached] = useState(false);
   const [liveResult, setLiveResult] = useState<{ key: string; places: NearbyPlace[] } | null>(null);
   // `from` is how many cards had been swiped when venues arrived, so they join after the cards already on screen.
@@ -415,7 +416,7 @@ export function DiscoverySwiper() {
       {!!saveError && <View style={{ alignItems: "center", gap: 6 }}>
         <Copy style={{ color: p.danger, fontSize: 12, textAlign: "center" }}>{saveError}</Copy>
         {freeLimitReached && <Pressable accessibilityRole="button" onPress={() => router.push("/membership" as Href)}>
-          <Copy style={{ color: p.blue, fontSize: 13, fontWeight: "700" }}>{language === "ro" ? "Vezi planurile" : "See plans"}</Copy>
+          <Copy style={{ color: p.blue, fontSize: 13, fontWeight: "700" }}>{language === "ro" ? "Învârte pentru Premium" : "Spin for Premium"}</Copy>
         </Pressable>}
       </View>}
     </View> : <View style={{ alignItems: "center", gap: 10, paddingVertical: 28 }}><Icon name="compass" color={p.blue} size={36} /><Heading style={{ fontSize: 19, textAlign: "center" }}>{ordered.length ? "You have seen nearby picks" : "No places in this area yet"}</Heading><Copy muted style={{ textAlign: "center", fontSize: 13 }}>{ordered.length ? "Expand your radius for more places, or refresh to revisit suggestions." : "Try a wider radius or a different city for more suggestions."}</Copy><Row style={{ gap: 10 }}><IconButton name="refresh" label="Refresh suggestions" onPress={refresh} color={p.blue} /><IconButton name="settings" label="Change discovery radius" onPress={() => router.push("/preferences" as Href)} color={p.blue} /></Row></View>}
@@ -464,9 +465,9 @@ const stylesSheet = themedStyles((p) => ({
   eyebrow: { color: p.blue, fontSize: 10, fontWeight: "800", lineHeight: 14 },
   sectionTitle: { fontSize: 29, lineHeight: 34 },
   deckStage: { position: "relative" },
-  card: { position: "absolute", top: 0, left: 0, right: 0, borderRadius: 8, overflow: "hidden", backgroundColor: p.blueSoft },
+  card: { position: "absolute", top: 0, left: 0, right: 0, borderRadius: 26, overflow: "hidden", backgroundColor: p.blueSoft },
   cardContent: { flex: 1, justifyContent: "space-between", padding: 19 },
-  typeBadge: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 5, backgroundColor: "rgba(0,0,0,0.42)", borderRadius: 4, paddingHorizontal: 9, paddingVertical: 6 },
+  typeBadge: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 5, backgroundColor: "rgba(0,0,0,0.42)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },
   typeText: { color: p.onColor, fontSize: 10, fontWeight: "700" },
   cardTitle: { color: p.onColor, fontSize: 30, lineHeight: 35 },
   cardMeta: { color: p.onColor, fontSize: 13, fontWeight: "600" },
@@ -484,6 +485,6 @@ const stylesSheet = themedStyles((p) => ({
   inspiration: { borderTopWidth: 1, borderColor: p.line, paddingTop: 20, gap: 12 },
   activityRow: { flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 8, borderColor: p.line },
   activityPhoto: { width: 48, height: 48, borderRadius: 5 },
-  ideaCard: { flex: 1, minWidth: 0, height: 146, borderRadius: 6, overflow: "hidden", backgroundColor: p.blueSoft },
+  ideaCard: { flex: 1, minWidth: 0, height: 146, borderRadius: 18, overflow: "hidden", backgroundColor: p.blueSoft },
   ideaContent: { flex: 1, justifyContent: "flex-end", padding: 11 },
 }));

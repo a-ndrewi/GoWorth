@@ -1,10 +1,10 @@
-import Slider from "@react-native-community/slider";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useDeferredValue, useMemo, useRef, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputInstance } from "react-native";
 import Animated, { Easing, FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 
 import { DateRangePicker } from "@/components/goworth/date-time-controls";
+import { BudgetInput } from "@/components/goworth/budget-input";
 import { Button, Copy, DestinationPhoto, Heading, Icon, IconButton, Row, Screen, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
 import { themedStyles } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
@@ -17,6 +17,7 @@ import { useAppLanguage } from "@/data/formatting";
 import { useTravel } from "@/state/travel-context";
 import { adjustStopDays, citiesForDay, dayCitiesFromStops, splitDays, stopsFromDayCities } from "@/utils/trip";
 import { isFreeLimitFailure, SyncFailure } from "@/utils/sync-error";
+import { useTimedMessage } from "@/hooks/use-timed-message";
 
 // Quiet, overshoot-free movement so adding several cities quickly never makes the page bounce.
 const gentleLayout = LinearTransition.duration(220).easing(Easing.out(Easing.quad));
@@ -87,7 +88,7 @@ export function PlannerScreen() {
   const [styleSheet, setStyleSheet] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useTimedMessage();
   const [freeLimit, setFreeLimit] = useState(false);
   const searchRef = useRef<TextInputInstance>(null);
   const today = localToday();
@@ -188,7 +189,7 @@ export function PlannerScreen() {
   const footer = <View style={{ gap: 9 }}>
     {!!error && <View style={{ gap: 4 }}>
       <Copy style={[s.error, { textAlign: "center" }]}>{error}</Copy>
-      {freeLimit && <Pressable accessibilityRole="button" onPress={() => router.push("/membership" as Href)}><Copy style={{ color: p.blue, fontWeight: "700", textAlign: "center", fontSize: 13 }}>See plans</Copy></Pressable>}
+      {freeLimit && <Pressable accessibilityRole="button" onPress={() => router.push("/membership" as Href)}><Copy style={{ color: p.blue, fontWeight: "700", textAlign: "center", fontSize: 13 }}>Spin for Premium</Copy></Pressable>}
     </View>}
     <Row style={{ gap: 12 }}>
       <View style={{ flex: 1, minWidth: 0 }}>
@@ -304,10 +305,8 @@ export function PlannerScreen() {
 
     <Sheet visible={styleSheet} title={translate("Trip style", language)} onClose={() => setStyleSheet(false)}>
       <View style={{ gap: 8 }}>
-        <Row style={{ justifyContent: "space-between" }}><Copy style={s.label}>Budget (per person)</Copy><Copy style={{ fontWeight: "700", color: p.blue }}>{money(style.budget)}</Copy></Row>
-        <Slider accessibilityLabel={translate("Trip budget", language)} minimumValue={500} maximumValue={10000} step={100} value={style.budget}
-          onValueChange={(budget) => setStyle((current) => ({ ...current, budget }))} minimumTrackTintColor={p.blue} maximumTrackTintColor={p.line} thumbTintColor={p.blue} />
-        <Row style={{ justifyContent: "space-between" }}><Copy muted style={{ fontSize: 12 }}>{money(500)}</Copy><Copy muted style={{ fontSize: 12 }}>{money(10000)}</Copy></Row>
+        <Copy style={s.label}>Budget (per person)</Copy>
+        <BudgetInput value={style.budget} onChange={(budget) => setStyle((current) => ({ ...current, budget }))} />
       </View>
       <View style={{ gap: 10 }}>
         <Copy style={s.label}>Interests</Copy>

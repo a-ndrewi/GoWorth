@@ -5,6 +5,7 @@ import { Button, Chip, Copy, EmptyState, Header, Icon, Row, Screen } from "@/com
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
 import { Shimmer, SkeletonRows } from "@/components/goworth/loading";
 import { usePalette } from "@/state/theme-context";
+import type { Palette } from "@/constants/design";
 import { citiesForCountry, citiesForUsState, cityForId, countryFlag, countryForCode, usStates } from "@/data/geography";
 import { loadCityPlaces, searchWikipediaPlaces, venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
 import { insideBoundary, loadCityBoundary, type Boundary } from "@/data/city-boundary";
@@ -13,6 +14,7 @@ import { useTravel } from "@/state/travel-context";
 import { normalizeSearchText } from "@/utils/search";
 import { useAppLanguage } from "@/data/formatting";
 import { formatMessage, translate } from "@/data/i18n";
+import { useTimedMessage } from "@/hooks/use-timed-message";
 
 function placeBadge(category: string, detail: string, language: ReturnType<typeof useAppLanguage>) {
   const distance = detail.match(/(?:·|,)\s*(\d+(?:\.\d+)?)\s*km away/i)?.[1];
@@ -45,30 +47,34 @@ export function CountryScreen() {
   return <Screen active="home" style={{ gap: 17 }}>
     <Header title={selectedState ? selectedState.name : `${countryFlag(country.code)}  ${translate(country.name, language)}`} subtitle={selectedState ? `${translate(country.name, language)} · ${selectedState.cityCount.toLocaleString(language === "ro" ? "ro-RO" : "en-US")} ${language === "ro" ? "orașe" : "cities"}` : `${country.cityCount.toLocaleString(language === "ro" ? "ro-RO" : "en-US")} ${language === "ro" ? "orașe" : "cities"}`} />
     {selectedState && <Button secondary icon="back" onPress={() => { setSelectedStateCode(null); setQuery(""); setVisibleCount(40); }}>{translate("All states", language)}</Button>}
-    <Row style={{ borderWidth: 1, borderColor: p.line, borderRadius: 6, paddingHorizontal: 12, gap: 8 }}>
+    <Row style={{ borderWidth: 1, borderColor: p.line, borderRadius: 16, backgroundColor: p.white, paddingHorizontal: 14, gap: 8 }}>
       <Icon name="search" color={p.muted} size={18} />
       <TextInput accessibilityLabel={`${translate(isUs && !selectedState ? "Search states" : "Search cities", language)}: ${country.name}`} placeholder={translate(isUs && !selectedState ? "Search states" : "Search cities", language)} placeholderTextColor={p.muted} value={query} onChangeText={(value) => { setQuery(value); setVisibleCount(40); }} style={{ flex: 1, minWidth: 0, height: 46, fontSize: 14, color: p.ink }} />
     </Row>
-    {isUs && !selectedState ? <View style={{ gap: 1 }}>
-      {filteredStates.map((state) => <Pressable key={state.code} accessibilityRole="button" accessibilityLabel={`${state.name}, ${state.cityCount} cities`} onPress={() => { setSelectedStateCode(state.code); setQuery(""); setVisibleCount(40); }} style={{ minHeight: 58, paddingVertical: 10, borderBottomWidth: 1, borderColor: p.line, flexDirection: "row", alignItems: "center", gap: 12 }}>
+    {isUs && !selectedState ? <View style={{ gap: 12 }}>
+      {!!filteredStates.length && <View style={listCard(p)}>{filteredStates.map((state, index) => <Pressable key={state.code} accessibilityRole="button" accessibilityLabel={`${state.name}, ${state.cityCount} cities`} onPress={() => { setSelectedStateCode(state.code); setQuery(""); setVisibleCount(40); }} style={({ pressed }) => [{ minHeight: 58, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12 }, listRow(p, index), pressed && { backgroundColor: p.soft }]}>
         <Icon name="map" color={p.green} size={19} />
         <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontSize: 15, fontWeight: "600" }}>{state.name}</Copy><Copy muted style={{ fontSize: 11 }}>{state.cityCount.toLocaleString(language === "ro" ? "ro-RO" : "en-US")} {language === "ro" ? "orașe" : "cities"}</Copy></View>
         <Icon name="right" color={p.muted} size={17} />
-      </Pressable>)}
+      </Pressable>)}</View>}
       {!filteredStates.length && <EmptyState title={translate("No states found", language)} detail={translate("Try another state name.", language)} action={translate("Clear search", language)} onPress={() => setQuery("")} />}
     </View> : <>
-    <View style={{ gap: 1 }}>
-      {filtered.slice(0, visibleCount).map((city) => <Pressable key={city.id} accessibilityRole="button" accessibilityLabel={`Explore ${city.name}`} onPress={() => router.push({ pathname: "/city", params: { country: country.code, city: city.id } } as Href)} style={{ minHeight: 58, paddingVertical: 10, borderBottomWidth: 1, borderColor: p.line, flexDirection: "row", alignItems: "center", gap: 12 }}>
+    {!!filtered.length && <View style={listCard(p)}>
+      {filtered.slice(0, visibleCount).map((city, index) => <Pressable key={city.id} accessibilityRole="button" accessibilityLabel={`Explore ${city.name}`} onPress={() => router.push({ pathname: "/city", params: { country: country.code, city: city.id } } as Href)} style={({ pressed }) => [{ minHeight: 58, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12 }, listRow(p, index), pressed && { backgroundColor: p.soft }]}>
         <Icon name="city" color={p.green} size={19} />
         <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontSize: 15, fontWeight: "600" }}>{translate(city.name, language)}</Copy>{city.population > 0 && <Copy muted style={{ fontSize: 11 }}>{translate("Population", language)} {city.population.toLocaleString(language === "ro" ? "ro-RO" : "en-US")}</Copy>}</View>
         <Icon name="right" color={p.muted} size={17} />
       </Pressable>)}
-    </View>
+    </View>}
     {!filtered.length && <EmptyState title={translate(query ? "No cities found" : "No indexed cities", language)} detail={translate(query ? "Try another city name." : "Cities for this country are not available yet.", language)} action={query ? translate("Clear search", language) : undefined} onPress={query ? () => setQuery("") : undefined} />}
     {visibleCount < filtered.length && <Button secondary icon="plus" onPress={() => setVisibleCount((count) => count + 40)}>{translate("Show more cities", language)}</Button>}
     </>}
   </Screen>;
 }
+
+/** Rows of a list grouped into one rounded card, as in iOS settings. */
+const listCard = (p: Palette) => ({ borderRadius: 20, borderWidth: 1, borderColor: p.line, backgroundColor: p.white, overflow: "hidden" as const });
+const listRow = (p: Palette, index: number) => ({ paddingHorizontal: 14, borderTopWidth: index ? 1 : 0, borderColor: p.line });
 
 export function CityScreen() {
   const p = usePalette();
@@ -84,7 +90,7 @@ export function CityScreen() {
   const [visibleCount, setVisibleCount] = useState(20);
   const [remote, setRemote] = useState<{ cityId: string; query: string; places: NearbyPlace[] } | null>(null);
   const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState("");
+  const [searchError, setSearchError] = useTimedMessage();
   const searchId = useRef(0);
   const [boundary, setBoundary] = useState<{ cityId: string; outline: Boundary | null } | null>(null);
   useEffect(() => {
@@ -112,7 +118,7 @@ export function CityScreen() {
         .finally(() => { if (requestId === searchId.current) setSearching(false); });
     }, 600);
     return () => clearTimeout(timer);
-  }, [query, city, country, language, outline]);
+  }, [query, city, country, language, outline, setSearchError]);
   if (!country || !city) return <Screen><Header title={translate("City unavailable", language)} /><EmptyState title={translate("City not found", language)} detail={translate("Choose a city from a country.", language)} action={translate("Explore countries", language)} onPress={() => router.dismissTo("/home" as Href)} /></Screen>;
   const categories = ["All", ...new Set(places.map((place) => place.category))];
   const filtered = places.filter((place) => (category === "All" || place.category === category) && normalizeSearchText(place.name).includes(normalizeSearchText(query)));
@@ -140,7 +146,7 @@ export function CityScreen() {
   return <Screen active="home" style={{ gap: 17 }}>
     <Header title={translate(city.name, language)} subtitle={`${city.stateCode ? `${usStates.find((state) => state.code === city.stateCode)?.name ?? city.stateCode} · ` : ""}${countryFlag(country.code)}  ${translate(country.name, language)}`} />
     <Button secondary icon="plus" onPress={() => router.push({ pathname: "/planner", params: { country: country.code, city: city.id } } as Href)}>Plan a trip</Button>
-    <Row style={{ minHeight: 48, borderRadius: 14, paddingHorizontal: 14, gap: 9, backgroundColor: p.soft }}>
+    <Row style={{ minHeight: 48, borderRadius: 16, borderWidth: 1, borderColor: p.line, paddingHorizontal: 14, gap: 9, backgroundColor: p.white }}>
       <Icon name="search" color={p.muted} size={18} />
       <TextInput accessibilityLabel={`${translate("Search places", language)}: ${city.name}`} placeholder={formatMessage("Search places in {city}", { city: translate(city.name, language) }, language)} placeholderTextColor={p.muted} value={query}
         onChangeText={(value) => { searchId.current++; setSearching(false); setSearchError(""); setQuery(value); setVisibleCount(20); }}
@@ -151,15 +157,15 @@ export function CityScreen() {
     {status === "loading" && <SkeletonRows count={6} />}
     {status === "error" && <EmptyState title={translate("Places unavailable", language)} detail={translate("Check your connection and try again.", language)} action={translate("Retry", language)} onPress={() => { setResult({ key: city.id, places: [], status: "loading" }); loadCityPlaces(city, country.name).then((items) => setResult({ key: city.id, places: items, status: "ready" })).catch(() => setResult({ key: city.id, places: [], status: "error" })); }} />}
     {status === "ready" && !filtered.length && !searchResults.length && !searching && (!query.trim() || remote?.query === query.trim()) && <EmptyState title={translate(query ? "No matching places" : "No places found nearby", language)} detail={translate("Try another search.", language)} />}
-    <View style={{ gap: 1 }}>
-      {filtered.slice(0, visibleCount).map((place) => <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`Explore ${place.name}`} onPress={() => openPlace(place)} style={{ minHeight: 67, paddingVertical: 7, borderBottomWidth: 1, borderColor: p.line, flexDirection: "row", alignItems: "center", gap: 11 }}>
+    {!!filtered.length && <View style={listCard(p)}>
+      {filtered.slice(0, visibleCount).map((place, index) => <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`Explore ${place.name}`} onPress={() => openPlace(place)} style={({ pressed }) => [{ minHeight: 70, paddingVertical: 9, flexDirection: "row", alignItems: "center", gap: 12 }, listRow(p, index), pressed && { backgroundColor: p.soft }]}>
         <PlaceThumbnail name={place.name} location={`${city.name}, ${country.name}`} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} />
         <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontSize: 14, fontWeight: "600" }}>{place.name}</Copy><Copy muted style={{ fontSize: 12 }}>{translate(place.category, language)}</Copy></View>
         <Icon name="right" color={p.muted} size={17} />
       </Pressable>)}
-    </View>
+    </View>}
     {!!searchError && <Copy style={{ color: p.danger }}>{searchError}</Copy>}
-    {!!searchResults.length && <View style={{ gap: 1 }}><Copy style={{ fontSize: 16, fontWeight: "700" }}>{translate("Search results", language)}</Copy>{searchResults.map((place) => <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`Explore ${place.name}`} onPress={() => openPlace(place)} style={{ minHeight: 56, paddingVertical: 8, borderBottomWidth: 1, borderColor: p.line, flexDirection: "row", alignItems: "center", gap: 11 }}><Icon name="pin" color={p.green} /><View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "600" }}>{place.name}</Copy><Copy muted style={{ fontSize: 12 }}>{translate(place.category, language)}</Copy></View><Icon name="right" color={p.muted} size={17} /></Pressable>)}</View>}
+    {!!searchResults.length && <View style={{ gap: 8 }}><Copy style={{ fontSize: 16, fontWeight: "700" }}>{translate("Search results", language)}</Copy><View style={listCard(p)}>{searchResults.map((place, index) => <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`Explore ${place.name}`} onPress={() => openPlace(place)} style={({ pressed }) => [{ minHeight: 56, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 11 }, listRow(p, index), pressed && { backgroundColor: p.soft }]}><Icon name="pin" color={p.green} /><View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "600" }}>{place.name}</Copy><Copy muted style={{ fontSize: 12 }}>{translate(place.category, language)}</Copy></View><Icon name="right" color={p.muted} size={17} /></Pressable>)}</View></View>}
     {visibleCount < filtered.length && <Button secondary icon="plus" onPress={() => setVisibleCount((count) => count + 20)}>{translate("Show more places", language)}</Button>}
   </Screen>;
 }
@@ -173,7 +179,7 @@ export function PlaceScreen() {
   const { savedPlaces, toggleExternalPlace, exploreHistoryReady, recordPlaceVisit } = useTravel();
   const [result, setResult] = useState<{ key: string; place: NearbyPlace | null; status: "ready" | "error" } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useTimedMessage();
   const key = `${city?.id ?? ""}|${placeId ?? ""}`;
   const routePlace = useMemo(() => {
     const osm = /^osm:(?:node|way|relation):\d+$/.test(placeId ?? "") && /^https:\/\/www\.openstreetmap\.org\/(?:node|way|relation)\/\d+$/.test(sourceUrl ?? "");
@@ -213,7 +219,7 @@ export function PlaceScreen() {
         {!!venue.address && <Row style={{ gap: 8 }}><Icon name="pin" size={16} color={p.muted} /><Copy muted style={{ flex: 1 }}>{venue.address}</Copy></Row>}
       </View>}
       <Button icon="plus" onPress={() => router.push({ pathname: "/planner", params: { country: country.code, city: city.id } } as Href)}>Plan a trip</Button>
-      <Button icon={savedPlaces.includes(place.id) ? "heartFill" : "heart"} busy={busy} onPress={async () => { setBusy(true); setNotice(""); try { await toggleExternalPlace({ ...place, location: `${city.name}, ${country.name}` }); } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save this place."); } finally { setBusy(false); } }}>{translate(savedPlaces.includes(place.id) ? "Remove from saved" : "Save place", language)}</Button>
+      <Button secondary icon={savedPlaces.includes(place.id) ? "heartFill" : "heart"} busy={busy} onPress={async () => { setBusy(true); setNotice(""); try { await toggleExternalPlace({ ...place, location: `${city.name}, ${country.name}` }); } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save this place."); } finally { setBusy(false); } }}>{translate(savedPlaces.includes(place.id) ? "Remove from saved" : "Save place", language)}</Button>
       {!!notice && <Copy style={{ color: p.danger }}>{notice}</Copy>}
     </>}
   </Screen>;

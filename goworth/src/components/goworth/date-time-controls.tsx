@@ -119,7 +119,7 @@ export function DateRangePicker({ visible, start, end, minDate, maxDays, onDone,
   const short = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
   return <Sheet visible={visible} title={translate("Travel dates", language)} onClose={onClose}>
     <Row style={{ gap: 8 }}>
-      {(["start", "end"] as const).map((field) => <View key={field} style={{ flex: 1, padding: 11, borderRadius: 10, borderWidth: 1.5,
+      {(["start", "end"] as const).map((field) => <View key={field} style={{ flex: 1, padding: 12, borderRadius: 16, borderWidth: 1.5,
         borderColor: (field === "start" ? !choosingEnd && !range.end : choosingEnd) ? p.blue : p.line, backgroundColor: p.white, gap: 2 }}>
         <Copy muted style={{ fontSize: 11, fontWeight: "700" }}>{field === "start" ? "DEPARTURE" : "RETURN"}</Copy>
         <Copy style={{ fontWeight: "700" }}>{range[field] ? short(range[field]) : "—"}</Copy>
