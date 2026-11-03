@@ -7,13 +7,14 @@ import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-pr
 import { DiscoverySwiper } from "@/components/goworth/discovery-swiper";
 import { Shimmer, SkeletonRows } from "@/components/goworth/loading";
 import { themedStyles } from "@/constants/design";
-import { usePalette, useStyles } from "@/state/theme-context";
+import { usePalette, useStyles, useThemePreference } from "@/state/theme-context";
 import { tipsForDestination, type DestinationTip } from "@/data/tips";
 import {
   destinations, placesForDestination, tripDays,
   type Place,
 } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
+import { TripInvites } from "@/components/goworth/companions";
 import { normalizeSearchText } from "@/utils/search";
 import { destinationPins, searchCatalogPlace } from "@/data/map";
 import { citiesForDay, nextActivitySlot } from "@/utils/trip";
@@ -27,6 +28,7 @@ import { loadNearbyPlaces, venueFromCategory, type NearbyPlace } from "@/data/ne
 import { venueFilterIcons } from "@/components/goworth/venue-art";
 import { unseenNearbyPlaces, type PlaceVisit } from "@/utils/explore-history";
 import { CountryHoneycomb } from "@/components/goworth/country-honeycomb";
+import { CountryStamp, passportPaper } from "@/components/goworth/country-grid";
 import { publicPlaceCategory } from "@/utils/public-activity";
 import { TripShortcut } from "@/components/goworth/trip-shortcut";
 import { WheelShortcut } from "@/components/goworth/wheel-shortcut";
@@ -78,9 +80,12 @@ function PlaceRow({ place, location, onPress, saved, onSave, onPhotoAvailable }:
 export function HomeScreen() {
   const styles = useStyles(stylesSheet);
   const p = usePalette();
+  const { scheme } = useThemePreference();
   const language = useAppLanguage();
-  const { trip, exploreHistory, plan } = useTravel();
+  const { trip, exploreHistory, plan, refreshTrip } = useTravel();
   const { user } = useAuth();
+  // Invitations and a shared trip's changes arrive from other phones, so check again whenever Explore is shown.
+  useFocusEffect(useCallback(() => { void refreshTrip().catch(() => undefined); }, [refreshTrip]));
   const [wheelStatus, setWheelStatus] = useState<WheelStatus | null>(null);
   // Checked each time Explore is shown, so the badge picks up a spin made on the wheel screen.
   useFocusEffect(useCallback(() => {
@@ -91,7 +96,6 @@ export function HomeScreen() {
   }, [user, plan]));
   const [query, setQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
-  const [gridActive, setGridActive] = useState(false);
   const [nearbyResults, setNearbyResults] = useState<Record<string, { status: "ready" | "error"; places: NearbyPlace[] }>>({});
   const [here, setHere] = useState<Coordinates | null>(null);
   const [nearbyAttempt, setNearbyAttempt] = useState(0);
@@ -183,7 +187,7 @@ export function HomeScreen() {
   } } as Href);
 
   return (
-    <Screen active="home" style={{ gap: 18 }} scrollEnabled={!gridActive}>
+    <Screen active="home" style={{ gap: 18 }}>
       <View style={styles.homeBrowse}>
         <Row style={styles.searchRow}>
           <Row style={[styles.search, trip ? styles.searchWithTrip : styles.searchFull]}>
@@ -206,11 +210,11 @@ export function HomeScreen() {
             onPress={() => router.push("/membership" as Href)} />}
         </Row>
       </View>
+      <TripInvites />
       {browsing && <DiscoverySwiper />}
       <SectionTitle title={translate("Countries", language)} action={translate("View map", language)} onPress={() => router.push("/map" as Href)} />
       {!!filtered.length && <CountryHoneycomb
         countries={filtered}
-        onInteraction={setGridActive}
         onSelect={(code) => router.push({ pathname: "/country", params: { code, ...(query.trim() ? { search: query.trim() } : {}) } } as Href)}
       />}
       {!filtered.length && <EmptyState title={translate("No countries found", language)} detail={translate("Try another country name.", language)} action={translate("Clear search", language)} onPress={() => setQuery("")} />}
@@ -224,12 +228,9 @@ export function HomeScreen() {
           const country = countryForCode(entry.visit.code);
           if (!country) return null;
           return <Pressable key={`country:${country.code}`} accessibilityRole="button" accessibilityLabel={`${translate("Country", language)}: ${translate(country.name, language)}`} onPress={() => router.push({ pathname: "/country", params: { code: country.code } } as Href)} style={({ pressed }) => [styles.recentCard, pressed && styles.personalCardPressed]}>
-            <LinearGradient colors={[p.blue, "#3B7BF0", p.teal]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-            <Text style={styles.recentFlag}>{countryFlag(country.code)}</Text>
-            <View style={styles.recentBody}>
-              <View style={styles.recentPill}><Icon name="globe" size={12} color={p.onColor} /><Text style={styles.recentPillText}>{translate("Country", language)}</Text></View>
-              <Text numberOfLines={2} style={styles.recentName}>{translate(country.name, language)}</Text>
-              <Text numberOfLines={1} style={styles.recentMeta}>{formatMessage("{count} cities", { count: country.cityCount.toLocaleString(language === "ro" ? "ro-RO" : "en-US") }, language)}</Text>
+            {/* A page of the passport with the country's stamp, like the countries on Map. */}
+            <View style={[StyleSheet.absoluteFill, styles.recentPassport, { backgroundColor: passportPaper[scheme === "dark" ? "dark" : "light"] }]}>
+              <View style={styles.recentStamp}><CountryStamp country={country} scale={1.2} /></View>
             </View>
           </Pressable>;
         })() : <Pressable key={`place:${entry.visit.place.id}`} accessibilityRole="button" accessibilityLabel={`${translate("Place", language)}: ${entry.visit.place.name}`} onPress={() => router.push(placeRoute(entry.visit))} style={({ pressed }) => [styles.recentCard, pressed && styles.personalCardPressed]}>
@@ -324,7 +325,7 @@ export function TripDetailsScreen() {
         <Row style={{ gap: 4, padding: 4, borderRadius: 18, borderWidth: 1, borderColor: p.line, backgroundColor: p.white }}>
           {["Overview", "Places", "Tips"].map((item) => (
             <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} onPress={() => setTab(item)} style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 14, backgroundColor: tab === item ? p.blue : "transparent" }}>
-              <Copy style={{ fontSize: 14, fontWeight: "700", color: tab === item ? p.onColor : p.muted }}>{item}</Copy>
+              <Copy style={{ fontSize: 14, fontWeight: "700", textAlign: "center", color: tab === item ? p.onColor : p.muted }}>{item}</Copy>
             </Pressable>
           ))}
         </Row>
@@ -517,6 +518,8 @@ const stylesSheet = themedStyles((p) => ({
   recentRail: { width: "100%" },
   recentRailContent: { gap: 10, paddingBottom: 2 },
   recentCard: { width: 156, height: 206, borderRadius: 20, overflow: "hidden", backgroundColor: p.blueSoft },
+  recentPassport: { alignItems: "center", justifyContent: "center", borderRadius: 20, borderWidth: 1, borderColor: p.line },
+  recentStamp: { width: 128, height: 128 },
   recentFlag: { position: "absolute", top: 16, left: 14, fontSize: 54, lineHeight: 64 },
   recentBody: { position: "absolute", left: 12, right: 12, bottom: 12, gap: 4 },
   recentPill: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4, maxWidth: "100%", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.22)" },

@@ -5,9 +5,10 @@ import { useAuth } from "@/state/auth-context";
 import { useTravel } from "@/state/travel-context";
 import { loadWheelStatus } from "@/lib/wheel";
 import {
-  clearAccountNotifications, syncNearbyWatch, syncTripNudges, syncWheelReminders, useNotificationPrefs, useNotificationRoute,
+  clearAccountNotifications, forgetNotificationRoute, syncNearbyWatch, syncTripNudges, syncWheelReminders, useNotificationPrefs, useNotificationRoute,
 } from "@/lib/notifications";
 import { updateTripWidget } from "@/lib/trip-widget";
+import { tripParty } from "@/utils/trip-party";
 
 /** Increases each time the app comes back to the foreground, so reminders are rescheduled from that moment. */
 function useForegroundCount() {
@@ -22,7 +23,7 @@ function useForegroundCount() {
 /** Keeps what lives outside the app (scheduled notifications, the nearby watch, the home screen widget) in step with the account. */
 export function DeviceSync() {
   const { user } = useAuth();
-  const { cloudReady, trip, activities, profile, plan } = useTravel();
+  const { cloudReady, trip, activities, profile, plan, travellers } = useTravel();
   const { prefs, loaded, grants } = useNotificationPrefs();
   const foreground = useForegroundCount();
   const signedIn = !!user && cloudReady;
@@ -30,8 +31,8 @@ export function DeviceSync() {
 
   useEffect(() => {
     if (!user) updateTripWidget(null, [], language);
-    else if (cloudReady) updateTripWidget(trip, activities, language);
-  }, [user, cloudReady, trip, activities, language]);
+    else if (cloudReady) updateTripWidget(trip && { ...trip, companions: tripParty(trip.companions, travellers) }, activities, language, plan !== "free");
+  }, [user, cloudReady, trip, activities, language, plan, travellers]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -55,6 +56,7 @@ export function DeviceSync() {
     if (!tapped || !signedIn || handled.current === tapped.id) return;
     handled.current = tapped.id;
     router.push(tapped.route);
+    forgetNotificationRoute();
   }, [tapped, signedIn]);
 
   return null;

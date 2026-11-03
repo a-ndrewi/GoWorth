@@ -39,7 +39,9 @@ export async function loadTravelData(userId: string) {
       db.from("saved_items").select("kind,item_id,details").eq("user_id", userId),
       db.from("travel_memories").select("journal").eq("user_id", userId).maybeSingle(),
       db.from("trip_journal_entries").select("id,destination_id,start_date,end_date,budget,companions,interests,day_destinations,day_cities,route_stops,activities,expenses,saved_place_ids,reflection,status,archived_at").eq("user_id", userId).order("archived_at", { ascending: false }),
-      db.from("user_entitlements").select("plan,valid_until").eq("user_id", userId).maybeSingle(),
+      db.rpc("my_membership").then((result) => result.error
+        ? db.from("user_entitlements").select("plan,valid_until").eq("user_id", userId).maybeSingle()
+        : { ...result, data: result.data ? { plan: result.data.plan as string, valid_until: (result.data.validUntil ?? null) as string | null } : null }),
       db.from("usage_events").select("kind").eq("user_id", userId).gte("created_at", monthStart.toISOString()),
     ]);
 
@@ -381,4 +383,62 @@ export async function saveJournal(userId: string, journal: string) {
     journal,
     updated_at: new Date().toISOString(),
   }));
+}
+
+/** A traveller as others see them: findable only with a username, photo only once approved. */
+export type Traveler = { id: string; username: string; name: string; avatarPath: string | null };
+export type TripCompanion = Traveler & { status: "owner" | "pending" | "accepted" };
+export type SharedTrip = { owner: Traveler; status: "pending" | "accepted"; invitedAt: string; trip: Trip; companions: number };
+
+export async function loadTripData(ownerId: string) {
+  const db = client();
+  const [trip, activities, expenses] = await Promise.all([
+    db.from("trips").select("destination_id,start_date,end_date,budget,companions,interests,day_destinations,day_cities,route_stops").eq("user_id", ownerId).maybeSingle(),
+    db.from("trip_activities").select("id,day,period,activity_time,name,note,place_id,latitude,longitude").eq("user_id", ownerId).order("position"),
+    db.from("trip_expenses").select("id,label,category,amount").eq("user_id", ownerId).order("position"),
+  ]);
+  const row = requireData(trip);
+  if (!row) return null;
+  return {
+    trip: {
+      destinationId: row.destination_id, dayDestinations: row.day_destinations || undefined, dayCities: row.day_cities || undefined,
+      routeStops: row.route_stops || undefined, start: row.start_date, end: row.end_date, budget: Number(row.budget),
+      companions: row.companions, interests: row.interests,
+    } as Trip,
+    activities: (requireData(activities) ?? []).map((item) => ({
+      id: item.id, day: item.day, period: item.period, time: item.activity_time, name: item.name, note: item.note,
+      placeId: item.place_id || undefined, latitude: item.latitude ?? undefined, longitude: item.longitude ?? undefined,
+    })) as Activity[],
+    expenses: (requireData(expenses) ?? []).map((item) => ({ id: item.id, label: item.label, category: item.category, amount: Number(item.amount) })) as Expense[],
+  };
+}
+
+export async function searchTravelers(query: string): Promise<Traveler[]> {
+  return (requireData(await client().rpc("search_travelers", { p_query: query })) ?? []) as Traveler[];
+}
+
+export async function inviteTripMember(memberId: string) {
+  requireData(await client().rpc("invite_trip_member", { p_member: memberId }));
+}
+
+export async function respondTripInvite(ownerId: string, accept: boolean) {
+  requireData(await client().rpc("respond_trip_invite", { p_owner: ownerId, p_accept: accept }));
+}
+
+export async function removeTripMember(ownerId: string, memberId: string) {
+  requireData(await client().rpc("remove_trip_member", { p_owner: ownerId, p_member: memberId }));
+}
+
+/** Empty when the companions migration is not deployed yet, so the rest of the app keeps working. */
+export async function loadSharedTrips(): Promise<SharedTrip[]> {
+  const result = await client().rpc("shared_trips");
+  if (result.error) return [];
+  return ((result.data ?? []) as SharedTrip[]).map((item) => ({ ...item, trip: {
+    ...item.trip, budget: Number(item.trip.budget),
+    dayDestinations: item.trip.dayDestinations || undefined, dayCities: item.trip.dayCities || undefined, routeStops: item.trip.routeStops || undefined,
+  } }));
+}
+
+export async function loadTripCompanions(ownerId: string): Promise<TripCompanion[]> {
+  return (requireData(await client().rpc("trip_companions", { p_owner: ownerId })) ?? []) as TripCompanion[];
 }

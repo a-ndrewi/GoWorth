@@ -7,6 +7,13 @@ import { createWidget, type WidgetEnvironment } from "expo-widgets";
 /** Everything is worked out in the app (labels already translated), since the widget runtime can only lay it out. */
 export type TripWidgetProps = {
   active: boolean;
+  /** Lock Screen layouts are a Premium extra; a free account sees a hint there instead. */
+  locked: boolean;
+  lockedText: string;
+  /** Two characters for the round Lock Screen widget: "3d" before, "D2" during. */
+  short: string;
+  /** The ticket on one line, for the slot above the clock: "KYO · Day 2/5". */
+  inline: string;
   /** The ticket's header, "DAY 2/5" or "DEPARTS IN 3 DAYS". */
   label: string;
   /** Three-letter code of the first city, like an airport's: "KYO". */
@@ -70,6 +77,32 @@ const TripWidget = (props: TripWidgetProps, environment: WidgetEnvironment) => {
   );
   const shell = [containerBackground(paper, "widget"), widgetURL(props.url)];
 
+  // Lock Screen families are drawn in the system's tint, so they use plain text and symbols only.
+  if (environment.widgetFamily === "accessoryInline") {
+    return <Text modifiers={[widgetURL(props.locked ? "goworth://membership" : props.url)]}>{props.locked ? props.lockedText : `✈︎ ${props.inline}`}</Text>;
+  }
+  if (environment.widgetFamily === "accessoryCircular") {
+    return (
+      <VStack spacing={1} modifiers={[containerBackground("clear", "widget"), widgetURL(props.locked ? "goworth://membership" : props.url)]}>
+        <Image systemName={props.locked ? "crown.fill" : props.active ? "airplane" : "ticket"} size={13} />
+        <Text modifiers={[font({ size: 17, weight: "heavy", design: "rounded" }), lineLimit(1), minimumScaleFactor(0.6)]}>{props.locked ? "GO" : props.short}</Text>
+      </VStack>
+    );
+  }
+  if (environment.widgetFamily === "accessoryRectangular") {
+    return (
+      <VStack alignment="leading" spacing={1} modifiers={[containerBackground("clear", "widget"), widgetURL(props.locked ? "goworth://membership" : props.url),
+        frame({ maxWidth: Infinity, alignment: "leading" })]}>
+        <HStack spacing={4}>
+          <Image systemName={props.locked ? "crown.fill" : "airplane"} size={10} />
+          <Text modifiers={[font({ size: 11, weight: "heavy" }), lineLimit(1)]}>{props.locked ? "GOWORTH PREMIUM" : props.label}</Text>
+        </HStack>
+        <Text modifiers={[font({ size: 15, weight: "bold" }), lineLimit(1), minimumScaleFactor(0.7)]}>{props.locked ? props.lockedText : props.route}</Text>
+        {!props.locked && <Text modifiers={[font({ size: 12 }), lineLimit(1)]}>{`${props.first} · ${props.second}`}</Text>}
+      </VStack>
+    );
+  }
+
   if (environment.widgetFamily !== "systemMedium") {
     return (
       <VStack alignment="leading" spacing={0} modifiers={shell}>
@@ -114,6 +147,6 @@ const TripWidget = (props: TripWidgetProps, environment: WidgetEnvironment) => {
 };
 
 export default createWidget<TripWidgetProps>("TripWidget", TripWidget, {
-  active: false, label: "GOWORTH", code: "GO", route: "Plan your next trip", firstLabel: "NEXT", first: "Pick a city",
+  active: false, locked: true, lockedText: "Lock Screen trips come with Premium", short: "GO", inline: "Plan your next trip", label: "GOWORTH", code: "GO", route: "Plan your next trip", firstLabel: "NEXT", first: "Pick a city",
   secondLabel: "CLASS", second: "Explorer", passengerLabel: "NEXT", passenger: "Pick a city", plansHeading: "", plans: [], progress: -1, url: "goworth://planner",
 });

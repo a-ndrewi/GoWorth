@@ -6,7 +6,9 @@ export default function MainTabsLayout() {
   return (
     <Tabs tabBar={() => null} screenOptions={{ headerShown: false, freezeOnBlur: true }}>
       <Tabs.Screen name="home" />
-      <Tabs.Screen name="map" />
+      {/* Map mounts behind the launch cover, globe and bubbles included, and is never frozen: a frozen tab hides its
+          views, and showing them again laid out the whole globe anew, so every visit stalled as if it were the first. */}
+      <Tabs.Screen name="map" options={{ lazy: false, freezeOnBlur: false }} />
       {/* Saved mounts on first open: its thumbnails start photo lookups that would compete with Explore at launch. */}
       <Tabs.Screen name="saved" />
       {/* Profile is light, so it is mounted up front to make its first open instant; frozen screens would not mount early. */}

@@ -2,7 +2,11 @@ import { supabase } from "./supabase";
 import type { WheelPrize } from "./wheel-odds";
 
 export type Plan = "free" | "premium" | "lifetime";
-export type Membership = { plan: Plan; validUntil: string | null };
+export type Membership = {
+  plan: Plan; validUntil: string | null;
+  /** The store product behind the plan, when it was bought rather than won. */
+  storeProduct?: string | null; willRenew?: boolean | null;
+};
 export type WheelStatus = { nextSpinAt: string | null; clockOffsetMs: number };
 export type WheelResult = Membership & WheelStatus & { prize: WheelPrize };
 
@@ -15,9 +19,18 @@ const offsetFrom = (serverNow: unknown) => typeof serverNow === "string" ? Date.
 
 export async function loadMembership(userId: string): Promise<Membership> {
   if (!supabase) throw new Error("Account service is not configured.");
-  const { data, error } = await supabase.from("user_entitlements").select("plan,valid_until").eq("user_id", userId).maybeSingle();
-  if (error) throw new Error("Could not load your membership right now.");
-  return { plan: activePlan(data?.plan, data?.valid_until ?? null), validUntil: data?.valid_until ?? null };
+  // The server merges wheel prizes and store purchases into the plan that counts.
+  const { data, error } = await supabase.rpc("my_membership");
+  if (error) {
+    // Until the store purchases migration is applied, the wheel's own record is the whole plan.
+    const legacy = await supabase.from("user_entitlements").select("plan,valid_until").eq("user_id", userId).maybeSingle();
+    if (legacy.error) throw new Error("Could not load your membership right now.");
+    return { plan: activePlan(legacy.data?.plan, legacy.data?.valid_until ?? null), validUntil: legacy.data?.valid_until ?? null };
+  }
+  return {
+    plan: activePlan(data?.plan, data?.validUntil ?? null), validUntil: data?.validUntil ?? null,
+    storeProduct: data?.storeProduct ?? null, willRenew: data?.willRenew ?? null,
+  };
 }
 
 export async function loadWheelStatus(): Promise<WheelStatus> {

@@ -24,6 +24,8 @@ const ANCHOR_RADIUS_M = 2000;
 const NEARBY_SEARCH_KM = 3;
 const wheelIds = ["wheel-soon", "wheel-ready"];
 const tripIds = ["trip-nudge-0", "trip-nudge-1"];
+const trialId = "trial-ending";
+const premiumEndingIds = ["premium-ending-3", "premium-ending-1"];
 
 // Shown while the app is open as well; GoWorth only sends what the traveller asked for.
 Notifications.setNotificationHandler({
@@ -110,6 +112,30 @@ export async function syncTripNudges(hasTrip: boolean | null, language: AppLangu
   const dates = tripNudgeDates();
   const copy = tripCopy(language);
   for (const [index, date] of dates.entries()) await scheduleAt(tripIds[index], date, copy[index][0], copy[index][1], "/planner");
+}
+
+/** Two days before a free trial ends, so the traveller decides before they are charged. */
+export async function scheduleTrialReminder(trialDays: number, price: string, billing: "monthly" | "yearly") {
+  if (!(await requestNotificationPermission())) return;
+  const date = new Date(Date.now() + Math.max(1, trialDays - 2) * 86_400_000);
+  await scheduleAt(trialId, date, translate("Your free trial ends in 2 days"),
+    formatMessage(billing === "monthly"
+      ? "After that, Premium is {price} per month. You can cancel anytime in your store settings."
+      : "After that, Premium is {price} per year. You can cancel anytime in your store settings.", { price }), "/membership").catch(() => undefined);
+}
+
+/** Three days and one day before a won month of Premium runs out, while there is still time to keep it. */
+export async function syncPremiumEnding(validUntil: string | null, language: AppLanguage) {
+  await cancel(premiumEndingIds);
+  if (!validUntil || !(await notificationsAllowed())) return;
+  const end = Date.parse(validUntil);
+  for (const days of [3, 1]) {
+    const date = new Date(end - days * 86_400_000);
+    if (date.getTime() <= Date.now() + 60_000) continue;
+    await scheduleAt(`premium-ending-${days}`, date,
+      translate(days === 1 ? "Premium ends tomorrow" : "Premium ends in 3 days", language),
+      translate("Keep your passport, companions and unlimited trips with a plan of your own.", language), "/membership");
+  }
 }
 
 type WatchState = { language: AppLanguage; lastAt: number; seen: string[] };
@@ -220,11 +246,17 @@ export async function sendTestNotifications(language: AppLanguage) {
 
 /** Signing out: nothing scheduled for this account should arrive later. */
 export async function clearAccountNotifications() {
-  await cancel([...wheelIds, ...tripIds]);
+  // Trial and Premium reminders belong to the account too; left behind, they reached whoever signed in next.
+  await cancel([...wheelIds, ...tripIds, trialId, ...premiumEndingIds]);
   await syncNearbyWatch(false, "en");
 }
 
 /** Where the last tapped notification leads, once per tap. */
+/** Forgets the tapped notification once its screen is open; iOS keeps it across launches, so it reopened every boot. */
+export function forgetNotificationRoute() {
+  Notifications.clearLastNotificationResponse();
+}
+
 export function useNotificationRoute() {
   const response = Notifications.useLastNotificationResponse();
   const route = response?.notification.request.content.data?.route;

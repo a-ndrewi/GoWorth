@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Appearance, Platform } from "react-native";
+import { Appearance } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SystemUI from "expo-system-ui";
 import { palettes, type ColorScheme, type Palette, type ThemedStyles } from "@/constants/design";
@@ -43,7 +43,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // Native pickers, alerts and the keyboard follow the app's choice rather than the system's.
   useEffect(() => {
-    if (Platform.OS !== "web") Appearance.setColorScheme(preference === "system" ? "auto" : preference);
+    Appearance.setColorScheme(preference === "system" ? "auto" : preference);
   }, [preference]);
 
   const scheme: ColorScheme = preference === "system" ? (system === "dark" ? "dark" : "light") : preference;

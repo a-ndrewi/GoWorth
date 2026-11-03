@@ -64,13 +64,26 @@ export function JournalTripScreen() {
   const routeCities = uniqueRouteStops(record.trip);
   const spent = record.expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const days = [...new Set(record.activities.map((activity) => activity.day))].sort((a, b) => a - b);
-  const localPlaces = places.filter((place) => routeCities.some((city) => city.id === place.destinationId) && (
-    record.savedPlaceIds.includes(place.id) || record.activities.some((activity) => activity.name.trim().toLowerCase() === place.name.toLowerCase())
-  ));
-  const linkedExternalPlaces = externalPlaces.filter((place) => record.savedPlaceIds.includes(place.id) && (
-    record.activities.some((activity) => activity.note.includes(place.sourceUrl)) ||
-    routeCities.some((city) => place.location?.toLocaleLowerCase().includes(city.name.toLocaleLowerCase()))
-  ));
+  // The trip's places are the ones on its itinerary. An archived trip also stores every place saved on the account
+  // at the time, so matching those by city name listed places (and Romanian towns) the trip never had.
+  const seenPlaces = new Set<string>();
+  const tripPlaces = [...record.activities]
+    .sort((a, b) => a.day - b.day || a.time.localeCompare(b.time))
+    // A place planned on several days is listed once, where it first comes up.
+    .filter((activity) => !!activity.placeId && !seenPlaces.has(activity.placeId) && !!seenPlaces.add(activity.placeId))
+    .map((activity): PreviewPlace => {
+    const catalog = places.find((place) => place.id === activity.placeId);
+    const external = externalPlaces.find((place) => place.id === activity.placeId);
+    const stop = routeStopForDay(record.trip, activity.day);
+    return {
+      id: activity.placeId!, name: activity.name,
+      category: catalog?.category ?? publicPlaceCategory(external?.category ?? activity.note.split(" · ")[0] ?? "") ?? "",
+      location: catalog ? `${findDestination(catalog.destinationId).name}, ${findDestination(catalog.destinationId).country}`
+        : external?.location || [stop.name, stop.country].filter(Boolean).join(", "),
+      latitude: activity.latitude, longitude: activity.longitude,
+      sourceUrl: external?.sourceUrl ?? activity.note.match(/https?:\/\/\S+/)?.[0],
+    };
+  });
   const saveNote = async () => {
     setBusy(true);
     setError("");
@@ -99,7 +112,7 @@ export function JournalTripScreen() {
   const byCategory = [...new Set(record.expenses.map((expense) => expense.category))]
     .map((category) => ({ category, total: record.expenses.filter((expense) => expense.category === category).reduce((sum, expense) => sum + expense.amount, 0) }))
     .sort((x, y) => y.total - x.total);
-  const placeCount = localPlaces.length + linkedExternalPlaces.length;
+  const placeCount = tripPlaces.length;
   const stat = (label: string, value: string, tone: string = p.ink) => <View style={styles.stat}>
     <Copy muted style={{ fontSize: 11, fontWeight: "700" }}>{label}</Copy>
     <Text numberOfLines={1} style={[styles.statValue, { color: tone }]}>{value}</Text>
@@ -158,9 +171,7 @@ export function JournalTripScreen() {
     {!!placeCount && <View style={{ gap: 8 }}>
       <Heading style={styles.section}>{formatMessage("Places ({count})", { count: placeCount }, language)}</Heading>
       <View style={styles.listCard}>
-      {[...localPlaces.map((place): PreviewPlace => ({ id: place.id, name: place.name, category: place.category, location: `${findDestination(place.destinationId).name}, ${findDestination(place.destinationId).country}` })),
-        ...linkedExternalPlaces.map((place): PreviewPlace => ({ id: place.id, name: place.name, category: publicPlaceCategory(place.category), location: place.location || "", latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl }))]
-        .map((place, index) => <Pressable key={place.id} accessibilityRole="button" onPress={() => setPlacePreview(place)} style={({ pressed }) => [styles.placeRow, index > 0 && styles.placeDivider, pressed && { backgroundColor: p.soft }]}>
+      {tripPlaces.map((place, index) => <Pressable key={place.id} accessibilityRole="button" onPress={() => setPlacePreview(place)} style={({ pressed }) => [styles.placeRow, index > 0 && styles.placeDivider, pressed && { backgroundColor: p.soft }]}>
           <PlaceThumbnail name={place.name} location={place.location} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} style={styles.placeThumb} venue={venueFromCategory(place.category)} />
           <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "600", fontSize: 14 }}>{place.name}</Copy>{!!place.category && <Copy muted style={{ fontSize: 12 }}>{translate(place.category, language)}</Copy>}</View>
           <Icon name="right" size={17} color={p.muted} />

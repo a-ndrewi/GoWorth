@@ -1,6 +1,7 @@
 import type { MapPin } from "./map";
 import { findPlacePhoto, prefetchPlacePhotos } from "./place-photo.ts";
 import { boundaryRadiusKm, fallbackRadiusKm, insideBoundary, loadCityBoundary, type Boundary } from "./city-boundary.ts";
+import { countryForCode, nearestCity } from "./geography.ts";
 
 export type VenueKind = "restaurant" | "bar" | "cafe" | "nightclub";
 /** What the Explore deck can show besides attractions; "terrace" means any venue with outdoor seating. */
@@ -235,6 +236,16 @@ function wikipediaCategory(description: string): string {
   return "Landmarks";
 }
 
+/**
+ * "Brașov, Romania" for a point, from the nearest known city. Wikipedia articles carry no town of their own, and
+ * without one a card fell back to the trip's destination and showed a Romanian castle as being in Paris.
+ */
+function locationAt(latitude: number, longitude: number) {
+  const city = nearestCity(latitude, longitude);
+  const country = city && countryForCode(city.countryCode);
+  return city && country ? `${city.name}, ${country.name}` : undefined;
+}
+
 export function parseWikipediaPlaces(items: WikiPlace[], center: Center, radiusKm: number, includeSettlements = false): NearbyPlace[] {
   return items.flatMap((item) => {
     const latitude = item.coordinates?.[0]?.lat ?? item.lat;
@@ -246,7 +257,7 @@ export function parseWikipediaPlaces(items: WikiPlace[], center: Center, radiusK
       !validCoordinates(latitude, longitude) || distanceKm(center, { latitude, longitude }) > radiusKm) return [];
     return [{ id: `wiki:${item.pageid}`, name: item.title, latitude, longitude, kind: "place" as const,
       category: settlement ? /\b(?:country|sovereign state)\b/i.test(description) ? "Country" : "City" : wikipediaCategory(description),
-      detail: "Wikipedia article", source: "Wikipedia" as const,
+      detail: "Wikipedia article", source: "Wikipedia" as const, location: locationAt(latitude, longitude),
       sourceUrl: `https://en.wikipedia.org/?curid=${item.pageid}` }];
   }).slice(0, 40);
 }
@@ -256,7 +267,8 @@ export async function searchWikipediaPlaces(query: string, center: Center, radiu
   const cached = wikipediaSearchCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.places;
   const params = new URLSearchParams({ action: "query", generator: "search", gsrsearch: query.trim(),
-    gsrlimit: "30", prop: "coordinates|pageprops", format: "json", origin: "*" });
+    // `coordinates` answers for 10 pages unless `colimit` says otherwise; the rest would come back without a position.
+    gsrlimit: "30", prop: "coordinates|pageprops", colimit: "max", format: "json", origin: "*" });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
@@ -272,11 +284,45 @@ export async function searchWikipediaPlaces(query: string, center: Center, radiu
 }
 
 // Wikipedia, like Wikimedia's image servers, refuses generic User-Agents such as Android's "okhttp".
-const wikipediaHeaders: Record<string, string> = typeof document === "undefined" ? { "User-Agent": "GoWorth/1.0 (travel app)" } : {};
+const wikipediaHeaders: Record<string, string> = { "User-Agent": "GoWorth/1.0 (travel app)" };
 
 /** Overpass turns away requests without an identifying User-Agent (browsers keep their own). */
 /** Overpass and Nominatim both ask clients to identify themselves. */
 const overpassHeaders = { Accept: "application/json", "User-Agent": "GoWorth/1.0 (travel app)" };
+
+// The main Overpass server is often overloaded (502/504); public mirrors serve the same data.
+const overpassServers = ["https://overpass-api.de", "https://overpass.kumi.systems", "https://overpass.private.coffee"];
+let overpassPreferred = 0;
+
+/**
+ * Runs an Overpass query, trying the mirrors in turn from the last one that answered, within `timeoutMs` overall.
+ * Throws when none answers, so callers can tell "no data" from "unreachable".
+ */
+async function overpassQuery(query: string, timeoutMs: number): Promise<{ elements?: OsmElement[] }> {
+  const deadline = Date.now() + timeoutMs;
+  for (let attempt = 0; attempt < overpassServers.length; attempt++) {
+    const index = (overpassPreferred + attempt) % overpassServers.length;
+    const remaining = deadline - Date.now();
+    if (remaining <= 300) break;
+    const controller = new AbortController();
+    // A mirror gets at most half the time left, so a hanging one leaves room for the next.
+    const timer = setTimeout(() => controller.abort(), attempt === overpassServers.length - 1 ? remaining : remaining / 2);
+    try {
+      const url = new URL(`${overpassServers[index]}/api/interpreter`);
+      url.searchParams.set("data", query);
+      const response = await fetch(url.toString(), { headers: overpassHeaders, signal: controller.signal });
+      if (!response.ok) continue;
+      const data: { elements?: OsmElement[] } = await response.json();
+      overpassPreferred = index;
+      return data;
+    } catch {
+      // Unreachable or too slow: the next mirror is tried.
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new Error("OpenStreetMap is unavailable.");
+}
 
 async function overpassPlaces(center: Center, radiusKm: number) {
   const radius = Math.round(radiusKm * 1000);
@@ -288,18 +334,8 @@ async function overpassPlaces(center: Center, radiusKm: number) {
     `nwr(${around})["leisure"~"^(park|nature_reserve)$"]["name"];` +
     `nwr(${around})["amenity"="marketplace"]["name"];` +
     `);out center 200;`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 7000);
-  try {
-    const url = new URL("https://overpass-api.de/api/interpreter");
-    url.searchParams.set("data", query);
-    const response = await fetch(url.toString(), { headers: overpassHeaders, signal: controller.signal });
-    if (!response.ok) throw new Error("OpenStreetMap attractions are unavailable.");
-    const data: { elements?: OsmElement[] } = await response.json();
-    return parseOsmPlaces(data.elements ?? [], center, radiusKm);
-  } finally {
-    clearTimeout(timeout);
-  }
+  const data = await overpassQuery(query, 9000);
+  return parseOsmPlaces(data.elements ?? [], center, radiusKm);
 }
 
 export function photonBoundingBoxes(center: Center, radiusKm: number): number[][] {
@@ -344,7 +380,8 @@ async function wikipediaPlaces(center: Center, radiusKm: number) {
   for (const [key, value] of Object.entries({
     action: "query", generator: "geosearch", ggscoord: `${center.latitude}|${center.longitude}`,
     ggsradius: String(Math.min(10000, Math.round(radiusKm * 1000))), ggslimit: "500",
-    prop: "coordinates|pageprops", format: "json", origin: "*",
+    // Without `colimit` only 10 of the pages found come back with coordinates, and the others are dropped.
+    prop: "coordinates|pageprops", colimit: "max", format: "json", origin: "*",
   })) url.searchParams.set(key, value);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 7000);
@@ -367,6 +404,9 @@ function comparableName(name: string) {
  * OpenStreetMap and Wikipedia places as one list, nearest first. A Wikipedia article is left out when OpenStreetMap
  * already has the place: the same name within a kilometre, or anything within 40 metres.
  */
+/** Places from any source without a town get the nearest one, so no card borrows the trip's destination instead. */
+const withLocations = (places: NearbyPlace[]) => places.map((place) => place.location ? place : { ...place, location: locationAt(place.latitude, place.longitude) });
+
 export function mergeSourcePlaces(osm: NearbyPlace[], wiki: NearbyPlace[], center: Center): NearbyPlace[] {
   const extra = wiki.filter((article) => !osm.some((place) => {
     const distance = distanceKm(place, article);
@@ -388,14 +428,20 @@ export async function loadNearbyPlaces(center: Center, radiusKm = 8, within?: Bo
     // Wikipedia is asked alongside OpenStreetMap: its landmarks fill in cities OpenStreetMap maps thinly, and keep the
     // list going while Photon or Overpass are down. A source that failed is `null`, unlike one that found nothing.
     const wiki = wikipediaPlaces(center, radius).then(inside).catch(() => null);
-    const photon = await photonPlaces(center, radius).catch(() => null);
-    const osm = photon?.length ? photon : await overpassPlaces(center, radius).catch(() => photon);
-    const osmInside = osm ? inside(osm) : null;
+    const osmRequest = (async () => {
+      const photon = await photonPlaces(center, radius).catch(() => null);
+      return photon?.length ? photon : await overpassPlaces(center, radius).catch(() => photon);
+    })();
     const wikiInside = await wiki;
+    // When Wikipedia alone already fills the list, OpenStreetMap gets a short grace rather than holding everything up
+    // while its servers are busy; the list is then marked incomplete and asked for again soon.
+    const osm = wikiInside && wikiInside.length >= 12 ? await Promise.race([osmRequest, later(2500, null)]) : await osmRequest;
+    const osmInside = osm ? inside(osm) : null;
     // Nothing answered (offline, every provider busy): fail so the screen offers a retry instead of caching an empty list.
     if (!osmInside && !wikiInside) throw new Error("Nearby places are unavailable.");
     const rawPlaces = mergeSourcePlaces(osmInside?.length ? await withWikidata(osmInside) : [], wikiInside ?? [], center);
-    const { places, complete } = await keepPhotoBackedPlaces(rawPlaces);
+    const { places: checked, complete } = await keepPhotoBackedPlaces(rawPlaces);
+    const places = withLocations(checked);
     // A list missing one of its sources is kept only briefly, so the next visit tries that source again.
     cache.set(key, { places, expiresAt: Date.now() + (complete && osmInside && wikiInside ? 30 : 2) * 60 * 1000 });
     return places;
@@ -508,18 +554,81 @@ async function overpassVenueTags(places: NearbyPlace[]) {
     ids[type]?.push(id);
   }
   const query = `[out:json][timeout:8];(${Object.entries(ids).filter(([, list]) => list.length).map(([type, list]) => `${type}(id:${list.join(",")});`).join("")});out tags;`;
+  const data = await overpassQuery(query, 4000).catch(() => null);
+  return new Map((data?.elements ?? []).map((element) => [`osm:${element.type}:${element.id}`, element.tags ?? {}]));
+}
+
+/**
+ * Cuisine, opening hours and outdoor seating for known venues, from Nominatim: one request for up to 50 of them, and
+ * it answers when Overpass, the other source of these tags, is overloaded.
+ */
+async function nominatimVenueTags(places: NearbyPlace[]) {
+  const types = { node: "N", way: "W", relation: "R" } as Record<string, string>;
+  const ids = places.slice(0, 50).map((place) => { const [, type, id] = place.id.split(":"); return types[type] ? `${types[type]}${id}` : ""; }).filter(Boolean);
+  if (!ids.length) return new Map<string, Record<string, string>>();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4000);
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
-    const url = new URL("https://overpass-api.de/api/interpreter");
-    url.searchParams.set("data", query);
+    const url = new URL("https://nominatim.openstreetmap.org/lookup");
+    url.searchParams.set("osm_ids", ids.join(","));
+    url.searchParams.set("format", "json");
+    url.searchParams.set("extratags", "1");
     const response = await fetch(url.toString(), { headers: overpassHeaders, signal: controller.signal });
-    if (!response.ok) return new Map<string, Record<string, string>>();
-    const data: { elements?: OsmElement[] } = await response.json();
-    return new Map((data.elements ?? []).map((element) => [`osm:${element.type}:${element.id}`, element.tags ?? {}]));
+    if (!response.ok) throw new Error("Nominatim is unavailable.");
+    const data: { osm_type?: string; osm_id?: number; extratags?: Record<string, string> | null }[] = await response.json();
+    return new Map((Array.isArray(data) ? data : []).map((item) => [`osm:${item.osm_type}:${item.osm_id}`, item.extratags ?? {}]));
   } finally {
     clearTimeout(timeout);
   }
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Venues from Nominatim's search, the last resort when Photon and Overpass both fail. Nominatim allows one request a
+ * second, so the kinds are asked for in turn; each answer carries the full tags, outdoor seating included.
+ */
+async function nominatimVenues(center: Center, radiusKm: number) {
+  const dLat = radiusKm / 111, dLon = radiusKm / (111 * Math.max(0.2, Math.cos(center.latitude * Math.PI / 180)));
+  const viewbox = [center.longitude - dLon, center.latitude + dLat, center.longitude + dLon, center.latitude - dLat].map((value) => value.toFixed(4)).join(",");
+  const types = { node: "node", way: "way", relation: "relation" } as Record<string, OsmElement["type"]>;
+  const elements: OsmElement[] = [];
+  let answered = false;
+  for (const [index, amenity] of ["restaurant", "bar", "cafe", "nightclub"].entries()) {
+    if (index) await wait(1100);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const url = new URL("https://nominatim.openstreetmap.org/search");
+      for (const [key, value] of Object.entries({ q: `[${amenity}]`, format: "jsonv2", viewbox, bounded: "1", limit: "25", extratags: "1", addressdetails: "1" })) url.searchParams.set(key, value);
+      const response = await fetch(url.toString(), { headers: overpassHeaders, signal: controller.signal });
+      if (!response.ok) continue;
+      answered = true;
+      const data: { osm_type?: string; osm_id?: number; lat?: string; lon?: string; name?: string; type?: string; extratags?: Record<string, string> | null; address?: Record<string, string> }[] = await response.json();
+      for (const item of Array.isArray(data) ? data : []) {
+        const type = types[item.osm_type ?? ""];
+        if (!type || !item.osm_id || !item.name) continue;
+        elements.push({ type, id: item.osm_id, lat: Number(item.lat), lon: Number(item.lon), tags: {
+          ...item.extratags, name: item.name, amenity: item.type ?? amenity,
+          ...(item.address?.road ? { "addr:street": item.address.road } : {}),
+          ...(item.address?.house_number ? { "addr:housenumber": item.address.house_number } : {}),
+        } });
+      }
+    } catch {
+      // This kind is skipped; the others may still answer.
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  if (!answered) throw new Error("OpenStreetMap venues are unavailable.");
+  return parseOsmVenues(elements, center, radiusKm);
+}
+
+/** Venues straight from Overpass, with all their tags: used when Photon, the usual venue search, does not answer. */
+async function overpassVenues(center: Center, radiusKm: number) {
+  const around = `around:${Math.round(radiusKm * 1000)},${center.latitude},${center.longitude}`;
+  const data = await overpassQuery(`[out:json][timeout:10];nwr(${around})["amenity"~"^(restaurant|bar|pub|cafe|nightclub)$"]["name"];out center 160;`, 9000);
+  return parseOsmVenues(data.elements ?? [], center, radiusKm);
 }
 
 /** Venues around a point, within walking distance of it however wide the discovery radius is. */
@@ -531,11 +640,19 @@ export async function loadNearbyVenues(center: Center, radiusKm = 3): Promise<Ne
   const current = venuePending.get(key);
   if (current) return current;
   const request = (async () => {
-    const { elements, location, places } = await photonVenues(center, radius);
-    const tags = places.length ? await overpassVenueTags(places).catch(() => new Map<string, Record<string, string>>()) : new Map();
-    const venues = tags.size
+    const photon = await photonVenues(center, radius).catch(() => null);
+    if (!photon) {
+      // Overpass already returns the full tags, so there is nothing to fill in afterwards.
+      const venues = withLocations(await overpassVenues(center, radius).catch(() => nominatimVenues(center, radius)));
+      venueCache.set(key, { places: venues, expiresAt: Date.now() + 10 * 60 * 1000 });
+      return venues;
+    }
+    const { elements, location, places } = photon;
+    const tags = !places.length ? new Map<string, Record<string, string>>()
+      : await nominatimVenueTags(places).catch(() => overpassVenueTags(places).catch(() => new Map<string, Record<string, string>>()));
+    const venues = withLocations(tags.size
       ? parseOsmVenues(elements.map((element) => ({ ...element, tags: { ...element.tags, ...tags.get(`osm:${element.type}:${element.id}`) } })), center, radius, { location })
-      : places;
+      : places);
     venueCache.set(key, { places: venues, expiresAt: Date.now() + (tags.size ? 30 : 5) * 60 * 1000 });
     return venues;
   })().finally(() => venuePending.delete(key));

@@ -11,12 +11,15 @@ import { translate } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
 import { themedStyles, type Palette } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
-import { Icon } from "@/components/goworth/ui";
+import { Icon, useScrollLock } from "@/components/goworth/ui";
 import { deviceCountry } from "@/utils/device-location";
+import { finishBootTask } from "@/state/boot";
 
 const BUBBLE = 76;
 const SPACING = BUBBLE + 10;
 const HEIGHT = 360;
+/** Bubbles shown in the first frame, then mounted per frame: the spiral starts in the middle, so these are on screen. */
+const BUBBLE_BATCH = 48;
 const continentTint = (p: Palette): Record<string, { bg: string; ring: string }> => ({
   EU: { bg: p.blueSoft, ring: p.blueLine },
   AS: { bg: p.orangeSoft, ring: p.orangeLine },
@@ -63,9 +66,12 @@ function rubber(value: number, limit: number) {
   return value;
 }
 
-const Bubble = memo(function Bubble({ country, cell, index, here, tx, ty, intro, pressed, width, language, onSelect }: {
+const PRESS_SPRING = { damping: 12, stiffness: 320 };
+
+const Bubble = memo(function Bubble({ country, cell, index, here, tx, ty, intro, pressed, press, width, language, onSelect }: {
   country: Country; cell: { x: number; y: number }; index: number; here: boolean;
-  tx: SharedValue<number>; ty: SharedValue<number>; intro: SharedValue<number>; pressed: SharedValue<number>;
+  tx: SharedValue<number>; ty: SharedValue<number>; intro: SharedValue<number>;
+  pressed: SharedValue<number>; press: SharedValue<number>;
   width: number; language: ReturnType<typeof useAppLanguage>; onSelect: (code: string) => void;
 }) {
   const styles = useStyles(stylesSheet);
@@ -78,18 +84,16 @@ const Bubble = memo(function Bubble({ country, cell, index, here, tx, ty, intro,
     const t = Math.min(1, Math.max(0, (intro.value - startAt) / 0.45));
     const c1 = 1.9, c3 = c1 + 1;
     const pop = t === 0 ? 0 : 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
+    const squeeze = pressed.value === index ? press.value : 1;
     return {
       opacity: view.opacity * Math.min(1, t * 2),
       transform: [
         { translateX: view.x },
         { translateY: view.y },
-        { scale: view.scale * pop },
+        { scale: view.scale * pop * squeeze },
       ],
     };
   });
-  const pressStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: withSpring(pressed.value === index ? 0.86 : 1, { damping: 12, stiffness: 320 }) }],
-  }));
   const tints = continentTint(p);
   const tint = tints[country.continent] ?? tints.AN;
   const name = translate(country.name, language);
@@ -102,10 +106,11 @@ const Bubble = memo(function Bubble({ country, cell, index, here, tx, ty, intro,
     pointerEvents="none"
     style={[styles.bubbleSlot, { left: halfW - BUBBLE / 2, top: halfH - BUBBLE / 2 }, style]}
   >
-    <Animated.View style={[styles.bubble, { backgroundColor: tint.bg, borderColor: here ? p.blue : tint.ring }, here && styles.bubbleHere, pressStyle]}>
+    {/* One animated view per bubble: the press squeeze rides on the same transform, since every animated view costs a frame. */}
+    <View style={[styles.bubble, { backgroundColor: tint.bg, borderColor: here ? p.blue : tint.ring }, here && styles.bubbleHere]}>
       <Text style={styles.flag}>{countryFlag(country.code)}</Text>
       <Text numberOfLines={2} style={styles.name}>{name}</Text>
-    </Animated.View>
+    </View>
     {here && <View style={styles.hereBadge}><Icon name="pin" size={11} color={p.white} /></View>}
   </Animated.View>;
 });
@@ -113,25 +118,21 @@ const Bubble = memo(function Bubble({ country, cell, index, here, tx, ty, intro,
 export function CountryHoneycomb({
   countries,
   onSelect,
-  onInteraction,
 }: {
   countries: Country[];
   onSelect: (code: string) => void;
-  onInteraction?: (active: boolean) => void;
 }) {
   const styles = useStyles(stylesSheet);
   const p = usePalette();
   const language = useAppLanguage();
+  const lockScroll = useScrollLock();
   const selectRef = useRef(onSelect);
   useEffect(() => { selectRef.current = onSelect; }, [onSelect]);
   const select = useCallback((code: string) => selectRef.current(code), []);
   const [size, setSize] = useState({ width: 0 });
-  // The spiral starts in the middle, so the first bubbles are the ones on screen; the rest mount a moment later.
-  const [allBubbles, setAllBubbles] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setAllBubbles(true), 800);
-    return () => clearTimeout(timer);
-  }, []);
+  // The spiral starts in the middle, so the first batch is what is on screen: the launch cover lifts once it is in,
+  // and the rest mount a batch per frame out of view.
+  const [mounted, setMounted] = useState(BUBBLE_BATCH);
   const [movedFor, setMovedFor] = useState("");
   const [hereCode, setHereCode] = useState<string | null>(null);
   const ordered = useMemo(() => [...countries].sort((a, b) => b.cityCount - a.cityCount), [countries]);
@@ -140,6 +141,14 @@ export function CountryHoneycomb({
   const ys = useMemo(() => cells.map((cell) => cell.y), [cells]);
   const codes = useMemo(() => ordered.map((country) => country.code), [ordered]);
   const codesKey = codes.join(",");
+  // Bubbles render once the frame has its width; the second batch is a frame after the first, so by then it is drawn.
+  const firstBatchDrawn = size.width > 0 && codes.length > 0 && mounted > BUBBLE_BATCH;
+  useEffect(() => { if (firstBatchDrawn) finishBootTask("explore"); }, [firstBatchDrawn]);
+  useEffect(() => {
+    if (mounted >= codes.length || !size.width) return;
+    const frame = requestAnimationFrame(() => setMounted((count) => count + BUBBLE_BATCH));
+    return () => cancelAnimationFrame(frame);
+  }, [mounted, codes.length, size.width]);
   const moved = movedFor === codesKey;
   const limitX = Math.max(0, ...xs.map(Math.abs));
   const limitY = Math.max(0, ...ys.map(Math.abs));
@@ -149,6 +158,7 @@ export function CountryHoneycomb({
   const startY = useSharedValue(0);
   const intro = useSharedValue(0);
   const pressed = useSharedValue(-1);
+  const press = useSharedValue(1);
   const halfW = size.width / 2, halfH = HEIGHT / 2;
   // The grid rests on the bubble of the country the device is in, when location is allowed and that country is listed.
   const hereIndex = hereCode ? codes.indexOf(hereCode) : -1;
@@ -192,11 +202,11 @@ export function CountryHoneycomb({
       "worklet";
       startX.set(tx.value);
       startY.set(ty.value);
-      if (onInteraction) scheduleOnRN(onInteraction, true);
+      scheduleOnRN(lockScroll, true);
     },
     onActivate: () => {
       "worklet";
-      pressed.set(-1);
+      press.set(withSpring(1, PRESS_SPRING));
       scheduleOnRN(setMovedFor, codesKey);
     },
     onUpdate: ({ translationX, translationY }) => {
@@ -211,7 +221,7 @@ export function CountryHoneycomb({
     },
     onFinalize: () => {
       "worklet";
-      if (onInteraction) scheduleOnRN(onInteraction, false);
+      scheduleOnRN(lockScroll, false);
     },
   });
 
@@ -220,6 +230,7 @@ export function CountryHoneycomb({
     onBegin: ({ x, y }) => {
       "worklet";
       pressed.set(hit(x, y));
+      press.set(withSpring(0.86, PRESS_SPRING));
     },
     onActivate: ({ x, y }) => {
       "worklet";
@@ -228,7 +239,8 @@ export function CountryHoneycomb({
     },
     onFinalize: () => {
       "worklet";
-      pressed.set(-1);
+      // The bubble stays marked so it springs back; the next touch picks a new one.
+      press.set(withSpring(1, PRESS_SPRING));
     },
   });
   const gesture = useExclusiveGestures(pan, tap);
@@ -252,13 +264,13 @@ export function CountryHoneycomb({
   return <View style={styles.frame} onLayout={(event: LayoutChangeEvent) => setSize({ width: event.nativeEvent.layout.width })}>
     <GestureDetector gesture={gesture}>
       <View style={StyleSheet.absoluteFill} collapsable={false}>
-        {size.width > 0 && ordered.map((country, index) => (allBubbles || index < 48) && <Bubble
+        {size.width > 0 && ordered.map((country, index) => index < mounted && <Bubble
           key={country.code}
           country={country}
           cell={cells[index]}
           index={index}
           here={country.code === hereCode}
-          tx={tx} ty={ty} intro={intro} pressed={pressed}
+          tx={tx} ty={ty} intro={intro} pressed={pressed} press={press}
           width={size.width}
           language={language}
           onSelect={select}

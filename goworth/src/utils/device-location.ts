@@ -10,9 +10,24 @@ let request: { at: number; position: Promise<Coordinates | null> } | null = null
  */
 export function deviceLocation(): Promise<Coordinates | null> {
   if (request && Date.now() - request.at < 5 * 60 * 1000) return request.position;
-  const position = Location.requestForegroundPermissionsAsync().then(async (permission) => {
+  return locate(Location.requestForegroundPermissionsAsync());
+}
+
+/**
+ * Starts finding the device at launch, behind the splash, so Explore opens already knowing where it is instead of
+ * showing a worldwide deck and reloading it once a fix arrives. It never asks for permission; Explore does that.
+ */
+export function warmDeviceLocation() {
+  if (request && Date.now() - request.at < 5 * 60 * 1000) return;
+  void locate(Location.getForegroundPermissionsAsync());
+}
+
+function locate(permissionCheck: Promise<Location.LocationPermissionResponse>) {
+  const position = permissionCheck.then(async (permission) => {
     if (permission.status !== "granted") return null;
-    const result = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    // A fix from the last quarter hour is close enough for a deck of places within kilometres, and is instant.
+    const result = await Location.getLastKnownPositionAsync({ maxAge: 15 * 60 * 1000 })
+      ?? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
     return { latitude: result.coords.latitude, longitude: result.coords.longitude };
   }).catch(() => null);
   request = { at: Date.now(), position };

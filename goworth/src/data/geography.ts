@@ -51,17 +51,45 @@ export function countryAnchor(country: Country) {
   return country.anchor ? { latitude: country.anchor[0], longitude: country.anchor[1] } : null;
 }
 
-type CitySearchEntry = { row: CityRow; countryCode: string; text: string; name: string };
+type CityEntry = { row: CityRow; countryCode: string };
+type CitySearchEntry = CityEntry & { text: string; name: string };
+let cityList: CityEntry[] | null = null;
 let citySearchIndex: CitySearchEntry[] | null = null;
+let cityGrid: Map<number, CityEntry[]> | null = null;
 
-/** Every city with its search text normalised once, largest first, built on the first search. */
+/** Every city, largest first. */
+function citiesByPopulation() {
+  cityList ??= countryRows.flatMap((country) => (citiesByCountry()[country.code] ?? []).map((row) => ({ row, countryCode: country.code })))
+    .sort((a, b) => b.row[4] - a.row[4]);
+  return cityList;
+}
+
+/**
+ * Every city with its search text normalised once, largest first, built on the first search. Normalising tens of
+ * thousands of names takes a while, so only searching builds it, never a lookup by position.
+ */
 function cityIndex() {
   if (!citySearchIndex) {
-    citySearchIndex = countryRows.flatMap((country) => (citiesByCountry()[country.code] ?? [])
-      .map((row) => ({ row, countryCode: country.code, text: normalizeSearchText(`${row[1]} ${country.name}`), name: normalizeSearchText(row[1]) })))
-      .sort((a, b) => b.row[4] - a.row[4]);
+    const names = new Map(countryRows.map((country) => [country.code, country.name]));
+    citySearchIndex = citiesByPopulation().map((entry) => ({
+      ...entry, text: normalizeSearchText(`${entry.row[1]} ${names.get(entry.countryCode) ?? ""}`), name: normalizeSearchText(entry.row[1]),
+    }));
   }
   return citySearchIndex;
+}
+
+/** Cities bucketed by whole degree of latitude and longitude, each bucket largest first. */
+const gridCell = (latitude: number, longitude: number) => (Math.floor(latitude) + 90) * 360 + ((Math.floor(longitude) + 540) % 360);
+function cityCells() {
+  if (!cityGrid) {
+    cityGrid = new Map();
+    for (const entry of citiesByPopulation()) {
+      const cell = gridCell(entry.row[2], entry.row[3]);
+      const bucket = cityGrid.get(cell);
+      if (bucket) bucket.push(entry); else cityGrid.set(cell, [entry]);
+    }
+  }
+  return cityGrid;
 }
 
 /**
@@ -85,16 +113,32 @@ export function searchCities(query: string, limit = 25): City[] {
  * The city a point belongs to: the most populous city within about 11 km, so a landmark is filed under its city
  * rather than a district or suburb; otherwise simply the nearest city.
  */
+/**
+ * The largest city within about 10 km, or else the nearest one. Only the grid cells around the point are read, ring
+ * by ring, until no farther ring could hold anything nearer: scanning every city took over a second for a list of places.
+ */
 export function nearestCity(latitude: number, longitude: number): City | undefined {
   const cosLat = Math.cos(latitude * Math.PI / 180);
-  let nearest: CitySearchEntry | undefined, nearestDistance = Infinity;
-  let largest: CitySearchEntry | undefined;
-  for (const entry of cityIndex()) {
-    const dLat = entry.row[2] - latitude, dLon = (entry.row[3] - longitude) * cosLat;
-    const distance = dLat * dLat + dLon * dLon;
-    if (distance < nearestDistance) { nearest = entry; nearestDistance = distance; }
-    // The index is sorted by population, so the first city in range is the largest.
-    if (!largest && distance <= 0.1 * 0.1) largest = entry;
+  const cells = cityCells();
+  const row0 = Math.floor(latitude), col0 = Math.floor(longitude);
+  let nearest: CityEntry | undefined, nearestDistance = Infinity;
+  let largest: CityEntry | undefined;
+  for (let ring = 0; ring <= 180; ring++) {
+    for (let dRow = -ring; dRow <= ring; dRow++) {
+      for (let dCol = -ring; dCol <= ring; dCol++) {
+        if (Math.max(Math.abs(dRow), Math.abs(dCol)) !== ring || row0 + dRow < -90 || row0 + dRow > 89) continue;
+        for (const entry of cells.get(gridCell(row0 + dRow, col0 + dCol)) ?? []) {
+          const dLat = entry.row[2] - latitude;
+          const dLon = ((((entry.row[3] - longitude) % 360) + 540) % 360 - 180) * cosLat;
+          const distance = dLat * dLat + dLon * dLon;
+          if (distance < nearestDistance) { nearest = entry; nearestDistance = distance; }
+          if (distance <= 0.1 * 0.1 && (!largest || entry.row[4] > largest.row[4])) largest = entry;
+        }
+      }
+    }
+    // Anything in the next ring is at least `ring` degrees away north–south, or `ring` degrees of longitude east–west.
+    const reach = ring * Math.min(1, Math.max(cosLat, 0.01));
+    if (ring >= 1 && (largest || nearestDistance <= reach * reach)) break;
   }
   const best = largest ?? nearest;
   return best ? cityFromRow(best.row, best.countryCode) : undefined;
@@ -104,7 +148,7 @@ export function nearestCity(latitude: number, longitude: number): City | undefin
 export function worldDiscoveryCities(perCountry = 3): City[] {
   const taken = new Map<string, number>();
   const result: City[] = [];
-  for (const entry of cityIndex()) {
+  for (const entry of citiesByPopulation()) {
     const count = taken.get(entry.countryCode) ?? 0;
     if (count >= perCountry) continue;
     taken.set(entry.countryCode, count + 1);

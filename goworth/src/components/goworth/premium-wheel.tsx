@@ -4,6 +4,8 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "
 import { scheduleOnRN } from "react-native-worklets";
 import Svg, { Circle, Defs, G, LinearGradient, Path, RadialGradient, Stop, Text as SvgText } from "react-native-svg";
 import { wheelSlices, wheelTargetRotation, type WheelPrize } from "@/lib/wheel-odds";
+import { palettes, type Palette } from "@/constants/design";
+import { usePalette } from "@/state/theme-context";
 
 export type PremiumWheelHandle = { spinTo: (prize: WheelPrize, onDone: () => void) => void };
 
@@ -17,6 +19,35 @@ export const wheelColors = {
   gold: "#F5C451", goldLight: "#FFE7A3", goldDark: "#B07A18", goldInk: "#3A2600",
   night: "#0B1430", navy: "#13224A", royal: "#2F5BEA", royalDeep: "#1A3A9E",
 } as const;
+
+/**
+ * The Premium cards around the wheel and the plans: night-blue with gold in the dark theme, warm cream with
+ * deeper gold in the light theme, so they sit with the rest of the page. The wheel itself keeps its own look.
+ */
+export const premiumTones = {
+  dark: {
+    gradient: ["#1A2C5C", wheelColors.night, "#070C1E"] as const, border: "rgba(245,196,81,0.45)",
+    title: "#FFFFFF", body: "rgba(255,255,255,0.7)", strong: "rgba(255,255,255,0.88)", muted: "rgba(255,255,255,0.55)", faint: "rgba(255,255,255,0.45)",
+    accent: wheelColors.gold, accentText: wheelColors.goldLight, chipBg: "rgba(245,196,81,0.12)", chipBorder: "rgba(245,196,81,0.5)",
+    surface: "rgba(255,255,255,0.05)", surfaceBorder: "rgba(255,255,255,0.14)", radio: "rgba(255,255,255,0.4)",
+    offer: "rgba(245,196,81,0.10)", offerBorder: "rgba(245,196,81,0.55)", offerSelected: "rgba(245,196,81,0.16)",
+    error: "#FF8A95", success: wheelColors.goldLight, waiting: "rgba(255,255,255,0.08)", waitingBorder: "rgba(245,196,81,0.35)", waitingText: "#FFFFFF",
+    shortcut: { tile: wheelColors.night, slice: wheelColors.navy, sliceAlt: "#1A2C5C", glow: 0.35 },
+  },
+  light: {
+    gradient: ["#FFFDF7", "#FFF8E7", "#FFF0CC"] as const, border: "#EED48E",
+    title: "#132238", body: "#5B6B85", strong: "#24324A", muted: "#667085", faint: "#8A94A6",
+    accent: "#C08A1E", accentText: "#8A5A00", chipBg: "rgba(245,196,81,0.2)", chipBorder: "rgba(176,122,24,0.35)",
+    surface: "#FFFFFF", surfaceBorder: "#E7EAF0", radio: "#C3CAD6",
+    offer: "#FFF7E0", offerBorder: "#E8C266", offerSelected: "#FFF0C4",
+    error: "#D92D44", success: "#8A5A00", waiting: "#FFFFFF", waitingBorder: "#EED48E", waitingText: "#132238",
+    shortcut: { tile: "#FFFFFF", slice: "#EEF2FF", sliceAlt: "#FFFFFF", glow: 0.28 },
+  },
+};
+
+export type PremiumTone = (typeof premiumTones)["dark"] | (typeof premiumTones)["light"];
+export const premiumTone = (p: Palette): PremiumTone => p === palettes.dark ? premiumTones.dark : premiumTones.light;
+export const usePremiumTone = (): PremiumTone => premiumTone(usePalette());
 
 function slicePath(center: number, radius: number, index: number, count: number) {
   const span = 360 / count;

@@ -1,12 +1,15 @@
+import { cleanUsername, UsernameField, usernameAvailable, usernamePattern, useUsernameStatus } from "@/components/goworth/username-field";
 import { Image } from "expo-image";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as Linking from "expo-linking";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   Animated,
+  AppState,
   Easing,
-  Platform,
   Pressable, Text,
   TextInput,
   View,
@@ -24,11 +27,16 @@ import { useTravel } from "@/state/travel-context";
 import { useAuth } from "@/state/auth-context";
 import { supabase } from "@/lib/supabase";
 import { translate } from "@/data/i18n";
-import { useAppLanguage } from "@/data/formatting";
+import { useAppLanguage, type AppLanguage } from "@/data/formatting";
 import { useTimedMessage } from "@/hooks/use-timed-message";
 
-const authRedirectUrl = () =>
-  Platform.OS === "web" ? `${window.location.origin}/auth` : Linking.createURL("auth");
+// Email links land on a small page of the presentation site, which opens the app with the link's one-time code.
+// Mail apps follow an https link reliably; many refuse to follow a redirect straight to goworth://.
+// Expo Go cannot open goworth://, so there the link returns to Expo Go directly.
+const authBridgeUrl = process.env.EXPO_PUBLIC_AUTH_LINK_URL?.trim() || "https://a-ndrewi.github.io/goworth-website/auth/";
+// The page speaks the language the app was in when the email was asked for, not the browser's.
+const authRedirectUrl = (flow: "signup" | "recovery", language: AppLanguage) =>
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient ? Linking.createURL("auth") : `${authBridgeUrl}?flow=${flow}&lang=${language}`;
 
 export function SplashScreen() {
   const { hold } = useLocalSearchParams<{ hold?: string }>();
@@ -55,7 +63,7 @@ export function SplashScreen() {
       toValue: 1,
       duration: 650,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: Platform.OS !== "web",
+      useNativeDriver: true,
     });
     animation.start(({ finished }) => {
       if (finished) setActionsEnabled(true);
@@ -63,24 +71,83 @@ export function SplashScreen() {
     return () => animation.stop();
   }, [hold, introDone, ready, user, cloudReady, hasPreferences, actionsEnabled, actionReveal]);
 
-  return <WelcomeContent actionReveal={actionReveal} actionsEnabled={actionsEnabled} />;
+  return <WelcomeContent actionReveal={actionReveal} actionsEnabled={actionsEnabled} animated />;
 }
 
-function WelcomeContent({ actionReveal, actionsEnabled = true }: { actionReveal?: Animated.Value; actionsEnabled?: boolean }) {
+/**
+ * The splash's mark, flipped once like a tossed coin with a small bounce, then floating while the app loads.
+ * It starts where the native splash left it, so the hand-over shows no jump. The motion is shared app-wide:
+ * the launch cover over the tabs shows the same mark mid-flight instead of a still copy, so passing from the
+ * splash to the cover looks like one screen.
+ */
+const mark = { flip: new Animated.Value(0), float: new Animated.Value(0), started: false, users: 0, running: null as Animated.CompositeAnimation | null };
+
+function startMark() {
+  if (mark.started) return;
+  mark.started = true;
+  void AccessibilityInfo.isReduceMotionEnabled().catch(() => false).then((reduce) => {
+    if (reduce || !mark.started) return;
+    mark.running = Animated.sequence([
+      Animated.delay(150),
+      Animated.timing(mark.flip, { toValue: 1, duration: 950, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      Animated.loop(Animated.sequence([
+        Animated.timing(mark.float, { toValue: 1, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(mark.float, { toValue: 0, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])),
+    ]);
+    mark.running.start();
+  });
+}
+
+/** Stops the float once nothing shows the mark any more, and lets a later splash (after sign-out) play it again. */
+function stopMark() {
+  if (mark.users > 0) return;
+  mark.running?.stop();
+  mark.running = null;
+  mark.started = false;
+  mark.flip.setValue(0);
+  mark.float.setValue(0);
+}
+
+const sharedMarkStyle = {
+  transform: [
+    { perspective: 700 },
+    { rotateY: mark.flip.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] }) },
+    // Swells a little at the half-turn and lands with a soft bounce.
+    { scale: mark.flip.interpolate({ inputRange: [0, 0.5, 0.85, 1], outputRange: [1, 1.12, 0.96, 1] }) },
+    { translateY: mark.float.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) },
+  ],
+};
+
+function useMarkAnimation(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    mark.users += 1;
+    startMark();
+    // The cover mounts before the splash leaves, so the count only reaches zero once the mark is truly gone.
+    return () => { mark.users -= 1; setTimeout(stopMark, 0); };
+  }, [enabled]);
+  return enabled ? sharedMarkStyle : undefined;
+}
+
+function WelcomeContent({ actionReveal, actionsEnabled = true, animated = false }: { actionReveal?: Animated.Value; actionsEnabled?: boolean; animated?: boolean }) {
   const p = usePalette();
   const { scheme } = useThemePreference();
+  const markStyle = useMarkAnimation(animated);
   return (
     <View style={{ flex: 1, backgroundColor: p.white }}>
       <StatusBar style="dark" />
       <SafeAreaView style={{ flex: 1 }}>
         <View style={{ flex: 1, paddingHorizontal: 24 }}>
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 15 }}>
-            <Image
-              source={photos.brandMark}
-              style={{ width: 132, height: 104 }}
-              contentFit="contain"
-              accessibilityLabel="GoWorth logo"
-            />
+            <Animated.View style={markStyle}>
+              <Image
+                source={photos.brandMark}
+                style={{ width: 132, height: 104 }}
+                contentFit="contain"
+                accessibilityLabel="GoWorth logo"
+              />
+            </Animated.View>
             <Image
               source={photos.brandName}
               style={{ width: 218, height: 54 }}
@@ -118,22 +185,65 @@ export function WelcomeScreen() {
   return <WelcomeContent />;
 }
 
+/** The splash look laid over the tabs while they warm up at launch; it fades out once they are ready. */
+export function BootCover({ visible }: { visible: boolean }) {
+  const [opacity] = useState(() => new Animated.Value(1));
+  const [shown, setShown] = useState(visible);
+  if (visible && !shown) setShown(true);
+  useEffect(() => {
+    if (visible) { opacity.setValue(1); return; }
+    const animation = Animated.timing(opacity, { toValue: 0, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: true });
+    animation.start(({ finished }) => { if (finished) setShown(false); });
+    return () => animation.stop();
+  }, [visible, opacity]);
+  if (!shown) return null;
+  // Above the bottom bar as well, so the logo sits exactly where the splash left it until the tabs are ready.
+  return <Animated.View pointerEvents={visible ? "auto" : "none"} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, elevation: 100, opacity }}>
+    <WelcomeContent actionsEnabled={false} actionReveal={hiddenActions} animated />
+  </Animated.View>;
+}
+const hiddenActions = new Animated.Value(0);
+
 export function AuthScreen() {
   const s = useStyles(sharedSheet);
   const p = usePalette();
   const language = useAppLanguage();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
-  const { user, passwordRecovery, finishPasswordRecovery } = useAuth();
+  const { user, passwordRecovery, finishPasswordRecovery, linkNotice, clearLinkNotice } = useAuth();
   const { cloudReady, hasPreferences } = useTravel();
   const [signUp, setSignUp] = useState(mode === "signup");
   const [resetMode, setResetMode] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const usernameStatus = useUsernameStatus(username);
   const [show, setShow] = useState(false);
   const [error, setError] = useTimedMessage();
   const [notice, setNotice] = useTimedMessage();
   const [confirmationEmail, setConfirmationEmail] = useState("");
   const [busy, setBusy] = useState(false);
+  // Kept in memory only, from sign-up until the email is confirmed: when the traveller comes back to the app,
+  // even after confirming on another device, it signs in without asking for the password again.
+  const awaitingConfirmation = useRef<{ email: string; password: string } | null>(null);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const subscription = AppState.addEventListener("change", (state) => {
+      const pending = awaitingConfirmation.current;
+      if (state !== "active" || !pending || !supabase) return;
+      const db = supabase;
+      // A link tapped on this phone signs in through its code; give that a moment before trying the password.
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        if (awaitingConfirmation.current !== pending || (await db.auth.getSession()).data.session) return;
+        const { error: signInError } = await db.auth.signInWithPassword(pending);
+        if (!signInError || signInError.code !== "email_not_confirmed") awaitingConfirmation.current = null;
+      }, 1500);
+    });
+    return () => { clearTimeout(timer); subscription.remove(); awaitingConfirmation.current = null; };
+  }, []);
+  useEffect(() => {
+    if (user) awaitingConfirmation.current = null;
+  }, [user]);
   useEffect(() => {
     if (user && cloudReady && !passwordRecovery) {
       router.replace((hasPreferences ? "/home" : "/preferences") as Href);
@@ -143,6 +253,7 @@ export function AuthScreen() {
     if (busy) return;
     setError("");
     setNotice("");
+    clearLinkNotice();
     setConfirmationEmail("");
     const address = email.trim().toLowerCase();
     if (!passwordRecovery && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
@@ -152,6 +263,12 @@ export function AuthScreen() {
     if (!resetMode && password.length < 8) {
       setError("Use a password with at least 8 characters.");
       return;
+    }
+    // A new account picks its username up front, so friends can find and invite it from day one.
+    const chosenUsername = cleanUsername(username);
+    if (signUp && !resetMode && !passwordRecovery) {
+      if (!usernamePattern.test(chosenUsername)) { setError("Use 3-24 letters, numbers or underscores."); return; }
+      if (usernameStatus === "taken" || await usernameAvailable(chosenUsername) === false) { setError("Username is already taken."); return; }
     }
     if (!supabase) {
       setError("Account sign-in is not configured on this build.");
@@ -169,7 +286,7 @@ export function AuthScreen() {
       }
       if (resetMode) {
         const result = await supabase.auth.resetPasswordForEmail(address, {
-          redirectTo: authRedirectUrl(),
+          redirectTo: authRedirectUrl("recovery", language),
         });
         if (result.error) throw result.error;
         setNotice("If this email has an account, a password reset link is on its way.");
@@ -179,20 +296,25 @@ export function AuthScreen() {
         ? await supabase.auth.signUp({
             email: address,
             password,
-            options: { emailRedirectTo: authRedirectUrl() },
+            // Kept with the account until the first sign-in, when it is saved to the profile.
+            options: { emailRedirectTo: authRedirectUrl("signup", language), data: { goworth_username: chosenUsername } },
           })
         : await supabase.auth.signInWithPassword({ email: address, password });
       if (result.error) throw result.error;
       setPassword("");
       if (!result.data.session) {
-        setNotice("Check your email to confirm your account. The link will bring you back here.");
+        awaitingConfirmation.current = { email: address, password };
+        setNotice("Check your email and tap the link to confirm your account. GoWorth signs you in as soon as you come back.");
         setConfirmationEmail(address);
         setSignUp(false);
       }
     } catch (caught) {
       const code = typeof caught === "object" && caught !== null && "code" in caught ? String(caught.code) : "";
       const status = typeof caught === "object" && caught !== null && "status" in caught ? Number(caught.status) : 0;
-      if (code === "email_not_confirmed") setConfirmationEmail(address);
+      if (code === "email_not_confirmed") {
+        setConfirmationEmail(address);
+        awaitingConfirmation.current = { email: address, password };
+      }
       setError(status === 504 || code === "request_timeout"
         ? "Account creation is temporarily unavailable because the confirmation email could not be sent. Please try again later."
         : code === "over_email_send_rate_limit"
@@ -211,7 +333,7 @@ export function AuthScreen() {
       const result = await supabase.auth.resend({
         type: "signup",
         email: confirmationEmail,
-        options: { emailRedirectTo: authRedirectUrl() },
+        options: { emailRedirectTo: authRedirectUrl("signup", language) },
       });
       if (result.error) throw result.error;
       setNotice("A new confirmation link is on its way. Check your inbox and spam folder.");
@@ -252,6 +374,7 @@ export function AuthScreen() {
           value={email}
           onChangeText={setEmail}
         />}
+        {signUp && !resetMode && !passwordRecovery && <UsernameField value={username} onChangeText={setUsername} status={usernameStatus} />}
         {!resetMode && <View style={{ gap: 7 }}>
           <Copy style={s.label}>Password</Copy>
           <Row style={[s.input, { paddingVertical: 0, paddingRight: 4 }]}>
@@ -291,6 +414,7 @@ export function AuthScreen() {
         )}
         {!!error && <Copy style={s.error}>{error}</Copy>}
         {!!notice && <Copy style={{ color: p.blue }}>{notice}</Copy>}
+        {!!linkNotice && !error && !notice && <Copy style={{ color: p.blue }}>{linkNotice}</Copy>}
         {!!confirmationEmail && !signUp && !resetMode && !passwordRecovery && (
           <Button secondary busy={busy} icon="mail" onPress={resendConfirmation}>Resend confirmation</Button>
         )}
@@ -390,7 +514,7 @@ export function PreferencesScreen() {
       </View>
       <View style={prefStyles.card}>
         <Row style={{ gap: 10 }}><View style={prefStyles.cardIcon}><Icon name="wallet" size={19} color={p.blue} /></View><Heading style={prefStyles.cardTitle}>Budget range</Heading></Row>
-        <Text style={prefStyles.budgetHint}>{translate("per person", language)}</Text>
+        <Text style={prefStyles.budgetHint}>{translate("for the whole trip", language)}</Text>
         <BudgetInput label="Travel budget" value={preferences.budget} onChange={(budget) => setPreferences({ ...preferences, budget })} />
         <Copy muted style={{ fontSize: 12 }}>Used as the starting budget for new trips.</Copy>
       </View>

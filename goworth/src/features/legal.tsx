@@ -1,12 +1,13 @@
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
-import { Linking, Platform, Share, View } from "react-native";
+import { Linking, Share, View } from "react-native";
 import { Button, Copy, Field, Header, Heading, ListGroup, ListRow, Screen, Sheet, sharedSheet } from "@/components/goworth/ui";
 import { usePalette, useStyles } from "@/state/theme-context";
 import { legalDocuments, legalIdentity, legalIdentityPending, type LegalDocumentId } from "@/data/legal";
 import { legalDocumentsRo } from "@/data/legal-ro";
 import { useAppLanguage } from "@/data/formatting";
 import { translate } from "@/data/i18n";
+import { manageSubscription, purchasesAvailable } from "@/lib/purchases";
 import { useAuth } from "@/state/auth-context";
 import { useTravel } from "@/state/travel-context";
 import { useTimedMessage } from "@/hooks/use-timed-message";
@@ -36,16 +37,7 @@ export function LegalScreen() {
       personalNote: trip ? null : journal,
     }, null, 2);
     try {
-      if (Platform.OS === "web" && typeof document !== "undefined") {
-        const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "goworth-data.json";
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      } else {
-        await Share.share({ title: "GoWorth data export", message: data });
-      }
+      await Share.share({ title: "GoWorth data export", message: data });
     } catch {
       setError("Could not export your data on this device.");
     }
@@ -81,6 +73,10 @@ export function LegalScreen() {
     <Sheet visible={confirming} title="Delete your account?" onClose={() => setConfirming(false)}>
       <Copy>All account data, including saved items and trip history, will be permanently deleted. This cannot be undone.</Copy>
       {plan !== "free" && <Copy muted style={{ fontSize: 12, lineHeight: 18 }}>Remaining Premium time and Lifetime access end when the account is deleted.</Copy>}
+      {purchasesAvailable && <>
+        <Copy muted style={{ fontSize: 12, lineHeight: 18 }}>Deleting your account does not cancel a store subscription. Cancel it first in your App Store or Google Play settings, or it keeps renewing.</Copy>
+        <Button secondary icon="crown" onPress={() => void manageSubscription()}>Manage subscription</Button>
+      </>}
       <Field label="Type DELETE to confirm" value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" />
       {!!error && <Copy style={s.error}>{error}</Copy>}
       <Button disabled={confirmation !== "DELETE"} busy={busy} onPress={() => void removeAccount()}>Delete account permanently</Button>

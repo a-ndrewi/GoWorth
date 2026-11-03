@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { useIsFocused } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import Animated, {
   cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming,
 } from "react-native-reanimated";
 import Svg, { Circle, Defs, G, LinearGradient, Path, Stop } from "react-native-svg";
-import { wheelColors } from "@/components/goworth/premium-wheel";
+import { premiumTones, usePremiumTone, wheelColors } from "@/components/goworth/premium-wheel";
 import { translate } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
 import type { WheelStatus } from "@/lib/wheel";
@@ -41,6 +41,7 @@ function useRemaining(status: WheelStatus | null) {
 /** Pill under the wheel: a gently pulsing "Spin now" when ready, the cooldown countdown otherwise. */
 function WheelBadge({ remaining }: { remaining: number }) {
   const c = wheelColors;
+  const light = usePremiumTone() === premiumTones.light;
   const language = useAppLanguage();
   const ready = remaining <= 0;
   const pulse = useSharedValue(1);
@@ -56,12 +57,12 @@ function WheelBadge({ remaining }: { remaining: number }) {
   return <View pointerEvents="none" style={{ position: "absolute", bottom: -8, left: -12, right: -12, alignItems: "center" }}>
     <Animated.View style={[{
       paddingHorizontal: 6, height: 16, borderRadius: 8, justifyContent: "center",
-      backgroundColor: ready ? c.gold : c.night, borderWidth: 1, borderColor: ready ? c.goldLight : c.goldDark,
-      shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 3,
+      backgroundColor: ready ? c.gold : light ? "#FFFFFF" : c.night, borderWidth: 1, borderColor: ready ? c.goldLight : c.goldDark,
+      shadowColor: "#000", shadowOpacity: light ? 0.12 : 0.25, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 3,
     }, pulseStyle]}>
       <Text numberOfLines={1} allowFontScaling={false} style={{
         fontSize: 9, lineHeight: 12, fontWeight: "800", letterSpacing: ready ? 0.4 : 0.2,
-        color: ready ? c.goldInk : c.goldLight, fontVariant: ["tabular-nums"],
+        color: ready || light ? c.goldInk : c.goldLight, fontVariant: ["tabular-nums"],
       }}>
         {ready ? translate("Spin now", language).toUpperCase() : wheelCountdown(remaining)}
       </Text>
@@ -69,24 +70,30 @@ function WheelBadge({ remaining }: { remaining: number }) {
   </View>;
 }
 
-/** Explore's shortcut to the daily Premium wheel: a tiny gold wheel that gives one spin when shown, badged with the cooldown or "Spin now". */
+/**
+ * Explore's shortcut to the daily Premium wheel: a tiny gold wheel that gives one spin when shown, badged with the cooldown or "Spin now".
+ * Night-blue in the dark theme; a white tile with a pale wheel in the light theme.
+ */
 export function WheelShortcut({ label, status, onPress }: { label: string; status: WheelStatus | null; onPress: () => void }) {
   const c = wheelColors;
+  const tone = usePremiumTone();
+  const light = tone === premiumTones.light;
   const remaining = useRemaining(status);
   const turn = useSharedValue(0);
   const press = useSharedValue(1);
-  const focused = useIsFocused();
-  useEffect(() => {
-    if (!focused) return;
+  // Focus events, not useIsFocused: the frozen Explore tab never re-renders as unfocused, so a returning focus looked
+  // unchanged and the wheel stayed still.
+  useFocusEffect(useCallback(() => {
+    cancelAnimation(turn);
     turn.set(0);
     turn.set(withDelay(START_DELAY, withTiming(1, { duration: 1800, easing: Easing.out(Easing.cubic) })));
     return () => { cancelAnimation(turn); turn.set(0); };
-  }, [focused, turn]);
+  }, [turn]));
   const turnStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value * 360}deg` }] }));
   const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press.value }] }));
   const center = SIZE / 2;
   const radius = 15.5;
-  const fill = (index: number) => wheelSlices[index] === "lifetime" ? c.gold : wheelSlices[index] === "premium_month" ? c.royal : index % 2 ? c.navy : "#1A2C5C";
+  const fill = (index: number) => wheelSlices[index] === "lifetime" ? c.gold : wheelSlices[index] === "premium_month" ? c.royal : index % 2 ? tone.shortcut.slice : tone.shortcut.sliceAlt;
   return <Pressable
     accessibilityRole="button"
     accessibilityLabel={label}
@@ -99,8 +106,9 @@ export function WheelShortcut({ label, status, onPress }: { label: string; statu
     style={{ width: SIZE, minHeight: SIZE, alignItems: "center", justifyContent: "center" }}
   >
     <Animated.View style={[{
-      width: SIZE, height: SIZE, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: c.night,
-      shadowColor: c.gold, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5,
+      width: SIZE, height: SIZE, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: tone.shortcut.tile,
+      borderWidth: light ? 1 : 0, borderColor: tone.border,
+      shadowColor: c.gold, shadowOpacity: tone.shortcut.glow, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5,
     }, pressStyle]}>
       <Animated.View style={turnStyle}>
         <Svg width={SIZE} height={SIZE}>
@@ -124,7 +132,7 @@ export function WheelShortcut({ label, status, onPress }: { label: string; statu
       </Animated.View>
       {/* Fixed pointer at the top, so the wheel reads as a prize wheel even this small. */}
       <View pointerEvents="none" style={{ position: "absolute", top: 3 }}>
-        <Svg width={10} height={9}><Path d="M 1 1 L 9 1 L 5 8 Z" fill={c.goldLight} stroke={c.night} strokeWidth={1} strokeLinejoin="round" /></Svg>
+        <Svg width={10} height={9}><Path d="M 1 1 L 9 1 L 5 8 Z" fill={light ? c.gold : c.goldLight} stroke={tone.shortcut.tile} strokeWidth={1} strokeLinejoin="round" /></Svg>
       </View>
     </Animated.View>
     {status && <WheelBadge remaining={remaining} />}

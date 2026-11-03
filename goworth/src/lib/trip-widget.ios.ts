@@ -24,8 +24,8 @@ function loadTripWidget() {
 const upper = (value: string, language: AppLanguage) => value.toLocaleUpperCase(language === "ro" ? "ro-RO" : "en-US");
 
 /** No trip: a blank ticket that invites planning one. */
-const emptyProps = (language: AppLanguage, ended = false): TripWidgetProps => ({
-  active: false,
+const emptyProps = (language: AppLanguage, ended = false, premium = false): TripWidgetProps => ({
+  active: false, locked: !premium, short: "GO", inline: translate("Plan your next trip", language), lockedText: translate("Lock Screen trips come with Premium", language),
   label: upper(translate(ended ? "Trip ended" : "No trip booked", language), language),
   code: "GO",
   route: translate("Plan your next trip", language),
@@ -35,9 +35,9 @@ const emptyProps = (language: AppLanguage, ended = false): TripWidgetProps => ({
   plansHeading: "", plans: [], progress: -1, url: "goworth://planner",
 });
 
-function propsForDay(trip: Trip, activities: Activity[], day: string, language: AppLanguage): TripWidgetProps {
+function propsForDay(trip: Trip, activities: Activity[], day: string, language: AppLanguage, premium: boolean): TripWidgetProps {
   const status = tripStatus(trip.start, trip.end, day);
-  if (status.kind === "ended") return emptyProps(language, true);
+  if (status.kind === "ended") return emptyProps(language, true, premium);
   const total = tripDays(trip.start, trip.end);
   // Before the trip the ticket previews its first day.
   const tripDay = status.kind === "active" ? status.days : 1;
@@ -47,8 +47,14 @@ function propsForDay(trip: Trip, activities: Activity[], day: string, language: 
   const city = dayCityNames(trip, tripDay)[0] ?? routeTitle(trip, language);
   const left = total - tripDay;
   const days = (count: number) => count === 1 ? translate("1 day", language) : formatMessage("{days} days", { days: count }, language);
+  // The Lock Screen gets a two-character countdown ("3d", "D2") and a one-line version of the ticket.
+  const ro = language === "ro";
+  const short = status.kind === "upcoming" ? `${status.days}${ro ? "z" : "d"}` : `${ro ? "Z" : "D"}${status.days}`;
   return {
-    active: true,
+    active: true, locked: !premium, short, lockedText: translate("Lock Screen trips come with Premium", language),
+    inline: `${cityCode(city)} · ${status.kind === "upcoming"
+      ? status.days <= 1 ? translate("Departs tomorrow", language) : formatMessage("Departs in {days} days", { days: status.days }, language)
+      : formatMessage("Day {day}/{days}", { day: status.days, days: total }, language)}`,
     label: upper(status.kind === "upcoming"
       ? status.days <= 1 ? translate("Departs tomorrow", language) : formatMessage("Departs in {days} days", { days: status.days }, language)
       : formatMessage("Day {day}/{days}", { day: status.days, days: total }, language), language),
@@ -73,15 +79,15 @@ const startOfDay = (day: string) => {
 };
 
 /** One timeline entry per day, so the countdown and "Day N" move on at midnight without the app being opened. */
-export function updateTripWidget(trip: Trip | null, activities: Activity[], language: AppLanguage) {
+export function updateTripWidget(trip: Trip | null, activities: Activity[], language: AppLanguage, premium = false) {
   const widget = loadTripWidget();
   if (!widget) return;
   try {
     const today = localToday();
-    if (!trip) { widget.updateSnapshot(emptyProps(language)); return; }
+    if (!trip) { widget.updateSnapshot(emptyProps(language, false, premium)); return; }
     widget.updateTimeline(widgetDays(trip.start, trip.end, today).map((day) => ({
       date: day === today ? new Date() : startOfDay(day),
-      props: propsForDay(trip, activities, day, language),
+      props: propsForDay(trip, activities, day, language, premium),
     })));
   } catch {
     // The system can refuse an update (for example with no app group); the app carries on without the widget.

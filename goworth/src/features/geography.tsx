@@ -2,6 +2,7 @@ import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
 import { Button, Chip, Copy, EmptyState, Header, Icon, Row, Screen } from "@/components/goworth/ui";
+import { WeatherBadge } from "@/components/goworth/weather-badge";
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
 import { Shimmer, SkeletonRows } from "@/components/goworth/loading";
 import { usePalette } from "@/state/theme-context";
@@ -63,6 +64,7 @@ export function CountryScreen() {
       {filtered.slice(0, visibleCount).map((city, index) => <Pressable key={city.id} accessibilityRole="button" accessibilityLabel={`Explore ${city.name}`} onPress={() => router.push({ pathname: "/city", params: { country: country.code, city: city.id } } as Href)} style={({ pressed }) => [{ minHeight: 58, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12 }, listRow(p, index), pressed && { backgroundColor: p.soft }]}>
         <Icon name="city" color={p.green} size={19} />
         <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontSize: 15, fontWeight: "600" }}>{translate(city.name, language)}</Copy>{city.population > 0 && <Copy muted style={{ fontSize: 11 }}>{translate("Population", language)} {city.population.toLocaleString(language === "ro" ? "ro-RO" : "en-US")}</Copy>}</View>
+        <WeatherBadge point={city} color={p.ink} />
         <Icon name="right" color={p.muted} size={17} />
       </Pressable>)}
     </View>}
@@ -144,7 +146,7 @@ export function CityScreen() {
     ...(query.trim() ? { search: query.trim() } : {}),
   } } as Href);
   return <Screen active="home" style={{ gap: 17 }}>
-    <Header title={translate(city.name, language)} subtitle={`${city.stateCode ? `${usStates.find((state) => state.code === city.stateCode)?.name ?? city.stateCode} · ` : ""}${countryFlag(country.code)}  ${translate(country.name, language)}`} />
+    <Header title={translate(city.name, language)} right={<WeatherBadge point={city} color={p.ink} size={15} />} subtitle={`${city.stateCode ? `${usStates.find((state) => state.code === city.stateCode)?.name ?? city.stateCode} · ` : ""}${countryFlag(country.code)}  ${translate(country.name, language)}`} />
     <Button secondary icon="plus" onPress={() => router.push({ pathname: "/planner", params: { country: country.code, city: city.id } } as Href)}>Plan a trip</Button>
     <Row style={{ minHeight: 48, borderRadius: 16, borderWidth: 1, borderColor: p.line, paddingHorizontal: 14, gap: 9, backgroundColor: p.white }}>
       <Icon name="search" color={p.muted} size={18} />

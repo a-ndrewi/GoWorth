@@ -33,6 +33,14 @@ import {
   uploadProfileAvatar,
   removeProfileAvatar,
   setSavedItem,
+  loadTripData,
+  loadSharedTrips,
+  inviteTripMember,
+  loadTripCompanions,
+  respondTripInvite,
+  removeTripMember,
+  type SharedTrip,
+  type TripCompanion,
 } from "@/lib/travel-repository";
 import { useTimedMessage } from "@/hooks/use-timed-message";
 
@@ -48,6 +56,16 @@ export type DiscoverySettings = { radiusKm: number; centerId: string | null; ven
 const defaultDiscoverySettings: DiscoverySettings = { radiusKm: 500, centerId: null, venues: venueFilters };
 const externalPlacesKey = (userId: string) => `external-places:${userId}`;
 const exploreHistoryKey = (userId: string) => `explore-history:${userId}`;
+const tripOwnerKey = (userId: string) => `trip-owner:${userId}`;
+const offlineKey = (userId: string) => `offline-snapshot:${userId}`;
+
+/** The account as last seen online, kept on the phone for Premium so trips open without a connection. */
+type OfflineSnapshot = {
+  savedAt: string; plan: "premium" | "lifetime"; profile: TravelProfile; preferences: TravelPreferences; hasPreferences: boolean;
+  trip: Trip | null; tripOwner: string | null; hasOwnTrip: boolean; activities: Activity[]; expenses: Expense[];
+  saved: string[]; savedPlaces: string[]; externalPlaces: NearbyPlace[]; journal: string; journalEntries: TripJournalEntry[];
+  sharedTrips: SharedTrip[]; monthlyUsage: { trip: number; place: number; destination: number };
+};
 
 function parseLocalExternalPlaces(value: string | null): NearbyPlace[] {
   if (!value) return [];
@@ -85,6 +103,12 @@ function useTravelState() {
   const [externalPlaces, setExternalPlaces] = useState<NearbyPlace[]>([]);
   const [exploreHistoryState, setExploreHistoryState] = useState<{ owner: string | null; history: ExploreHistory }>({ owner: null, history: emptyExploreHistory });
   const [trip, setTrip] = useState<Trip | null>(null);
+  // Whose trip is open: null for the traveller's own, or the owner of a trip they joined as a companion.
+  const [tripOwner, setTripOwner] = useState<string | null>(null);
+  const [sharedTrips, setSharedTrips] = useState<SharedTrip[]>([]);
+  // Everyone on the open trip who has joined (the owner included), so its party reads Solo, Duo or Group.
+  const [party, setParty] = useState<{ trip: Trip; people: TripCompanion[] } | null>(null);
+  const [hasOwnTrip, setHasOwnTrip] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [preferences, setPreferencesState] = useState<TravelPreferences>(blankPreferences);
@@ -99,6 +123,8 @@ function useTravelState() {
   const [journalAvailable, setJournalAvailable] = useState(false);
   const [notifications, setNotifications] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
+  // True when the account opened from the offline copy; edits then fail until the connection is back.
+  const [offlineSince, setOfflineSince] = useState<string | null>(null);
   const [loadError, setLoadError] = useState("");
   const [syncError, setSyncError] = useTimedMessage();
   const [reload, setReload] = useState(0);
@@ -156,8 +182,9 @@ function useTravelState() {
   useEffect(() => {
     if (!userId) return;
     let current = true;
-    Promise.all([loadTravelData(userId), AsyncStorage.getItem(externalPlacesKey(userId)).catch(() => null)])
-      .then(async ([data, localValue]) => {
+    Promise.all([loadTravelData(userId), AsyncStorage.getItem(externalPlacesKey(userId)).catch(() => null),
+      loadSharedTrips().catch(() => []), AsyncStorage.getItem(tripOwnerKey(userId)).catch(() => null)])
+      .then(async ([data, localValue, shared, storedOwner]) => {
         if (!current) return;
         const language = accountLanguage === "ro" ||
           (!accountLanguage && data.profile?.language === "ro") ? "ro" : "en";
@@ -185,9 +212,23 @@ function useTravelState() {
           budget: Number(data.preferences.budget),
           pace: data.preferences.pace,
         } : blankPreferences);
-        setTrip(data.trip);
-        setActivities(data.trip ? data.activities : []);
-        setExpenses(data.trip ? data.expenses : []);
+        setSharedTrips(shared);
+        setHasOwnTrip(!!data.trip);
+        // Reopen the shared trip last chosen, or the only one joined when the traveller has none of their own.
+        const joined = shared.filter((item) => item.status === "accepted");
+        const owner = joined.find((item) => item.owner.id === storedOwner)?.owner.id ?? (!data.trip && joined.length === 1 ? joined[0].owner.id : null);
+        const sharedData = owner ? await loadTripData(owner).catch(() => null) : null;
+        if (owner && sharedData) {
+          setTripOwner(owner);
+          setTrip(sharedData.trip);
+          setActivities(sharedData.activities);
+          setExpenses(sharedData.expenses);
+        } else {
+          setTripOwner(null);
+          setTrip(data.trip);
+          setActivities(data.trip ? data.activities : []);
+          setExpenses(data.trip ? data.expenses : []);
+        }
         setSaved(data.saved.filter((item) => item.kind === "destination").map((item) => item.item_id));
         setSavedPlaces(data.saved.filter((item) => item.kind === "place").map((item) => item.item_id));
         const savedPlaceIds = new Set(data.saved.filter((item) => item.kind === "place").map((item) => item.item_id));
@@ -200,13 +241,53 @@ function useTravelState() {
         setJournalEntries(data.journalEntries);
         setJournalAvailable(data.journalAvailable);
         setSyncError("");
+        setOfflineSince(null);
         setCloudReady(true);
       })
-      .catch(() => {
-        if (current) setLoadError("Could not load your account. Check your connection and try again.");
+      .catch(async () => {
+        if (!current) return;
+        const snapshot = await AsyncStorage.getItem(offlineKey(userId)).then((value) => value ? JSON.parse(value) as OfflineSnapshot : null).catch(() => null);
+        if (!current) return;
+        if (!snapshot) {
+          setLoadError("Could not load your account. Check your connection and try again.");
+          return;
+        }
+        setDisplaySettings({ language: snapshot.profile.language, currency: snapshot.profile.currency });
+        setProfileState(snapshot.profile);
+        setPlan(snapshot.plan);
+        setPreferencesState(snapshot.preferences);
+        setHasPreferences(snapshot.hasPreferences);
+        setTripOwner(snapshot.tripOwner);
+        setHasOwnTrip(snapshot.hasOwnTrip);
+        setTrip(snapshot.trip);
+        setActivities(snapshot.activities);
+        setExpenses(snapshot.expenses);
+        setSaved(snapshot.saved);
+        setSavedPlaces(snapshot.savedPlaces);
+        setExternalPlaces(snapshot.externalPlaces);
+        setJournalState(snapshot.journal);
+        setJournalEntries(snapshot.journalEntries);
+        setJournalAvailable(true);
+        setSharedTrips(snapshot.sharedTrips);
+        setMonthlyUsage(snapshot.monthlyUsage);
+        setOfflineSince(snapshot.savedAt);
+        setCloudReady(true);
       });
     return () => { current = false; };
   }, [userId, fallbackName, accountLanguage, accountCurrency, reload, setSyncError]);
+
+  // Premium keeps a copy of the account on the phone, refreshed after every change made online.
+  useEffect(() => {
+    if (!userId || !cloudReady || offlineSince) return;
+    if (plan === "free") { void AsyncStorage.removeItem(offlineKey(userId)).catch(() => undefined); return; }
+    const snapshot: OfflineSnapshot = {
+      savedAt: new Date().toISOString(), plan, profile, preferences, hasPreferences, trip, tripOwner, hasOwnTrip, activities, expenses,
+      saved, savedPlaces, externalPlaces, journal, journalEntries, sharedTrips, monthlyUsage,
+    };
+    const timer = setTimeout(() => void AsyncStorage.setItem(offlineKey(userId), JSON.stringify(snapshot)).catch(() => undefined), 800);
+    return () => clearTimeout(timer);
+  }, [userId, cloudReady, offlineSince, plan, profile, preferences, hasPreferences, trip, tripOwner, hasOwnTrip, activities, expenses,
+    saved, savedPlaces, externalPlaces, journal, journalEntries, sharedTrips, monthlyUsage]);
 
   const persist = (work: () => Promise<unknown>, showGlobalError = true) => {
     const next = writeQueue.current.then(work);
@@ -286,11 +367,14 @@ function useTravelState() {
     if (validation) throw new Error(validation);
     if (trip && !journalAvailable) throw new Error("Update the trip journal database before replacing this trip.");
     await writeQueue.current;
+    const replacing = tripOwner ? hasOwnTrip : !!trip;
     await replaceTrip(user.id, next, []);
-    if (trip) {
+    if (replacing) {
       setJournalEntries(await loadTripJournal(user.id));
       setJournalState("");
     }
+    selectOwner(null);
+    setHasOwnTrip(true);
     setTrip(next);
     setMonthlyUsage((current) => ({ ...current, trip: current.trip + 1 }));
     setActivities([]);
@@ -305,15 +389,17 @@ function useTravelState() {
     if (validation) throw new Error(validation);
     const days = tripDays(next.start, next.end);
     const removed = activities.filter((activity) => activity.day > days).map((activity) => activity.id);
-    await persist(() => saveTripChanges(user.id, next, removed));
+    await persist(() => saveTripChanges(tripOwner ?? user.id, next, removed));
     setTrip(next);
     setActivities((current) => current.filter((activity) => activity.day <= days));
   };
 
   const clearTrip = async () => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    if (tripOwner) throw new Error("Only the trip owner can delete this trip.");
     await writeQueue.current;
     await deleteTrip(user.id);
+    setHasOwnTrip(false);
     setTrip(null);
     setActivities([]);
     setExpenses([]);
@@ -322,9 +408,11 @@ function useTravelState() {
 
   const finishTrip = async () => {
     if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    if (tripOwner) throw new Error("Only the trip owner can finish this trip.");
     if (!journalAvailable) throw new Error("Update the trip journal database before finishing this trip.");
     await writeQueue.current;
     await archiveCurrentTrip();
+    setHasOwnTrip(false);
     setJournalEntries(await loadTripJournal(user.id));
     setTrip(null);
     setActivities([]);
@@ -338,7 +426,7 @@ function useTravelState() {
     if (activity.day < 1 || activity.day > tripDays(trip.start, trip.end)) throw new Error("Choose a day in this trip.");
     await ensurePlaceFitsDay(trip, activity);
     const next = { ...activity, id: `activity-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
-    await persist(() => saveActivity(user.id, next, activities.length));
+    await persist(() => saveActivity(tripOwner ?? user.id, next, activities.length));
     setActivities((current) => [...current, next]);
   };
 
@@ -347,20 +435,20 @@ function useTravelState() {
     await ensurePlaceFitsDay(trip, activity);
     const position = activities.findIndex((item) => item.id === activity.id);
     if (position < 0) throw new Error("Activity not found. Reload your itinerary.");
-    await persist(() => saveActivity(user.id, activity, position));
+    await persist(() => saveActivity(tripOwner ?? user.id, activity, position));
     setActivities((current) => current.map((item) => item.id === activity.id ? activity : item));
   };
 
   const removeActivity = async (id: string) => {
     if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
-    await persist(() => deleteActivity(user.id, id));
+    await persist(() => deleteActivity(tripOwner ?? user.id, id));
     setActivities((current) => current.filter((item) => item.id !== id));
   };
 
   const addExpense = async (expense: Omit<Expense, "id">) => {
     if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
     const next = { ...expense, id: `expense-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
-    await persist(() => saveExpense(user.id, next, expenses.length));
+    await persist(() => saveExpense(tripOwner ?? user.id, next, expenses.length));
     setExpenses((current) => [...current, next]);
   };
 
@@ -368,14 +456,87 @@ function useTravelState() {
     if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
     const position = expenses.findIndex((item) => item.id === expense.id);
     if (position < 0) throw new Error("Expense not found. Reload your budget.");
-    await persist(() => saveExpense(user.id, expense, position));
+    await persist(() => saveExpense(tripOwner ?? user.id, expense, position));
     setExpenses((current) => current.map((item) => item.id === expense.id ? expense : item));
   };
 
   const removeExpense = async (id: string) => {
     if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
-    await persist(() => deleteExpense(user.id, id));
+    await persist(() => deleteExpense(tripOwner ?? user.id, id));
     setExpenses((current) => current.filter((item) => item.id !== id));
+  };
+
+  const selectOwner = (owner: string | null) => {
+    setTripOwner(owner);
+    if (userId) void (owner ? AsyncStorage.setItem(tripOwnerKey(userId), owner) : AsyncStorage.removeItem(tripOwnerKey(userId))).catch(() => undefined);
+  };
+
+  /** Opens the traveller's own trip (null) or a trip they joined; edits then go to that trip. */
+  const openTrip = async (owner: string | null) => {
+    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    await writeQueue.current;
+    const data = await loadTripData(owner ?? user.id);
+    if (owner && !data) {
+      setSharedTrips(await loadSharedTrips());
+      throw new Error("This trip is no longer shared with you.");
+    }
+    selectOwner(owner);
+    if (!owner) setHasOwnTrip(!!data);
+    setTrip(data?.trip ?? null);
+    setActivities(data?.activities ?? []);
+    setExpenses(data?.expenses ?? []);
+  };
+
+  /** Fetches the latest of the open trip, so a companion's edits show up. */
+  const refreshTrip = useCallback(async () => {
+    if (!user || !cloudReady || offlineSince) return;
+    const [shared, data] = await Promise.all([loadSharedTrips(), loadTripData(tripOwner ?? user.id).catch(() => undefined)]);
+    setSharedTrips(shared);
+    if (data === undefined) return;
+    if (tripOwner && !data) {
+      selectOwner(null);
+      const own = await loadTripData(user.id).catch(() => null);
+      setTrip(own?.trip ?? null); setActivities(own?.activities ?? []); setExpenses(own?.expenses ?? []);
+      return;
+    }
+    setTrip(data?.trip ?? null);
+    setActivities(data?.activities ?? []);
+    setExpenses(data?.expenses ?? []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, cloudReady, offlineSince, tripOwner]);
+
+  // A new or refreshed trip is a new object, so this also picks up companions who joined or left on their phones.
+  useEffect(() => {
+    if (!user || !cloudReady || offlineSince || !trip) return;
+    let current = true;
+    loadTripCompanions(tripOwner ?? user.id).then((people) => { if (current) setParty({ trip, people }); }).catch(() => undefined);
+    return () => { current = false; };
+  }, [user, cloudReady, offlineSince, tripOwner, trip]);
+
+  const answerInvite = async (owner: string, accept: boolean) => {
+    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    await respondTripInvite(owner, accept);
+    setSharedTrips(await loadSharedTrips());
+    if (accept) await openTrip(owner);
+  };
+
+  const inviteCompanion = async (memberId: string) => {
+    if (!user || !trip || tripOwner) throw new Error("Only the trip owner can invite companions.");
+    await inviteTripMember(memberId);
+  };
+
+  /** The owner removes a companion; a companion passing their own id leaves the trip. */
+  const removeCompanion = async (memberId: string) => {
+    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    const owner = tripOwner ?? user.id;
+    await removeTripMember(owner, memberId);
+    if (memberId === user.id) {
+      setSharedTrips((current) => current.filter((item) => item.owner.id !== owner));
+      await openTrip(null);
+    } else if (trip) {
+      const people = await loadTripCompanions(owner).catch(() => null);
+      if (people) setParty({ trip, people });
+    }
   };
 
   const setPreferences = (next: TravelPreferences) => setPreferencesState(next);
@@ -440,14 +601,17 @@ function useTravelState() {
     exploreHistory: exploreHistoryState.owner === userId ? exploreHistoryState.history : emptyExploreHistory,
     exploreHistoryReady: !!userId && exploreHistoryState.owner === userId,
     recordCountryVisit, recordPlaceVisit,
-    trip, hasTrip: !!trip, generateTrip, updateTrip, clearTrip, finishTrip,
+    trip, hasTrip: !!trip, hasOwnTrip, tripOwner, sharedTrips, pendingInvites: sharedTrips.filter((item) => item.status === "pending"),
+    // The open trip's people as last loaded, and how many have joined (owner included; pending invitations do not count).
+    tripPeople: trip && party?.trip === trip ? party.people : null,
+    travellers: trip && party?.trip === trip ? Math.max(1, party.people.filter((person) => person.status !== "pending").length) : 1, openTrip, refreshTrip, answerInvite, inviteCompanion, removeCompanion, generateTrip, updateTrip, clearTrip, finishTrip,
     activities, addActivity, updateActivity, removeActivity,
     expenses, addExpense, updateExpense, removeExpense,
     preferences, setPreferences, hasPreferences, completePreferences,
     discoverySettings, setDiscoverySettings,
     profile, setProfile, avatarUrl, uploadAvatar, removeAvatar, plan, monthlyUsage, refreshMembership, journal, setJournal, journalEntries, journalAvailable, setArchivedReflection, deleteJournalEntry,
     notifications, setNotifications: updateNotifications,
-    cloudReady, loadError, retryLoad: () => {
+    cloudReady, offlineSince, loadError, retryLoad: () => {
       setCloudReady(false);
       setLoadError("");
       setReload((value) => value + 1);

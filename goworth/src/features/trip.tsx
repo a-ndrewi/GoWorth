@@ -1,5 +1,5 @@
-import { router, useLocalSearchParams, type Href } from "expo-router";
-import { useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams, type Href } from "expo-router";
+import { useCallback, useState } from "react";
 import { Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { TimeDropdown } from "@/components/goworth/date-time-controls";
 import { Button, Chip, Copy, EmptyState, Field, Header, Heading, Icon, IconButton, Row, Screen, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
@@ -20,10 +20,12 @@ import { currencySymbol, useAppLanguage } from "@/data/formatting";
 import { BudgetInput, BUDGET_MIN, clampBudget } from "@/components/goworth/budget-input";
 import { useTravel } from "@/state/travel-context";
 import { TripHero, heroStylesSheet, localToday, tripStatus } from "@/components/goworth/trip-hero";
+import { WeatherBadge } from "@/components/goworth/weather-badge";
 import { citiesForDay, nextActivitySlot } from "@/utils/trip";
 import { dayRoutePoints, MAX_ROUTE_STOPS, mapsRouteUrl, placeFitsTripDay, useTripAreas } from "@/utils/trip-place";
 import { publicActivityNote, translatedActivityNote } from "@/utils/public-activity";
 import { useTimedMessage } from "@/hooks/use-timed-message";
+import { CompanionsPanel, CompanionStrip, TripInvites, TripSwitcher } from "@/components/goworth/companions";
 
 const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
@@ -35,10 +37,12 @@ export function ItineraryScreen() {
   const language = useAppLanguage();
   const locale = language === "ro" ? "ro-RO" : "en-US";
   const { day: dayParam } = useLocalSearchParams<{ day?: string }>();
-  const { trip, activities, addActivity, updateActivity, removeActivity, finishTrip, clearTrip } = useTravel();
+  const { trip, tripOwner, activities, addActivity, updateActivity, removeActivity, finishTrip, clearTrip, refreshTrip } = useTravel();
+  // A shared trip can change on a companion's phone; pick up their edits whenever the itinerary comes back into view.
+  useFocusEffect(useCallback(() => { void refreshTrip().catch(() => undefined); }, [refreshTrip]));
   const [editing, setEditing] = useState<Activity | null>(null);
   const [showEditor, setShowEditor] = useState(false);
-  const [menu, setMenu] = useState<"" | "trip" | "finish" | "delete">("");
+  const [menu, setMenu] = useState<"" | "trip" | "companions" | "finish" | "delete">("");
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [time, setTime] = useState("10:00");
@@ -51,6 +55,8 @@ export function ItineraryScreen() {
     return (
       <Screen active="itinerary" style={{ gap: 22 }}>
         <Header title="My trip" onBack={() => router.dismissTo("/home" as Href)} />
+        <TripSwitcher />
+        <TripInvites />
         <EmptyState title="Your first trip starts here" detail="Plan a destination to build your itinerary." action="Plan a trip" onPress={() => router.push("/planner" as Href)} />
       </Screen>
     );
@@ -140,11 +146,13 @@ export function ItineraryScreen() {
         <IconButton name="more" label="Trip options" onPress={() => { setError(""); setMenu("trip"); }} />
       </Row>
 
+      <TripSwitcher />
       <TripHero trip={trip}>
         <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/planner", params: { edit: "1" } } as Href)} style={({ pressed }) => [heroStyles.heroButton, { alignSelf: "flex-start" }, pressed && { opacity: 0.85 }]}>
           <Icon name="edit" size={16} color={p.blue} /><Text style={heroStyles.heroButtonText}>{translate("Edit trip", language)}</Text>
         </Pressable>
       </TripHero>
+      <CompanionStrip />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 8 }}>
         {Array.from({ length: days }, (_, index) => {
@@ -165,7 +173,14 @@ export function ItineraryScreen() {
       <Row style={{ alignItems: "flex-start", gap: 10 }}>
         <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
           <Heading style={{ fontSize: 20, lineHeight: 26 }}>{format(dayDate, { weekday: "long", day: "numeric", month: "long" })}</Heading>
-          <Copy muted style={{ fontSize: 13 }}>{dayStops.map((stop) => `${countryFlag(stop.countryCode)} ${translate(stop.name, language)}`.trim()).join("  →  ")}</Copy>
+          {/* Each city of the day with the weather there now. */}
+          <Row style={{ flexWrap: "wrap", gap: 6 }}>
+            {dayStops.map((stop, index) => <Row key={stop.id} style={{ gap: 6 }}>
+              {index > 0 && <Copy muted style={{ fontSize: 13 }}>→</Copy>}
+              <Copy muted style={{ fontSize: 13 }}>{`${countryFlag(stop.countryCode)} ${translate(stop.name, language)}`.trim()}</Copy>
+              <WeatherBadge point={stop} color={p.muted} size={12} />
+            </Row>)}
+          </Row>
         </View>
         {!!routeUrl && <Pressable accessibilityRole="button" accessibilityLabel={formatMessage("Open day {day} route in Google Maps", { day }, language)} onPress={() => void Linking.openURL(routeUrl)} style={({ pressed }) => [styles.navigate, pressed && { backgroundColor: p.blueSoft }]}>
           <Icon name="road" size={17} color={p.blue} /><Text style={styles.navigateText}>{translate("Navigate", language)}</Text>
@@ -199,7 +214,7 @@ export function ItineraryScreen() {
                 {located && <Row style={{ gap: 4 }}><Icon name="pin" size={13} color={p.blue} /><Copy style={{ fontSize: 11, color: p.blue, fontWeight: "600" }}>On the map</Copy></Row>}
               </View>
             </Pressable>
-              {located && <IconButton name="map" label={`Open ${activity.name} on map`} color={p.blue} onPress={() => router.navigate({ pathname: "/itinerary-places", params: { day: String(day), activity: activity.id } } as Href)} style={{ width: 38, minWidth: 38, height: 38, minHeight: 38 }} />}
+              {located && <IconButton name="map" label={`Open ${activity.name} on map`} color={p.blue} onPress={() => router.navigate({ pathname: "/itinerary-places", params: { day: String(day), activity: activity.id, focus: String(Date.now()) } } as Href)} style={{ width: 38, minWidth: 38, height: 38, minHeight: 38 }} />}
             </View>
           </Row>;
         })}
@@ -215,10 +230,14 @@ export function ItineraryScreen() {
       {!!unmapped && !!navigationPoints.length && <Copy muted style={{ fontSize: 11, textAlign: "center" }}>Activities without a map location are not included in navigation.</Copy>}
 
 
-      <Sheet visible={menu === "trip"} title={routeTitle(trip, language)} onClose={() => setMenu("")}>
+      {/* Companions open inside the trip menu's sheet, so there is no second modal to wait for. */}
+      <Sheet visible={menu === "trip" || menu === "companions"} title={menu === "companions" ? translate("Trip companions", language) : routeTitle(trip, language)} onClose={() => setMenu("")}>
+        {menu === "companions" ? <CompanionsPanel onClose={() => setMenu("")} /> : <>
         <Button secondary icon="edit" onPress={() => { setMenu(""); router.push({ pathname: "/planner", params: { edit: "1" } } as Href); }}>Edit trip</Button>
-        <Button secondary icon="check" onPress={() => setMenu("finish")}>Finish trip</Button>
-        <Button secondary icon="trash" onPress={() => setMenu("delete")}>Delete trip</Button>
+        <Button secondary icon="people" onPress={() => setMenu("companions")}>Trip companions</Button>
+        {!tripOwner && <Button secondary icon="check" onPress={() => setMenu("finish")}>Finish trip</Button>}
+        {!tripOwner && <Button secondary icon="trash" onPress={() => setMenu("delete")}>Delete trip</Button>}
+        </>}
       </Sheet>
       <Sheet visible={menu === "finish"} title="Finish this trip?" onClose={() => { if (!saving) setMenu(""); }}>
         <Copy muted>The itinerary, recorded expenses, saved places, and note will move into your journal. This trip will no longer be editable.</Copy>

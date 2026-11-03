@@ -6,7 +6,7 @@ import { Image } from "expo-image";
 import { memo, useEffect, useMemo, useState } from "react";
 import { destinationPins } from "@/data/map";
 import { prefetchPlacePhotos } from "@/data/place-photo";
-import { ActivityIndicator, FlatList, Linking, Platform, Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Linking, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { Button, Chip, Copy, Field, Header, Heading, Icon, IconButton, ListGroup, ListRow, Row, Screen, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
 import { socialLinks } from "@/constants/links";
 import { openStoreReview, reviewStoreName } from "@/lib/store-review";
@@ -17,6 +17,7 @@ import { usePalette, useThemePreference, useStyles } from "@/state/theme-context
 import { findDestination, money, places } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
 import { useAuth } from "@/state/auth-context";
+import { useVisas } from "@/state/visas-context";
 import { useAppLanguage } from "@/data/formatting";
 import { formatMessage, translate, translateAccessibility, translateLocation } from "@/data/i18n";
 import { publicActivityNote, publicPlaceCategory } from "@/utils/public-activity";
@@ -24,6 +25,9 @@ import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-pr
 import { GlyphIcon } from "@/components/goworth/icons";
 import { venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
 import { useTimedMessage } from "@/hooks/use-timed-message";
+import { pushOnce } from "@/utils/navigation-guard";
+import { normalizeSearchText } from "@/utils/search";
+import { uniqueRouteStops } from "@/data/trip-route";
 import {
   requestNotificationPermission, sendTestNotifications, syncNearbyWatch, updateNotificationPrefs, useNotificationPrefs, type NotificationKind,
 } from "@/lib/notifications";
@@ -62,6 +66,28 @@ const SavedPlaceCard = memo(function SavedPlaceCard({ name, category, location, 
   </View>;
 });
 
+/** A search box over a saved list; the list filters as you type. */
+function SavedSearch({ value, onChange, label }: { value: string; onChange: (value: string) => void; label: string }) {
+  const styles = useStyles(stylesSheet);
+  const p = usePalette();
+  const language = useAppLanguage();
+  return <Row style={styles.search}>
+    <Icon name="search" size={17} color={p.muted} />
+    <TextInput accessibilityLabel={translate(label, language)} placeholder={translate(label, language)} placeholderTextColor={p.muted}
+      value={value} onChangeText={onChange} returnKeyType="search" autoCorrect={false} autoCapitalize="none" style={styles.searchInput} />
+    {!!value && <Pressable accessibilityRole="button" accessibilityLabel={translate("Clear search", language)} hitSlop={10} onPress={() => onChange("")}>
+      <Icon name="close" size={16} color={p.muted} />
+    </Pressable>}
+  </Row>;
+}
+
+/** Whether every word of the search appears somewhere in the given text, ignoring case and accents. */
+function matchesSearch(needle: string, ...texts: (string | undefined)[]) {
+  if (!needle) return true;
+  const haystack = normalizeSearchText(texts.filter(Boolean).join(" "));
+  return needle.split(/\s+/).every((word) => haystack.includes(word));
+}
+
 function QuickAction({ icon, label, detail, onPress }: { icon: IconName; label: string; detail: string; onPress: () => void }) {
   const styles = useStyles(stylesSheet);
   const p = usePalette();
@@ -82,6 +108,8 @@ export function SavedScreen() {
   const { tab: initialTab } = useLocalSearchParams<{ tab?: string }>();
   const { savedPlaces, togglePlace, externalPlaces, toggleExternalPlace, trip, activities, expenses, journalEntries, journalAvailable } = useTravel();
   const [history, setHistory] = useState<"all" | "completed" | "replaced">("all");
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [tripQuery, setTripQuery] = useState("");
   const [tab, setTab] = useState(initialTab === "Trips" || initialTab === "Current trip" ? "Trips" : "Places");
   // A tab stays mounted once opened, so switching back does not rebuild its cards and reload their photos.
   const [opened, setOpened] = useState(() => new Set([tab]));
@@ -124,6 +152,11 @@ export function SavedScreen() {
         external: place }),
       onUnsave: () => void toggleExternalPlace(place) })),
   ], [savedPlaceRecords, externalPlaces, togglePlace, toggleExternalPlace, language]);
+  // Names, categories and places are searched in both languages, so "muzeu" finds a museum saved in English.
+  const placeNeedle = normalizeSearchText(placeQuery.trim());
+  const shownPlaceItems = useMemo(() => placeNeedle
+    ? placeItems.filter((item) => matchesSearch(placeNeedle, item.name, item.category, translate(item.category, language), item.location, translateLocation(item.location, language)))
+    : placeItems, [placeItems, placeNeedle, language]);
   // Photos for the whole list are looked up in bulk, a page at a time, before the cards each search on their own.
   const placesOpened = opened.has("Places");
   useEffect(() => {
@@ -141,7 +174,11 @@ export function SavedScreen() {
   const unavailablePlaces = Math.max(0, savedPlaces.length - savedPlaceRecords.length - externalPlaces.length);
   const spent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const tabs = [{ id: "Places", count: placeCount }, { id: "Trips", count: (trip ? 1 : 0) + journalEntries.length }];
+  // Past trips are found by any city or country on their route, or by year.
+  const tripNeedle = normalizeSearchText(tripQuery.trim());
   const pastTrips = journalEntries.filter((entry) => history === "all" || entry.status === history)
+    .filter((entry) => !tripNeedle || matchesSearch(tripNeedle, entry.trip.start.slice(0, 4),
+      ...uniqueRouteStops(entry.trip).flatMap((stop) => [stop.name, stop.country, translate(stop.name, language), translate(stop.country, language)])))
     .sort((a, b) => b.trip.start.localeCompare(a.trip.start));
   const years = [...new Set(pastTrips.map((entry) => entry.trip.start.slice(0, 4)))];
   const completedCount = journalEntries.filter((entry) => entry.status === "completed").length;
@@ -157,10 +194,13 @@ export function SavedScreen() {
           </Pressable>;
         })}
       </View>
+      {opened.has("Places") && tab === "Places" && placeCount > 1 && <SavedSearch value={placeQuery} onChange={setPlaceQuery} label="Search saved places" />}
       {opened.has("Places") && <FlatList
         style={[{ flex: 1, marginHorizontal: -22 }, tab !== "Places" && { display: "none" }]}
         contentContainerStyle={{ flexGrow: 1, gap: savedCardGap, paddingHorizontal: 22, paddingBottom: 90, justifyContent: placeCount ? "flex-start" : "center" }}
-        data={placeItems}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        data={shownPlaceItems}
         keyExtractor={(item) => item.key}
         getItemLayout={(_, index) => ({ length: savedCardHeight, offset: (savedCardHeight + savedCardGap) * index, index })}
         renderItem={({ item }) => <SavedPlaceCard name={item.name} category={item.category} location={item.location}
@@ -170,14 +210,14 @@ export function SavedScreen() {
         windowSize={5}
         showsVerticalScrollIndicator={false}
         ListFooterComponent={unavailablePlaces ? <Copy muted style={{ fontSize: 12 }}>{formatMessage(unavailablePlaces === 1 ? "{count} saved place is unavailable on this device." : "{count} saved places are unavailable on this device.", { count: unavailablePlaces }, language)}</Copy> : undefined}
-        ListEmptyComponent={<View style={styles.empty}>
+        ListEmptyComponent={placeCount ? <Copy muted style={{ fontSize: 13, textAlign: "center" }}>{translate("No saved places match this search.", language)}</Copy> : <View style={styles.empty}>
           <View style={styles.emptyIcon}><Icon name="heart" size={26} color={p.pink} /></View>
           <Heading style={{ fontSize: 18, lineHeight: 24, textAlign: "center" }}>No places saved</Heading>
           <Copy muted style={{ fontSize: 13, textAlign: "center" }}>Tap the heart on any place, or swipe right in Explore, to keep it here.</Copy>
           <Button icon="compass" onPress={() => router.navigate("/home" as Href)} style={{ marginTop: 6, paddingHorizontal: 22 }}>Explore places</Button>
         </View>}
       />}
-      {opened.has("Trips") && <ScrollView style={[{ flex: 1, marginHorizontal: -22 }, tab !== "Trips" && { display: "none" }]} contentContainerStyle={{ flexGrow: 1, gap: 14, paddingHorizontal: 22, paddingBottom: 90 }} showsVerticalScrollIndicator={false}>
+      {opened.has("Trips") && <ScrollView style={[{ flex: 1, marginHorizontal: -22 }, tab !== "Trips" && { display: "none" }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ flexGrow: 1, gap: 14, paddingHorizontal: 22, paddingBottom: 90 }} showsVerticalScrollIndicator={false}>
         {!!trip && <Text style={styles.section}>{translate("Current trip", language)}</Text>}
         {trip ? <>
           <Pressable accessibilityRole="button" accessibilityLabel={translate("Open itinerary", language)} onPress={() => router.push("/itinerary" as Href)}>
@@ -202,6 +242,7 @@ export function SavedScreen() {
           <Copy muted style={{ fontSize: 13, textAlign: "center" }}>Choose a destination and dates to start your trip.</Copy>
           <Button icon="plus" onPress={() => router.push("/planner" as Href)} style={{ marginTop: 6, paddingHorizontal: 22 }}>Plan a trip</Button>
         </View>}
+        {!!journalEntries.length && <SavedSearch value={tripQuery} onChange={setTripQuery} label="Search your trips" />}
         {!!journalEntries.length && <View style={{ gap: 10, marginTop: 8 }}>
           <Row style={{ justifyContent: "space-between" }}>
             <Text style={styles.section}>{translate("Past trips", language)}</Text>
@@ -216,7 +257,7 @@ export function SavedScreen() {
             {years.length > 1 && <Text style={styles.year}>{year}</Text>}
             {pastTrips.filter((entry) => entry.trip.start.startsWith(year)).map((entry) => <PastTripCard key={entry.id} entry={entry} />)}
           </View>)}
-          {!pastTrips.length && <Copy muted style={{ fontSize: 13 }}>No trips in this filter.</Copy>}
+          {!pastTrips.length && <Copy muted style={{ fontSize: 13 }}>{tripNeedle ? translate("No trips match this search.", language) : "No trips in this filter."}</Copy>}
           <Copy muted style={{ fontSize: 11 }}>Finished trips are marked completed. Trips replaced by a new plan are kept as unfinished plans.</Copy>
         </View>}
         {!journalAvailable && <Copy style={s.error}>Trip history needs the latest database migration.</Copy>}
@@ -247,6 +288,7 @@ export function ProfileScreen() {
   const language = useAppLanguage();
   const { user, signOut } = useAuth();
   const { profile, setProfile, avatarUrl, uploadAvatar, removeAvatar, plan } = useTravel();
+  const { visas } = useVisas();
   const { preference: themePreference, setPreference: setThemePreference } = useThemePreference();
   const [dialog, setDialog] = useState("");
   const appVersion = Constants.expoConfig?.version || "1.0.0";
@@ -326,7 +368,8 @@ export function ProfileScreen() {
   const notificationRows: { kind: NotificationKind; icon: IconName; label: string; detail: string }[] = [
     { kind: "nearby", icon: "pin", label: "Places near you", detail: "When you arrive somewhere new, hear about a place worth seeing nearby." },
     { kind: "trip", icon: "plane", label: "Trip ideas", detail: "A nudge to plan your next trip after a few days without one." },
-    { kind: "wheel", icon: "crown", label: "Daily wheel", detail: "An hour before your next free spin, and when it is ready." },
+    // Lifetime accounts have no wheel, so they have no wheel reminders to set either.
+    ...(plan === "lifetime" ? [] : [{ kind: "wheel" as const, icon: "crown" as const, label: "Daily wheel", detail: "An hour before your next free spin, and when it is ready." }]),
   ];
   const [linkError, setLinkError] = useTimedMessage();
   const openLink = async (url: string) => {
@@ -338,7 +381,7 @@ export function ProfileScreen() {
     await openStoreReview().catch((caught) => setLinkError(translate(caught instanceof Error ? caught.message : "Could not open the store.", language)));
   };
   const openDocument = (type: "privacy" | "terms" | "premium" | "credits") =>
-    router.push({ pathname: "/legal-document", params: { type } } as Href);
+    pushOnce({ pathname: "/legal-document", params: { type } } as Href);
   const changeSetting = async (next: { language?: "en" | "ro"; currency?: "EUR" | "USD" }) => {
     setBusy(true); setError("");
     try { await setProfile(next); }
@@ -364,16 +407,31 @@ export function ProfileScreen() {
       </View>
       {!!avatarError && <View accessibilityLiveRegion="polite"><Copy style={[s.error, { textAlign: "center" }]}>{avatarError}</Copy></View>}
 
-      <Pressable accessibilityRole="button" onPress={() => router.push("/membership" as Href)} style={({ pressed }) => [styles.planCard, pressed && { transform: [{ scale: 0.99 }] }]}>
+      <Pressable accessibilityRole="button" onPress={() => pushOnce("/membership" as Href)} style={({ pressed }) => [styles.planCard, pressed && { transform: [{ scale: 0.99 }] }]}>
         <LinearGradient colors={plan === "free" ? ["#FFE3A3", "#F5B83D"] : [p.blue, "#6E5BF5"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planBadge}>
           <Icon name="crown" size={24} color={plan === "free" ? "#5A3B00" : p.onColor} />
         </LinearGradient>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text style={styles.planTitle}>GoWorth Premium</Text>
-          <Text numberOfLines={2} style={styles.planDetail}>{translate(plan === "free" ? "Spin the daily wheel to win Premium for free." : "Unlimited trips and saves are active.", language)}</Text>
+          <Text numberOfLines={2} style={styles.planDetail}>{translate(plan === "free" ? "Your passport, unlimited companions and trips offline, or win Premium on the daily wheel." : "Passport, companions, offline trips and unlimited saves are active.", language)}</Text>
         </View>
         <View style={[styles.planPill, plan !== "free" && { backgroundColor: p.blueSoft }]}>
           <Text style={[styles.planPillText, plan !== "free" && { color: p.blue }]}>{translate(plan === "free" ? "Free" : plan === "premium" ? "Premium" : "Lifetime", language)}</Text>
+        </View>
+      </Pressable>
+
+      <Pressable accessibilityRole="button" onPress={() => pushOnce("/passport" as Href)} style={({ pressed }) => [styles.planCard, pressed && { transform: [{ scale: 0.99 }] }]}>
+        <LinearGradient colors={["#1A2C5C", "#0B1430"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planBadge}>
+          <Icon name="book" size={24} color="#F5C451" />
+        </LinearGradient>
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text style={styles.planTitle}>{translate("My passport", language)}</Text>
+          <Text numberOfLines={2} style={styles.planDetail}>{visas.length
+            ? translate(plan === "free" ? "Your visas are kept. Premium opens the passport." : "A visa for every country you have visited.", language)
+            : translate("Finish a trip to earn your first visa.", language)}</Text>
+        </View>
+        <View style={styles.planPill}>
+          <Text style={styles.planPillText}>{visas.length}</Text>
         </View>
       </Pressable>
 
@@ -383,14 +441,14 @@ export function ProfileScreen() {
       </ListGroup>
 
       <ListGroup title="Preferences">
-        <ListRow icon="compass" label="Travel preferences" onPress={() => router.push("/preferences" as Href)} />
+        <ListRow icon="compass" label="Travel preferences" onPress={() => pushOnce("/preferences" as Href)} />
         <ListRow icon="globe" label="Language & currency" value={`${profile.language.toUpperCase()} · ${profile.currency}`} onPress={() => { setError(""); setDialog("Language & currency"); }} />
         <ListRow icon="sun" label="Appearance" value={translate(themePreference === "system" ? "System" : themePreference === "dark" ? "Dark" : "Light", language)} onPress={() => setDialog("Appearance")} />
-        {Platform.OS !== "web" && <ListRow icon="bell" label="Notifications" value={translate(Object.values(notificationPrefs).some(Boolean) ? "On" : "Off", language)} onPress={() => { setNotificationNote(""); setDialog("Notifications"); }} />}
+        <ListRow icon="bell" label="Notifications" value={translate(Object.values(notificationPrefs).some(Boolean) ? "On" : "Off", language)} onPress={() => { setNotificationNote(""); setDialog("Notifications"); }} />
       </ListGroup>
 
       <ListGroup title="Support">
-        <ListRow icon="chat" label="Feedback & support" onPress={() => router.push("/support" as Href)} />
+        <ListRow icon="chat" label="Feedback & support" onPress={() => pushOnce("/support" as Href)} />
         {reviewStoreName && <ListRow icon="star" label={formatMessage("Rate us on {store}", { store: reviewStoreName }, language)} onPress={() => void rate()} />}
       </ListGroup>
 
@@ -403,7 +461,7 @@ export function ProfileScreen() {
       </ListGroup>
 
       <ListGroup title="Your data">
-        <ListRow icon="share" label="Export or delete your data" detail="Download a copy of your account or delete it permanently." onPress={() => router.push("/legal" as Href)} />
+        <ListRow icon="share" label="Export or delete your data" detail="Download a copy of your account or delete it permanently." onPress={() => pushOnce("/legal" as Href)} />
         <ListRow icon="logout" label="Log out" destructive chevron={false} onPress={() => setDialog("Log out")} />
       </ListGroup>
       {!!linkError && <Copy style={[s.error, { textAlign: "center" }]}>{linkError}</Copy>}
@@ -487,7 +545,7 @@ const stylesSheet = themedStyles((p) => ({
   segments: { flexDirection: "row", gap: 4, padding: 4, borderRadius: 16, backgroundColor: p.line },
   segment: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 40, borderRadius: 12 },
   segmentSelected: { backgroundColor: p.white, shadowColor: p.shadow, shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  segmentText: { color: p.muted, fontSize: 14, fontWeight: "700" },
+  segmentText: { flexShrink: 1, color: p.muted, fontSize: 14, fontWeight: "700", textAlign: "center" },
   segmentCount: { minWidth: 20, height: 20, paddingHorizontal: 6, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: p.line },
   segmentCountText: { color: p.muted, fontSize: 11, fontWeight: "800" },
   card: { flexDirection: "row", alignItems: "center", gap: 12, padding: 10, borderRadius: 18, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
@@ -502,7 +560,9 @@ const stylesSheet = themedStyles((p) => ({
   actionIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: p.blueSoft, marginBottom: 4 },
   actionLabel: { color: p.ink, fontSize: 15, fontWeight: "800" },
   newTrip: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 48, borderRadius: 14, borderWidth: 1.5, borderStyle: "dashed", borderColor: p.blueLine },
-  newTripText: { color: p.blue, fontSize: 14, fontWeight: "700" },
+  newTripText: { flexShrink: 1, color: p.blue, fontSize: 14, fontWeight: "700", textAlign: "center" },
+  search: { gap: 8, minHeight: 46, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
+  searchInput: { flex: 1, minWidth: 0, height: 46, fontSize: 14, color: p.ink },
   empty: { alignItems: "center", gap: 7, paddingVertical: 30, paddingHorizontal: 22, borderRadius: 22, borderWidth: 1.5, borderStyle: "dashed", borderColor: p.blueLine, backgroundColor: p.blueTint },
   emptyIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", backgroundColor: p.blueSoft, marginBottom: 4 },
 }));

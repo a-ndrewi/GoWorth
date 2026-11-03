@@ -47,7 +47,7 @@ export function TripPlacesScreen() {
   const styles = useStyles(stylesSheet);
   const p = usePalette();
   const language = useAppLanguage();
-  const { day: dayParam, activity: activityParam } = useLocalSearchParams<{ day?: string; activity?: string }>();
+  const { day: dayParam, activity: activityParam, focus: focusParam } = useLocalSearchParams<{ day?: string; activity?: string; focus?: string }>();
   const { trip, activities, addActivity, removeActivity, externalPlaces, toggleExternalPlace } = useTravel();
   const days = trip ? tripDays(trip.start, trip.end) : 1;
   const day = Math.min(Math.max(1, Math.trunc(Number(dayParam)) || 1), days);
@@ -61,6 +61,13 @@ export function TripPlacesScreen() {
   const [searching, setSearching] = useState(false);
   const [category, setCategory] = useState("All");
   const [selectedId, setSelectedId] = useState(activityParam ?? "");
+  // This screen stays mounted between visits, so each "show on map" from the itinerary (a new `focus`) selects its
+  // place again; reading the place only once kept showing the first one.
+  const [focused, setFocused] = useState(focusParam);
+  if (focusParam !== focused) {
+    setFocused(focusParam);
+    setSelectedId(activityParam ?? "");
+  }
   const [preview, setPreview] = useState<Idea | null>(null);
   const [busyId, setBusyId] = useState("");
   const [toast, setToast] = useState<{ id: number; text: string; error?: boolean; freeLimit?: boolean } | null>(null);
@@ -121,6 +128,8 @@ export function TripPlacesScreen() {
     suggestions: visible.filter((place) => !plannedIds.has(place.id)).slice(0, 15)
       .map((place) => ({ id: place.id, name: place.name, latitude: place.latitude, longitude: place.longitude, color: colorFor(publicPlaceCategory(place.category) || place.category, p, place) })),
     selectedId,
+    // Changes with every "show on map", so the map flies back to the place even when it was already selected.
+    focus: focusParam ?? "",
     frameKey: `${day}|${category}|${searchResults ? "search" : "ideas"}|${source.length}`,
   };
 
@@ -172,7 +181,7 @@ export function TripPlacesScreen() {
   const toastView = toast && <Animated.View key={toast.id} entering={FadeInDown.springify().damping(16)} exiting={FadeOutDown.duration(160)} style={[styles.toast, toast.error && { backgroundColor: p.danger }]}>
     <Icon name={toast.error ? "close" : "check"} size={18} color={p.onColor} />
     <Text style={styles.toastText} numberOfLines={2}>{toast.text}</Text>
-    {toast.freeLimit ? <Pressable accessibilityRole="button" onPress={() => router.push("/membership" as Href)}><Text style={styles.toastAction}>{translate("Spin for Premium", language)}</Text></Pressable>
+    {toast.freeLimit ? <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/membership", params: { reason: "place" } } as Href)}><Text style={styles.toastAction}>{translate("Go unlimited", language)}</Text></Pressable>
       : !toast.error && <Pressable accessibilityRole="button" onPress={() => router.navigate({ pathname: "/itinerary", params: { day: String(day) } } as Href)}><Text style={styles.toastAction}>{translate("View day", language)}</Text></Pressable>}
   </Animated.View>;
 
