@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useGlobalSearchParams, u
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, type ReactNode } from "react";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { TravelProvider, useTravel } from "@/state/travel-context";
@@ -11,11 +11,17 @@ import { ThemeProvider as AppThemeProvider, usePalette, useThemePreference } fro
 import { tripDays } from "@/data/travel";
 import { BottomNav, Button, Copy } from "@/components/goworth/ui";
 import { ItineraryNav } from "@/components/goworth/itinerary-nav";
+import { OfflineBanner } from "@/components/goworth/offline-banner";
+import { UsernameGate } from "@/features/username-gate";
 // Also defines the background task that wakes the app for nearby places, which must exist before the app renders.
 import { DeviceSync } from "@/state/device-sync";
 import { setPhotoStore } from "@/data/place-photo";
+import { finishBoot, useBootDone } from "@/state/boot";
+import { BootCover } from "@/features/onboarding";
+import { VisaAwardHost } from "@/features/passport";
+import { VisaProvider } from "@/state/visas-context";
+import { warmDeviceLocation } from "@/utils/device-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import "@/global.css";
 
 // The native splash only knows the system theme; keep it up until the saved theme is read.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -38,6 +44,7 @@ const tabByPath: Record<string, string> = {
   "/saved": "saved",
   "/profile": "profile",
   "/membership": "profile",
+  "/passport": "profile",
   "/support": "profile",
 };
 
@@ -50,7 +57,22 @@ function AppNavigator() {
   const { user, ready, signOut } = useAuth();
   const palette = usePalette();
   const { scheme } = useThemePreference();
-  const { cloudReady, loadError, retryLoad, trip } = useTravel();
+  const { cloudReady, loadError, retryLoad, trip, offlineSince, profile: { username: profileUsername } } = useTravel();
+  const bootDone = useBootDone();
+  const signedInId = user?.id;
+  useEffect(() => {
+    if (signedInId) warmDeviceLocation();
+  }, [signedInId]);
+  const warmingUp = !!user && !bootDone && !!activeTab;
+  // The warm-up is only for a launch that lands on the tabs, and never holds the app for long.
+  useEffect(() => {
+    if (user && !isSplash && !activeTab) finishBoot();
+  }, [user, isSplash, activeTab]);
+  useEffect(() => {
+    if (!warmingUp) return;
+    const timer = setTimeout(finishBoot, 6000);
+    return () => clearTimeout(timer);
+  }, [warmingUp]);
   const itineraryDay = trip ? Math.min(Math.max(1, Math.trunc(Number(dayParam)) || 1), tripDays(trip.start, trip.end)) : 1;
   if (!ready && !isSplash) {
     return <View style={{ flex: 1, justifyContent: "center" }}><ActivityIndicator color={palette.blue} /></View>;
@@ -70,7 +92,6 @@ function AppNavigator() {
           style={{
             flex: 1,
             width: "100%",
-            maxWidth: Platform.OS === "web" ? 960 : undefined,
             backgroundColor: palette.canvas,
           }}
         >
@@ -78,6 +99,7 @@ function AppNavigator() {
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
               <View style={{ padding: 28, width: "100%", gap: 16 }}>
                 <Copy style={{ textAlign: "center" }}>{loadError}</Copy>
+                <Copy muted style={{ textAlign: "center", fontSize: 13 }}>With Premium, your trips, budget and saved places open even without a connection.</Copy>
                 <Button onPress={retryLoad}>Try again</Button>
                 <Button secondary onPress={() => void signOut()}>Sign out</Button>
               </View>
@@ -102,7 +124,8 @@ function AppNavigator() {
               <Stack.Screen name="welcome" />
             </Stack.Protected>
             <Stack.Protected guard={!!user}>
-              <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
+              {/* No fade: the launch cover is already over the tabs, and a fading splash showed through it squeezed above the bar. */}
+              <Stack.Screen name="(tabs)" options={{ animation: "none" }} />
               <Stack.Screen name="(itinerary)" />
               <Stack.Screen name="country" />
               <Stack.Screen name="city" />
@@ -112,12 +135,17 @@ function AppNavigator() {
               <Stack.Screen name="planner" />
               <Stack.Screen name="journal-trip" />
               <Stack.Screen name="membership" />
+              <Stack.Screen name="passport" />
               <Stack.Screen name="preferences" />
               <Stack.Screen name="support" />
             </Stack.Protected>
           </Stack>
+          {!!user && !!offlineSince && <OfflineBanner since={offlineSince} onRetry={retryLoad} />}
           {!!user && activeTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.canvas }}><BottomNav active={activeTab} /></SafeAreaView>}
           {!!user && !!trip && itineraryTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.canvas }}><ItineraryNav active={itineraryTab} day={itineraryDay} /></SafeAreaView>}
+          <BootCover visible={warmingUp} />
+          <VisaAwardHost ready={!!user && cloudReady && bootDone && !!activeTab && !!profileUsername} />
+          {!isSplash && <UsernameGate />}
           </>}
         </View>
       </View>
@@ -130,7 +158,9 @@ function AppContent() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <TravelProvider key={user?.id ?? "anonymous"}>
-        <AppNavigator />
+        <VisaProvider>
+          <AppNavigator />
+        </VisaProvider>
       </TravelProvider>
     </GestureHandlerRootView>
   );

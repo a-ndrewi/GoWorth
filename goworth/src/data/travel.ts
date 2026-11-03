@@ -91,7 +91,7 @@ export type RouteStop = {
 };
 
 export const interests = [
-  "Adventure", "Luxury", "Budget", "Nature", "Food", "Culture", "Beach", "Solo", "Family",
+  "Adventure", "Luxury", "Budget", "Nature", "Food", "Culture", "Beach",
 ];
 
 export type Activity = {

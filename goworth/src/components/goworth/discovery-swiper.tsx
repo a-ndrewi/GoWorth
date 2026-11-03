@@ -2,7 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import { router, type Href } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated as LegacyAnimated, Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Animated as LegacyAnimated, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, {
   cancelAnimation, Easing, Extrapolation, interpolate, runOnUI, useAnimatedStyle, useSharedValue, withRepeat, withSpring, withTiming,
 } from "react-native-reanimated";
@@ -12,6 +12,7 @@ import { Copy, DestinationPhoto, Heading, Icon, IconButton, Row } from "@/compon
 import { themedStyles } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
 import { deviceLocation } from "@/utils/device-location";
+import { WeatherBadge } from "@/components/goworth/weather-badge";
 import { discoveryDeck, distanceKm, type Coordinates, type DiscoveryItem } from "@/data/discovery";
 import { destinations, places } from "@/data/travel";
 import { destinationPins } from "@/data/map";
@@ -50,7 +51,7 @@ function Radar({ title, detail }: { title: string; detail: string }) {
   const [pulse] = useState(() => new LegacyAnimated.Value(0));
   useEffect(() => {
     const animation = LegacyAnimated.loop(LegacyAnimated.timing(pulse, {
-      toValue: 1, duration: 1700, useNativeDriver: Platform.OS !== "web",
+      toValue: 1, duration: 1700, useNativeDriver: true,
     }));
     animation.start();
     return () => animation.stop();
@@ -83,7 +84,7 @@ function resolveCardPhoto(item: SwipeItem): Promise<string | null> {
       .then(async (photo) => {
         // Download before revealing, so the card shows the final photo in one step.
         const url = photo?.url ? sizedPhotoUrl(photo.url, 960) : null;
-        if (url && !await Image.prefetch(url, { cachePolicy: "memory-disk", ...(wikimediaImageHeaders ? { headers: wikimediaImageHeaders } : {}) }).catch(() => false)) return null;
+        if (url && !await Image.prefetch(url, { cachePolicy: "memory-disk", headers: wikimediaImageHeaders }).catch(() => false)) return null;
         return url;
       })
       .then((url) => { photoCache.set(item.key, url); return url; })
@@ -149,6 +150,8 @@ function SwipeCard({ item, depth, height, command, onSwiped }: {
   const destination = item.kind === "nearby" ? null : item.destination;
   const venue = item.kind === "nearby" ? item.place.venue : undefined;
   const placeName = item.kind === "nearby" ? item.place.name : item.place?.name;
+  // Only the card on top asks for the weather; the ones under it ask when they come up.
+  const weatherPoint = depth === 0 ? item.kind === "nearby" ? item.place : destinationPins.find((value) => value.id === item.destination.id) : null;
   const venueDetail = venue ? [venue.cuisine, venue.terrace ? translate("Terrace", language) : null, venue.openingHours && venue.openingHours.length <= 28 ? venue.openingHours : venue.address].filter(Boolean).join(" · ") : "";
   useEffect(() => { layer.set(withSpring(depth, { damping: 17, stiffness: 190 })); }, [depth, layer]);
   useEffect(() => {
@@ -210,11 +213,12 @@ function SwipeCard({ item, depth, height, command, onSwiped }: {
       {photo.ready && !photo.url && (venue ? <VenueArt venue={venue} /> : destination
         ? <DestinationPhoto destination={destination} style={StyleSheet.absoluteFill} />
         : <LinearGradient colors={[p.blue, p.teal]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />)}
-      {photo.ready && !!photo.url && <Image source={{ uri: photo.url, ...(wikimediaImageHeaders ? { headers: wikimediaImageHeaders } : {}) }} cachePolicy="memory-disk" contentFit="cover" transition={180} accessibilityLabel={translateAccessibility(`Photo of ${placeName}`, language)} onError={() => photo.failed(photo.url!)} style={StyleSheet.absoluteFill} />}
+      {photo.ready && !!photo.url && <Image source={{ uri: photo.url, headers: wikimediaImageHeaders }} cachePolicy="memory-disk" contentFit="cover" transition={180} accessibilityLabel={translateAccessibility(`Photo of ${placeName}`, language)} onError={() => photo.failed(photo.url!)} style={StyleSheet.absoluteFill} />}
       <LinearGradient colors={["rgba(0,0,0,0.14)", "rgba(0,0,0,0.06)", "rgba(0,0,0,0.82)"]} style={StyleSheet.absoluteFill} />
       <View style={styles.cardContent}>
-        <View style={{ alignSelf: "flex-start", gap: 7 }}>
+        <View style={{ alignSelf: "flex-start", gap: 7, flexDirection: "row", flexWrap: "wrap" }}>
           <View style={styles.typeBadge}><Icon name={venue ? venueFilterIcons[venue.kind] : "pin"} size={15} color={p.onColor} /><Copy style={styles.typeText}>{item.kind === "nearby" ? `${translate(item.place.category, language)}${item.distanceKm !== undefined ? ` · ~${Math.round(item.distanceKm)} km` : ""}` : translate(item.place?.category ?? "Place", language)}</Copy></View>
+          <WeatherBadge point={weatherPoint} color={p.onColor} style={styles.typeBadge} />
         </View>
         {depth === 0 && <IconButton name="right" label={`Explore ${placeName}`} onPress={() => openItem(item)} filled style={{ position: "absolute", right: 12, top: 12, width: 38, height: 38, minWidth: 38, minHeight: 38 }} />}
         <View style={{ gap: 7 }}>
@@ -271,14 +275,32 @@ export function DiscoverySwiper() {
   }, [center, centerKey, discoverySettings.radiusKm]);
 
   const venueKey = center && discoverySettings.venues.length ? `${center.latitude.toFixed(3)}|${center.longitude.toFixed(3)}` : "";
+  // A failed or empty lookup (a venue source busy) is asked again a few times rather than leaving the deck without
+  // venues until the app restarts.
+  // Counted per place, so moving to a new centre starts with a fresh set of retries.
+  const [venueAttempts, setVenueAttempts] = useState({ key: "", count: 0 });
+  const venueAttempt = venueAttempts.key === venueKey ? venueAttempts.count : 0;
   useEffect(() => {
     if (!center || !venueKey) return;
     let active = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const again = () => { if (venueAttempt < 3) retry = setTimeout(() => setVenueAttempts({ key: venueKey, count: venueAttempt + 1 }), 15000 * (venueAttempt + 1)); };
     loadNearbyVenues(center)
-      .then((places) => { if (active) setVenueResult({ key: venueKey, places, from: seenCount.current }); })
-      .catch(() => { if (active) setVenueResult({ key: venueKey, places: [], from: 0 }); });
-    return () => { active = false; };
-  }, [center, venueKey]);
+      .then((places) => {
+        if (__DEV__) console.warn("[venues]", places.length, "loaded,", filterVenues(places, discoverySettings.venues).length, "match", JSON.stringify(discoverySettings.venues)); // VENUE-DEBUG
+        if (!active) return;
+        setVenueResult({ key: venueKey, places, from: seenCount.current });
+        if (!places.length) again();
+      })
+      .catch((error) => {
+        if (__DEV__) console.warn("[venues] failed", String(error)); // VENUE-DEBUG
+        if (!active) return;
+        setVenueResult({ key: venueKey, places: [], from: 0 });
+        again();
+      });
+    return () => { active = false; clearTimeout(retry); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the filters only choose among the loaded venues.
+  }, [center, venueKey, venueAttempt]);
 
   useEffect(() => {
     if (discoverySettings.centerId) return;
@@ -363,14 +385,19 @@ export function DiscoverySwiper() {
     const city = worldCities()[worldCursor];
     const where = `${city.name}, ${countryForCode(city.countryCode)?.name ?? city.countryCode}`;
     worldRequest.current = worldCursor;
-    loadNearbyPlaces(city, 25)
-      .catch(() => [] as NearbyPlace[])
+    // Each city also deals a few of the venues picked in the filters, so worldwide shows cafés and terraces too.
+    const venues = discoverySettings.venues.length
+      ? loadNearbyVenues(city, 1.5).then((places) => filterVenues(places, discoverySettings.venues).slice(0, 6)).catch(() => [] as NearbyPlace[])
+      : Promise.resolve([] as NearbyPlace[]);
+    Promise.all([loadNearbyPlaces(city, 25).catch(() => [] as NearbyPlace[]), venues])
+      .then(([sights, cityVenues]) => [...sights, ...cityVenues])
       .then((found) => {
         setWorldPlaces((current) => [...current, ...found.map((place) => ({ place, location: place.location ?? where }))]);
         setWorldMissCount((count) => found.length ? 0 : count + 1);
         setWorldCursor((cursor) => cursor + 1);
         worldRequest.current = null;
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a filter change applies from the next city on.
   }, [wantsMoreWorld, worldCursor]);
 
   const refresh = () => { setWorldMissCount(0); setCommand(null); setSeenKeys([]); setDealt([]); setCycle((value) => value + 1); setSaveError(""); setFreeLimitReached(false); };
@@ -415,8 +442,8 @@ export function DiscoverySwiper() {
       </Row>
       {!!saveError && <View style={{ alignItems: "center", gap: 6 }}>
         <Copy style={{ color: p.danger, fontSize: 12, textAlign: "center" }}>{saveError}</Copy>
-        {freeLimitReached && <Pressable accessibilityRole="button" onPress={() => router.push("/membership" as Href)}>
-          <Copy style={{ color: p.blue, fontSize: 13, fontWeight: "700" }}>{language === "ro" ? "Învârte pentru Premium" : "Spin for Premium"}</Copy>
+        {freeLimitReached && <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: "/membership", params: { reason: "place" } } as Href)}>
+          <Copy style={{ color: p.blue, fontSize: 13, fontWeight: "700", textAlign: "center", textDecorationLine: "underline" }}>{language === "ro" ? "Obține Premium" : "Get Premium"}</Copy>
         </Pressable>}
       </View>}
     </View> : <View style={{ alignItems: "center", gap: 10, paddingVertical: 28 }}><Icon name="compass" color={p.blue} size={36} /><Heading style={{ fontSize: 19, textAlign: "center" }}>{ordered.length ? "You have seen nearby picks" : "No places in this area yet"}</Heading><Copy muted style={{ textAlign: "center", fontSize: 13 }}>{ordered.length ? "Expand your radius for more places, or refresh to revisit suggestions." : "Try a wider radius or a different city for more suggestions."}</Copy><Row style={{ gap: 10 }}><IconButton name="refresh" label="Refresh suggestions" onPress={refresh} color={p.blue} /><IconButton name="settings" label="Change discovery radius" onPress={() => router.push("/preferences" as Href)} color={p.blue} /></Row></View>}

@@ -15,7 +15,7 @@ type NominatimResult = { osm_type?: string; osm_id?: number; category?: string; 
 const cache = new Map<string, Promise<Boundary | null>>();
 let nextRequestAt = 0;
 // Nominatim asks for at most one request a second and an identifying User-Agent (browsers keep their own).
-const headers: Record<string, string> = typeof document === "undefined" ? { "User-Agent": "GoWorth/1.0 (travel app)" } : {};
+const headers: Record<string, string> = { "User-Agent": "GoWorth/1.0 (travel app)" };
 
 function polygonsOf(geojson: NominatimResult["geojson"]): Boundary["polygons"] {
   if (geojson?.type === "Polygon") return [geojson.coordinates as [number, number][][]];

@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect, useState } from "react";
+import { useCallback } from "react";
 import { AppState, Pressable, StyleSheet, View } from "react-native";
-import { useIsFocused } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import Animated, {
   cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming,
 } from "react-native-reanimated";
@@ -20,24 +20,25 @@ export function TripShortcut({ label, onPress }: { label: string; onPress: () =>
   const orbit = useSharedValue(0);
   const pulse = useSharedValue(0);
   const press = useSharedValue(1);
-  const focused = useIsFocused();
-  // Returning from the background leaves Explore focused, so the app's own state also restarts the flight.
-  const [foreground, setForeground] = useState(AppState.currentState !== "background");
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", (state) => setForeground(state !== "background"));
-    return () => sub.remove();
-  }, []);
-  useEffect(() => {
+  // Driven by focus events rather than useIsFocused: Explore's tab is frozen when it loses focus, before it can
+  // re-render as unfocused, so on return the focus value looked unchanged and the flight did not start again.
+  useFocusEffect(useCallback(() => {
     // A couple of turns each time Explore is shown: an endless loop would redraw every frame and keep the CPU busy.
-    if (!focused || !foreground) return;
-    orbit.set(0);
-    pulse.set(0);
-    // Waits for the screen transition and splash to clear, so the first turn is actually seen.
-    orbit.set(withDelay(START_DELAY, withRepeat(withTiming(1, { duration: 5200, easing: Easing.linear }), 2)));
-    pulse.set(withDelay(START_DELAY, withRepeat(withSequence(withTiming(1, { duration: 1500, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 0 })), 3)));
+    const fly = () => {
+      cancelAnimation(orbit); cancelAnimation(pulse);
+      orbit.set(0);
+      pulse.set(0);
+      // Waits for the screen transition and splash to clear, so the first turn is actually seen.
+      orbit.set(withDelay(START_DELAY, withRepeat(withTiming(1, { duration: 5200, easing: Easing.linear }), 2)));
+      pulse.set(withDelay(START_DELAY, withRepeat(withSequence(withTiming(1, { duration: 1500, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 0 })), 3)));
+    };
+    fly();
+    // Returning from the background leaves Explore focused, so coming back to the app also restarts the flight.
+    let state = AppState.currentState;
+    const sub = AppState.addEventListener("change", (next) => { if (next === "active" && state === "background") fly(); state = next; });
     // Back to the start of the route rather than frozen mid-orbit when interrupted.
-    return () => { cancelAnimation(orbit); cancelAnimation(pulse); orbit.set(0); pulse.set(0); };
-  }, [focused, foreground, orbit, pulse]);
+    return () => { sub.remove(); cancelAnimation(orbit); cancelAnimation(pulse); orbit.set(0); pulse.set(0); };
+  }, [orbit, pulse]));
   const orbitStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${orbit.value * 360}deg` }] }));
   const pulseStyle = useAnimatedStyle(() => ({ opacity: 0.45 * (1 - pulse.value), transform: [{ scale: 1 + pulse.value * 0.32 }] }));
   const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press.value }, { rotate: `${(1 - press.value) * -40}deg` }] }));

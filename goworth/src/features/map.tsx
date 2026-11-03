@@ -99,7 +99,6 @@ export function MapScreen() {
   const [addedDays, setAddedDays] = useState<number[]>([]);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useTimedMessage();
-  const [globeActive, setGlobeActive] = useState(false);
   const visibleCountries = useMemo(() => countries.filter((item) => region === "Worldwide" || region === "US states" && item.code === "US" || continents[region]?.includes(item.continent)), [region]);
   const countryQuery = normalizeSearchText(query.trim());
   const queryCountries = useMemo(() => countryQuery.length < 2 ? [] : countries.filter((item) =>
@@ -274,7 +273,7 @@ export function MapScreen() {
     } } as Href);
   };
 
-  return <Screen active="map" style={{ gap: 16 }} scrollEnabled={!globeActive}>
+  return <Screen active="map" style={{ gap: 16 }}>
     <Header title="Map" back={false} centered />
     <Row style={{ gap: 8 }}>
       <Row style={{ flex: 1, minWidth: 0, borderWidth: 1, borderColor: p.line, borderRadius: 16, backgroundColor: p.white, paddingHorizontal: 14, gap: 8 }}>
@@ -292,7 +291,6 @@ export function MapScreen() {
       focus={globeFocus}
       marker={selected}
       dots={globeDots}
-      onInteraction={setGlobeActive}
       onSelect={openCountry}
     />
     {!!queryCountries.length && <View>

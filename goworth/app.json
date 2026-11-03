@@ -2,6 +2,10 @@
   "expo": {
     "name": "GoWorth",
     "slug": "goworth",
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/goworth/app-icon.png",
@@ -23,10 +27,6 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.andrewi.goworth"
     },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
     "plugins": [
       "expo-router",
       [
@@ -46,7 +46,19 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Allow GoWorth to find destinations and places near you.",
-          "locationAlwaysAndWhenInUsePermission": "Allow GoWorth to tell you about places worth seeing when you arrive somewhere new, even while the app is closed."
+          "locationAlwaysAndWhenInUsePermission": "Allow GoWorth to tell you about places worth seeing when you arrive somewhere new, even while the app is closed.",
+          "locationAlwaysPermission": "Allow GoWorth to tell you about places worth seeing when you arrive somewhere new, even while the app is closed.",
+          "motionUsagePermission": false,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow GoWorth to use a photo you choose as your profile picture.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ],
       [
@@ -67,7 +79,10 @@
               "ios": {
                 "supportedFamilies": [
                   "systemSmall",
-                  "systemMedium"
+                  "systemMedium",
+                  "accessoryCircular",
+                  "accessoryRectangular",
+                  "accessoryInline"
                 ],
                 "initialLayout": "./src/widgets/trip-widget.tsx"
               },

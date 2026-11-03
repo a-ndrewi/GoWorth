@@ -35,11 +35,11 @@ export function sizedPhotoUrl(url: string, width: PhotoWidth) {
  * Headers for downloading Wikimedia images. Wikimedia refuses generic HTTP library User-Agents (Android's "okhttp" gets
  * HTTP 403 for every image), so the app names itself; browsers send their own and cannot change it.
  */
-export const wikimediaImageHeaders: Record<string, string> | undefined = typeof document === "undefined" ? { "User-Agent": "GoWorth/1.0 (travel app)" } : undefined;
+export const wikimediaImageHeaders: Record<string, string> = { "User-Agent": "GoWorth/1.0 (travel app)" };
 
 /** An image source for a Wikimedia photo at a standard width, with the headers Wikimedia requires. */
 export function photoSource(url: string, width: PhotoWidth) {
-  return { uri: sizedPhotoUrl(url, width), ...(wikimediaImageHeaders ? { headers: wikimediaImageHeaders } : {}) };
+  return { uri: sizedPhotoUrl(url, width), headers: wikimediaImageHeaders };
 }
 
 const cache = new Map<string, { expiresAt: number; photos: Promise<PlacePhoto[]> }>();
@@ -228,7 +228,7 @@ function photoFromPage(page: CommonsPage, name: string, location: string, { trus
 }
 
 // Wikimedia throttles anonymous clients without an identifying User-Agent; browsers keep their own and may not set it.
-const wikimediaHeaders: Record<string, string> = typeof document === "undefined" ? { "User-Agent": "GoWorth/1.0 (travel app)" } : {};
+const wikimediaHeaders: Record<string, string> = { "User-Agent": "GoWorth/1.0 (travel app)" };
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** How far from a place its photo may have been taken: far enough for a mountain seen from the valley, not for another town. */
 const trustedRadiusKm = 15;

@@ -1,10 +1,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import { useIsFocused } from "expo-router";
+import { Pressable, StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { GestureDetector, useExclusiveGestures, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from "react-native-gesture-handler";
 import Animated, {
-  Easing, Extrapolation, cancelAnimation, interpolate, useAnimatedReaction, useAnimatedStyle, useSharedValue,
-  withDecay, withRepeat, withSpring, withTiming, type SharedValue,
+  Easing, cancelAnimation, useAnimatedReaction, useAnimatedStyle, useSharedValue,
+  withDecay, withDelay, withRepeat, withSpring, withTiming,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { countryAnchor, countryFlag, type Country } from "@/data/geography";
@@ -12,76 +12,22 @@ import { translate } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
 import { themedStyles } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
-import { Icon } from "@/components/goworth/ui";
-import { GlobeSurface } from "@/components/goworth/globe-surface";
-import { projectPoint as project } from "@/components/goworth/globe-math";
+import { Icon, useScrollLock } from "@/components/goworth/ui";
+import { GlobeSurface, type GlobeBubbles } from "@/components/goworth/globe-surface";
+import { BUBBLE, bubbleScale, projectPoint as project, revealFor } from "@/components/goworth/globe-math";
 import { deviceCountry } from "@/utils/device-location";
+import { finishBootTask } from "@/state/boot";
 
 const HEIGHT = 390;
-const BUBBLE = 42;
 const DEG = Math.PI / 180;
 const MAX_ZOOM = 6;
+/** How long the globe has to stay still before the full outlines come in. */
+const SETTLE_MS = 160;
 
 export type GlobeFocus = { key: string; latitude: number; longitude: number; zoom?: number };
 export type GlobeDot = { id: string; latitude: number; longitude: number };
 
-/** Bubbles grow toward the middle of the globe and shrink toward its edge, like the Explore comb. */
-function bubbleScale(facing: number, zoom: number, dimmed: boolean) {
-  "worklet";
-  const depth = interpolate(facing, [0, 0.3, 1], [0.22, 0.6, 1], Extrapolation.CLAMP);
-  const focus = interpolate(facing, [0.92, 1], [1, interpolate(zoom, [1, 3], [1.22, 1.05], Extrapolation.CLAMP)], Extrapolation.CLAMP);
-  // Bubbles peak at a medium zoom, then shrink again so country borders stay visible up close.
-  const zoomScale = interpolate(zoom, [1, 2.2, 4, 6], [0.56, 0.86, 0.66, 0.58], Extrapolation.CLAMP);
-  return depth * focus * zoomScale * (dimmed ? 0.72 : 1);
-}
-
-/** Smaller countries fade in as the globe is zoomed, so the overview is not crowded. */
-function revealFor(zoom: number, minZoom: number) {
-  "worklet";
-  return minZoom <= 1 ? 1 : interpolate(zoom, [minZoom - 0.4, minZoom], [0, 1], Extrapolation.CLAMP);
-}
-
-const HIDDEN = { opacity: 0, transform: [{ translateX: 0 }, { translateY: 0 }, { scale: 0 }] };
-
-const GlobeBubble = memo(function GlobeBubble({ country, latitude, longitude, index, minZoom, lam, phi, zoom, pressed, radius, cx, cy, dimmed, emphasized, here, language, onSelect }: {
-  country: Country; latitude: number; longitude: number; index: number; minZoom: number;
-  lam: SharedValue<number>; phi: SharedValue<number>; zoom: SharedValue<number>; pressed: SharedValue<number>;
-  radius: number; cx: number; cy: number; dimmed: boolean; emphasized: boolean; here: boolean;
-  language: ReturnType<typeof useAppLanguage>; onSelect: (code: string) => void;
-}) {
-  const styles = useStyles(stylesSheet);
-  const p = usePalette();
-  const style = useAnimatedStyle(() => {
-    const view = project(longitude, latitude, lam.value, phi.value, radius * zoom.value);
-    const reveal = revealFor(zoom.value, minZoom);
-    // Returning the same object for hidden bubbles lets Reanimated skip the native update entirely.
-    if (view.facing < -0.02 || reveal <= 0) return HIDDEN;
-    const scale = bubbleScale(view.facing, zoom.value, dimmed) * (0.55 + 0.45 * reveal) * (pressed.value === index ? 0.84 : 1);
-    return {
-      opacity: interpolate(view.facing, [-0.02, 0.16], [0, dimmed ? 0.32 : 1], Extrapolation.CLAMP) * reveal,
-      transform: [{ translateX: view.x }, { translateY: view.y }, { scale }],
-    };
-  });
-  const labelStyle = useAnimatedStyle(() => ({
-    opacity: emphasized || here ? 1 : dimmed ? 0 : interpolate(zoom.value, [minZoom + 1.3, minZoom + 1.9], [0, 1], Extrapolation.CLAMP),
-  }));
-  const name = translate(country.name, language);
-  return <Animated.View
-    accessible
-    accessibilityRole="button"
-    accessibilityLabel={language === "ro" ? `Explorează ${name}${here ? ", ești aici" : ""}` : `Explore ${name}${here ? ", you are here" : ""}`}
-    accessibilityActions={[{ name: "activate" }]}
-    onAccessibilityAction={() => onSelect(country.code)}
-    pointerEvents="none"
-    style={[styles.bubbleSlot, { left: cx - BUBBLE / 2, top: cy - BUBBLE / 2, zIndex: here ? 3 : emphasized ? 2 : 1 }, style]}
-  >
-    <View style={[styles.bubble, emphasized && styles.bubbleEmphasized, here && styles.bubbleHere]}><Text style={styles.flag}>{countryFlag(country.code)}</Text></View>
-    {here && <View style={styles.hereBadge}><Icon name="pin" size={9} color={p.white} /></View>}
-    <Animated.View style={[styles.label, labelStyle]}><Text numberOfLines={1} style={styles.labelText}>{name}</Text></Animated.View>
-  </Animated.View>;
-});
-
-export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted, focus, marker, dots = [], onSelect, onInteraction }: {
+export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted, focus, marker, dots = [], onSelect }: {
   countries: Country[];
   /** Codes to emphasise (search or region); the rest are dimmed. `null` shows every country normally. */
   highlighted: string[] | null;
@@ -89,16 +35,13 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
   marker?: { latitude: number; longitude: number } | null;
   dots?: GlobeDot[];
   onSelect: (code: string) => void;
-  onInteraction?: (active: boolean) => void;
 }) {
   const styles = useStyles(stylesSheet);
   const p = usePalette();
   const language = useAppLanguage();
-  const selectRef = useRef(onSelect);
-  useEffect(() => { selectRef.current = onSelect; }, [onSelect]);
-  const select = useCallback((code: string) => selectRef.current(code), []);
+  const lockScroll = useScrollLock();
   const [width, setWidth] = useState(0);
-  // The Skia surface and the bubbles take a few hundred milliseconds to mount, which made opening the Map tab stall.
+  // The Skia surface takes a moment to mount, which made opening the Map tab stall.
   // The screen is shown first with the empty frame, and the globe fills it in the next frame.
   const [painted, setPainted] = useState(false);
   useEffect(() => {
@@ -121,6 +64,16 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
     return codes.map((code) => highlightSet?.has(code) || code === hereCode ? 1 : (ranks.get(code) ?? 0) < 45 ? 1 : (ranks.get(code) ?? 0) < 110 ? 1.9 : 3);
   }, [anchored, codes, highlightSet, hereCode]);
   const dimmedFlags = useMemo(() => codes.map((code) => !!highlightSet && !highlightSet.has(code)), [codes, highlightSet]);
+  // The bubbles are drawn by the globe's Skia surface rather than as a view each: two hundred views moved on every frame
+  // of a turn or a zoom were what made the globe lag, and mounting them stalled the screen.
+  const bubbles = useMemo<GlobeBubbles>(() => ({
+    lons, lats, minZooms, dimmed: dimmedFlags,
+    emphasized: codes.map((code) => !!highlightSet && highlightSet.has(code) && highlightSet.size <= 12),
+    here: hereCode ? codes.indexOf(hereCode) : -1,
+    flags: codes.map(countryFlag),
+    names: anchored.map((item) => translate(item.country.name, language)),
+    colors: { white: p.white, ring: p.orange, here: p.blue, ink: p.ink, line: p.line },
+  }), [lons, lats, minZooms, dimmedFlags, codes, highlightSet, hereCode, anchored, language, p]);
   const dotCoordinates = useMemo(() => dots.flatMap((dot) => [dot.longitude, dot.latitude]), [dots]);
   const cx = width / 2, cy = HEIGHT / 2;
   const radius = Math.max(60, Math.min(width, HEIGHT) / 2 - 18);
@@ -132,25 +85,29 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
   const startZoom = useSharedValue(1);
   const pressed = useSharedValue(-1);
   const markerPulse = useSharedValue(0);
-
-  // Only the largest countries show at the starting zoom. The other ~200 bubbles stay invisible until the globe is
-  // zoomed in, so they mount then: mounting them on a timer stalled the first scroll past the globe.
-  const [allBubbles, setAllBubbles] = useState(false);
-  useAnimatedReaction(() => zoom.value > 1.35, (zoomedIn, wasZoomedIn) => {
-    if (zoomedIn && !wasZoomedIn) scheduleOnRN(setAllBubbles, true);
+  // 0 while the globe turns or zooms, 1 once it has been still for a moment. Heavy work waits for 1.
+  const settled = useSharedValue(1);
+  useAnimatedReaction(() => [lam.value, phi.value, zoom.value], (_, before) => {
+    if (!before) return;
+    settled.set(0);
+    settled.set(withDelay(SETTLE_MS, withTiming(1, { duration: 0 })));
   });
-  const focused = useIsFocused();
+
+  // Nothing more mounts once the globe has drawn, so the launch warm-up is done then.
   useEffect(() => {
-    // One short turn when the globe appears; it then only redraws while it is touched or animating.
-    if (painted) lam.set(withTiming(lam.get() + 40, { duration: 1400, easing: Easing.out(Easing.cubic) }));
-  }, [lam, painted]);
-  useEffect(() => {
-    // The marker pulse stops while the Map tab is hidden.
-    if (!focused || !marker) return;
+    if (painted) finishBootTask("map");
+  }, [painted]);
+  // No turn on its own when the globe appears: it redrew the whole surface every frame just as the screen opened.
+  // It moves when it flies to the device's country or a search, and otherwise only while it is touched.
+  // The marker pulse stops while the Map tab is hidden. Focus events drive it because the frozen tab never re-renders
+  // as unfocused, so a returning focus would otherwise look unchanged.
+  useFocusEffect(useCallback(() => {
+    if (!marker) return;
     // A few pulses draw the eye; an endless pulse would redraw the screen every frame.
+    markerPulse.set(0);
     markerPulse.set(withRepeat(withTiming(1, { duration: 1400 }), 4));
     return () => cancelAnimation(markerPulse);
-  }, [focused, marker, markerPulse]);
+  }, [marker, markerPulse]));
 
   const flyTo = useCallback((target: Omit<GlobeFocus, "key">) => {
     cancelAnimation(lam);
@@ -168,6 +125,8 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
   // The globe turns to the device's country unless the screen opened on a place of its own.
   const openedOnFocus = useRef(!!focus);
   useEffect(() => {
+    // The fly-in starts once the globe has drawn, so it does not share its first frames with the mounting.
+    if (!painted) return;
     let active = true;
     deviceCountry(false).then((here) => {
       if (!active || !here) return;
@@ -175,7 +134,7 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
       if (!openedOnFocus.current) flyTo({ latitude: here.latitude, longitude: here.longitude, zoom: 2.2 });
     }).catch(() => {});
     return () => { active = false; };
-  }, [flyTo]);
+  }, [flyTo, painted]);
   const locate = () => {
     // Asks for location (once) and refreshes it, so a trip abroad shows the new country.
     deviceCountry(true).then((here) => {
@@ -210,7 +169,7 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
       "worklet";
       cancelAnimation(lam); cancelAnimation(phi);
       startLam.set(lam.value); startPhi.set(phi.value);
-      if (onInteraction) scheduleOnRN(onInteraction, true);
+      scheduleOnRN(lockScroll, true);
     },
     onActivate: () => {
       "worklet";
@@ -231,7 +190,7 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
     },
     onFinalize: () => {
       "worklet";
-      if (onInteraction) scheduleOnRN(onInteraction, false);
+      scheduleOnRN(lockScroll, false);
     },
   });
   const pinch = usePinchGesture({
@@ -278,23 +237,8 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
       <View style={StyleSheet.absoluteFill} collapsable={false}>
         {width > 0 && painted && <>
           <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-            <GlobeSurface width={width} height={HEIGHT} radius={radius} lam={lam} phi={phi} zoom={zoom} dots={dotCoordinates} />
+            <GlobeSurface width={width} height={HEIGHT} radius={radius} lam={lam} phi={phi} zoom={zoom} settled={settled} dots={dotCoordinates} bubbles={bubbles} pressed={pressed} />
           </View>
-          {anchored.map((item, index) => (allBubbles || minZooms[index] <= 1) && <GlobeBubble
-            key={item.country.code}
-            country={item.country}
-            latitude={item.latitude}
-            longitude={item.longitude}
-            index={index}
-            minZoom={minZooms[index]}
-            lam={lam} phi={phi} zoom={zoom} pressed={pressed}
-            radius={radius} cx={cx} cy={cy}
-            dimmed={dimmedFlags[index]}
-            emphasized={!!highlightSet && highlightSet.has(item.country.code) && highlightSet.size <= 12}
-            here={item.country.code === hereCode}
-            language={language}
-            onSelect={select}
-          />)}
           {!!marker && <Animated.View pointerEvents="none" style={[styles.marker, { left: cx - 9, top: cy - 9 }, markerStyle]}>
             <Animated.View style={[styles.markerPulse, pulseStyle]} />
             <View style={styles.markerDot} />
@@ -313,21 +257,6 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
 
 const stylesSheet = themedStyles((p) => ({
   frame: { height: HEIGHT, borderRadius: 26, overflow: "hidden", backgroundColor: p.blueTint, borderWidth: 1, borderColor: p.blueLine },
-  bubbleSlot: { position: "absolute", width: BUBBLE, height: BUBBLE, alignItems: "center" },
-  bubble: {
-    width: BUBBLE, height: BUBBLE, borderRadius: BUBBLE / 2, backgroundColor: p.white, borderWidth: 3, borderColor: p.white,
-    alignItems: "center", justifyContent: "center",
-    shadowColor: "#1E3A8A", shadowOpacity: 0.3, shadowRadius: 0, shadowOffset: { width: 0, height: 3 }, elevation: 4,
-  },
-  bubbleEmphasized: { borderColor: p.orange, borderWidth: 3 },
-  bubbleHere: { borderColor: p.blue, borderWidth: 3 },
-  hereBadge: {
-    position: "absolute", top: -3, right: -3, width: 18, height: 18, borderRadius: 9, backgroundColor: p.blue,
-    borderWidth: 2, borderColor: p.white, alignItems: "center", justifyContent: "center",
-  },
-  flag: { fontSize: 22, lineHeight: 27 },
-  label: { position: "absolute", top: BUBBLE + 3, width: 110, alignItems: "center" },
-  labelText: { color: p.ink, fontSize: 11, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, overflow: "hidden", backgroundColor: p.white, borderWidth: 1, borderColor: p.line },
   marker: { position: "absolute", width: 18, height: 18, alignItems: "center", justifyContent: "center" },
   markerPulse: { position: "absolute", width: 18, height: 18, borderRadius: 9, backgroundColor: p.pink },
   markerDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: p.pink, borderWidth: 2, borderColor: p.white },

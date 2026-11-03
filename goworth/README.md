@@ -1,16 +1,16 @@
 # GoWorth Travel
 
-Expo SDK 57 travel-planning app for iOS, Android, and web. An email account is required. Each new account starts with an empty trip, itinerary, expense list, saved list, and journal. Profile and travel data are private to the account in Supabase.
+Expo SDK 58 travel-planning app for iOS and Android. There is no web version of the app; the browser only has the separate presentation site. An email account is required. Each new account starts with an empty trip, itinerary, expense list, saved list, and journal. Profile and travel data are private to the account in Supabase.
 
 ## Run locally
 
 ```bash
 npm install
 cp .env.example .env.local
-npm run dev
+npx expo run:ios      # or: npx expo run:android
 ```
 
-For Expo Go on a phone on the same Wi-Fi network, run `npm run dev:phone` and scan its QR code. This starts a separate LAN server on port 8082, so the web preview on port 8081 can stay open.
+The app needs a development build (it uses RevenueCat, Skia, widgets and background location). For a quick look in Expo Go on a phone on the same Wi-Fi network, run `npm run dev:phone` and scan its QR code.
 
 Set `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` to the publishable key from the `jmguyniibuifqnegdiso` Supabase project. The project URL is already in `.env.example`. Never put a service-role or secret key in an `EXPO_PUBLIC_` variable.
 
@@ -31,9 +31,27 @@ npx supabase functions deploy moderate-profile --project-ref jmguyniibuifqnegdis
 
 The key must remain a Supabase function secret; never put it in `.env.local` or any `EXPO_PUBLIC_` variable. SQL migrations do not deploy Edge Functions. Without the key, photo and name moderation fails closed; language and currency settings still save to Auth metadata.
 
-Configure email confirmation and a custom SMTP provider in Supabase Authentication. Add the web app's `/auth` URL to the Auth redirect allowlist, including each local development port in use (for example `http://localhost:8082/auth`) and the production domain. For native builds, allow the `goworth://auth` redirect. Users must confirm their email when confirmation is enabled; password-reset links return to the same route.
+### Premium purchases (RevenueCat)
 
-The app does not contain a database owner password, so a publishable key alone cannot apply migrations. Profile-photo upload requires the private Storage bucket, deployed moderation function, and `OPENAI_API_KEY` secret described above. Push notifications and reservations are not connected, and the app sells nothing. The catalog contains 64 curated destinations and 384 named real places across six regions; it is bundled with the app, while account data is stored in Supabase. The world map can search other locations through OpenStreetMap. Place previews search Wikimedia Commons for a location-specific photo with source and license information. Current opening hours and prices should be confirmed with the venue.
+Premium is sold as monthly and yearly subscriptions and a one-time Lifetime purchase through the App Store and Google Play, using RevenueCat. Store purchases live in `store_entitlements`, separate from wheel prizes; the [store purchases migration](supabase/migrations/20261030120000_store_purchases.sql) adds it and makes the free limits and the app read the better of the two.
+
+In RevenueCat, create the entitlement `premium`, the products `premium_monthly`, `premium_yearly` and `premium_lifetime`, and a current offering with the Monthly, Annual and Lifetime packages, all attached to `premium`. Put the public SDK keys in `.env.local` (see `.env.example`). Then set `REVENUECAT_SECRET_KEY` and `REVENUECAT_WEBHOOK_AUTH` as Supabase function secrets and deploy the sync function without Supabase JWT checks, because RevenueCat's webhook does not carry one (the function checks the user session or the webhook secret itself):
+
+```bash
+npx supabase functions deploy revenuecat-sync --no-verify-jwt --project-ref jmguyniibuifqnegdiso
+```
+
+In RevenueCat > Integrations > Webhooks, point a webhook at `https://jmguyniibuifqnegdiso.supabase.co/functions/v1/revenuecat-sync` with the Authorization header `Bearer <REVENUECAT_WEBHOOK_AUTH>`.
+
+Before the store accounts exist, test with RevenueCat's Test Store: set `EXPO_PUBLIC_REVENUECAT_TEST_STORE_KEY` and run a development build (`npx expo run:ios` or `npx expo run:android`; Expo Go only previews the paywall). A 1-month test subscription renews every 5 minutes, up to 5 times. The Test Store key is used in development builds only; TestFlight and Play testing tracks are release builds and need the platform keys with the store sandboxes.
+
+### Visa passport
+
+Apply [the visa passport migration](supabase/migrations/20261102120000_visa_passport.sql) to issue visas. The app calls `claim_visas()` at launch and when it returns to the foreground: every trip whose end date has passed, and that was still planned when it ended, issues a visa for each country it passed through (a repeat visit adds an entry stamp). Finishing a trip early, or creating one after its dates, earns nothing. Free accounts collect visas too; the passport shows them locked until Premium. Until the migration is applied the passport stays empty.
+
+Configure email confirmation and a custom SMTP provider in Supabase Authentication. Email links use PKCE. Tapping one confirms the address at Supabase, which redirects to the bridge page of the presentation site (`goworth-website/public/auth/index.html`, address in `EXPO_PUBLIC_AUTH_LINK_URL`). The page opens `goworth://auth?code=…&sb_flow_id=…`, and the app exchanges the code and signs in. If the email is confirmed on another device, the app signs in with the details from sign-up the next time it comes to the foreground (they are kept in memory only, never stored). Add `https://a-ndrewi.github.io/goworth-website/auth/**` (or the site's own domain later) to the Auth redirect allowlist, plus `exp://**` for Expo Go during development. Users must confirm their email when confirmation is enabled; password-reset links return to the same route.
+
+The app does not contain a database owner password, so a publishable key alone cannot apply migrations. Profile-photo upload requires the private Storage bucket, deployed moderation function, and `OPENAI_API_KEY` secret described above. Push notifications and reservations are not connected. The catalog contains 64 curated destinations and 384 named real places across six regions; it is bundled with the app, while account data is stored in Supabase. The world map can search other locations through OpenStreetMap. Place previews search Wikimedia Commons for a location-specific photo with source and license information. Current opening hours and prices should be confirmed with the venue.
 
 The Free plan is enforced by the routes and entitlements migration: one new trip, five new places, and five new destinations per UTC calendar month. Premium is not sold. The Premium screen offers one free wheel spin every 24 hours; the premium wheel migration draws the prize on the server (Premium for 1 month at 1%, Lifetime at 0.02%) and upgrades the account in the same call. The displayed odds in `src/lib/wheel-odds.ts` must match the migration, which `tests/wheel-odds.test.mjs` checks.
 
@@ -47,5 +65,4 @@ Destination photographs are bundled in `assets/images/destinations` to avoid net
 npm run lint
 npm run typecheck
 npm test
-npm run build:web
 ```

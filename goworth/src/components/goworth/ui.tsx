@@ -5,7 +5,7 @@ import { router, usePathname, type Href } from "expo-router";
 import Animated, {
   FadeIn, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming,
 } from "react-native-reanimated";
-import { Children, useEffect, useRef, useState, type ReactNode } from "react";
+import { Children, createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -17,7 +17,6 @@ import {
   Text,
   TextInput,
   View,
-  useWindowDimensions,
   type StyleProp,
   type ImageStyle,
   type TextInputProps,
@@ -461,6 +460,15 @@ export function NavBar({ index, count, children }: { index: number; count: numbe
     </View>
   );
 }
+/**
+ * Lets a gesture inside a screen (a globe being turned, a comb being dragged) hold the page still. Only the screen's
+ * scroll view re-renders for it: lifting that state into the page re-rendered the whole page as each touch began and ended.
+ */
+const ScrollLock = createContext<(locked: boolean) => void>(() => {});
+export function useScrollLock() {
+  return useContext(ScrollLock);
+}
+
 export function Screen({
   children,
   active,
@@ -485,6 +493,7 @@ export function Screen({
   const p = usePalette();
   const { syncError } = useTravel();
   const contentGap = StyleSheet.flatten(style)?.gap ?? 20;
+  const [scrollLocked, setScrollLocked] = useState(false);
   // Tab screens can mount in the background, where an entering animation may never get to run;
   // the tab switch already fades them in.
   const contentEntering = active ? undefined : FadeIn.duration(180);
@@ -496,7 +505,7 @@ export function Screen({
       >
         {scroll ? (
           <ScrollView
-            scrollEnabled={scrollEnabled}
+            scrollEnabled={scrollEnabled && !scrollLocked}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
@@ -507,7 +516,9 @@ export function Screen({
                 <Copy style={{ color: p.danger, fontSize: 12 }}>{syncError}</Copy>
               </View>
             )}
-            <Animated.View entering={contentEntering} style={[{ gap: contentGap }, bodyStyle]}>{children}</Animated.View>
+            <ScrollLock.Provider value={setScrollLocked}>
+              <Animated.View entering={contentEntering} style={[{ gap: contentGap }, bodyStyle]}>{children}</Animated.View>
+            </ScrollLock.Provider>
           </ScrollView>
         ) : (
           <Animated.View entering={contentEntering} style={[s.content, { flex: 1 }, style, bodyStyle]}>
@@ -562,7 +573,7 @@ export function DestinationPhoto({
     return (
       <View style={[style, { backgroundColor: p.blueSoft, alignItems: "center", justifyContent: "center", gap: 6 }]}>
         <Icon name="pin" color={p.blue} size={28} />
-        <Copy style={{ color: p.blue, fontWeight: "600" }}>{destination.name}</Copy>
+        <Copy style={{ color: p.blue, fontWeight: "600", textAlign: "center" }}>{destination.name}</Copy>
       </View>
     );
   }
@@ -582,9 +593,8 @@ export function DestinationCard({ destination }: { destination: Destination }) {
   const p = usePalette();
   const language = useAppLanguage();
   const { saved, toggleSaved } = useTravel();
-  const { width } = useWindowDimensions();
   return (
-    <View style={[s.destinationCard, { width: Platform.OS === "web" && width >= 900 ? "23%" : Platform.OS === "web" && width >= 720 ? "31%" : "47.5%" }]}>
+    <View style={[s.destinationCard, { width: "47.5%" }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={translateAccessibility(`Explore ${destination.name}`, language)}
@@ -810,6 +820,7 @@ export const sharedSheet = themedStyles((p) => ({
     fontWeight: "700",
     letterSpacing: -0.1,
     textAlign: "center",
+    flexShrink: 1,
   },
   secondaryButton: {
     backgroundColor: p.white,
@@ -844,6 +855,7 @@ export const sharedSheet = themedStyles((p) => ({
     lineHeight: 20,
     fontWeight: "600",
     letterSpacing: 0,
+    textAlign: "center",
   },
   label: { fontSize: 13, lineHeight: 18, fontWeight: "700", color: p.muted },
   input: {
@@ -862,7 +874,7 @@ export const sharedSheet = themedStyles((p) => ({
   navShell: {
     paddingHorizontal: 14,
     paddingTop: 6,
-    paddingBottom: Platform.OS === "web" ? 12 : 4,
+    paddingBottom: 4,
     backgroundColor: p.canvas,
   },
   nav: {
