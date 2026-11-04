@@ -189,13 +189,16 @@ export function WelcomeScreen() {
 export function BootCover({ visible }: { visible: boolean }) {
   const [opacity] = useState(() => new Animated.Value(1));
   const [shown, setShown] = useState(visible);
-  if (visible && !shown) setShown(true);
+  if (visible && !shown) { opacity.setValue(1); setShown(true); }
   useEffect(() => {
-    if (visible) { opacity.setValue(1); return; }
-    const animation = Animated.timing(opacity, { toValue: 0, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: true });
+    // Only a cover that was on screen fades. Fading one that was never shown (the app mounts on the splash route)
+    // left the value at 0, and the cover then came up invisible over a half-drawn Explore.
+    if (visible || !shown) return;
+    // On the JS thread: a native-driven value set back to 1 from JS did not always reach the view.
+    const animation = Animated.timing(opacity, { toValue: 0, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: false });
     animation.start(({ finished }) => { if (finished) setShown(false); });
     return () => animation.stop();
-  }, [visible, opacity]);
+  }, [visible, shown, opacity]);
   if (!shown) return null;
   // Above the bottom bar as well, so the logo sits exactly where the splash left it until the tabs are ready.
   return <Animated.View pointerEvents={visible ? "auto" : "none"} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, elevation: 100, opacity }}>

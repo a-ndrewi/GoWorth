@@ -123,6 +123,8 @@ function useTravelState() {
   const [sharedTrips, setSharedTrips] = useState<SharedTrip[]>([]);
   // Everyone on the open trip who has joined (the owner included), so its party reads Solo, Duo or Group.
   const [party, setParty] = useState<{ trip: Trip; people: TripCompanion[] } | null>(null);
+  const partyRef = useRef(party);
+  useEffect(() => { partyRef.current = party; }, [party]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [preferences, setPreferencesState] = useState<TravelPreferences>(blankPreferences);
@@ -143,18 +145,32 @@ function useTravelState() {
   const [syncError, setSyncError] = useTimedMessage();
   const [reload, setReload] = useState(0);
   const writeQueue = useRef<Promise<void>>(Promise.resolve());
+  // When the account or the open trip was last fetched; Explore's check on focus skips data that is seconds old.
+  const loadedAt = useRef(0);
   const exploreHistoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     if (!userId) setDisplaySettings({ language: "en", currency: "EUR" });
   }, [userId]);
 
+  // What only this phone remembers (recently viewed, the discovery centre and radius) is read before the account counts
+  // as loaded, so Explore opens with it instead of drawing a default deck and reloading it a moment later.
+  const [localReadFor, setLocalReadFor] = useState<string | null>(null);
   useEffect(() => {
     if (!userId) return;
     let current = true;
-    AsyncStorage.getItem(exploreHistoryKey(userId))
+    const history = AsyncStorage.getItem(exploreHistoryKey(userId))
       .then((value) => { if (current) setExploreHistoryState({ owner: userId, history: parseExploreHistory(value) }); })
       .catch(() => { if (current) setExploreHistoryState({ owner: userId, history: emptyExploreHistory }); });
+    const discovery = AsyncStorage.getItem(`discovery-settings:${userId}`).then((value) => {
+      if (!current || !value) return;
+      const parsed: Partial<DiscoverySettings> = JSON.parse(value);
+      if (!parsed.radiusKm || ![25, 100, 500, 2000, 20000].includes(parsed.radiusKm)) return;
+      // Settings saved before venues existed show every kind.
+      const venues = Array.isArray(parsed.venues) ? parsed.venues.filter((item) => venueFilters.includes(item)) : venueFilters;
+      setDiscoverySettingsState({ radiusKm: parsed.radiusKm, centerId: parsed.centerId ?? null, venues });
+    }).catch(() => undefined);
+    void Promise.all([history, discovery]).then(() => { if (current) setLocalReadFor(userId); });
     return () => { current = false; };
   }, [userId]);
 
@@ -177,20 +193,6 @@ function useTravelState() {
     if (!userId) return;
     setExploreHistoryState((current) => current.owner === userId
       ? { owner: userId, history: rememberPlace(current.history, countryCode, cityId, place, searchTerm) } : current);
-  }, [userId]);
-
-  useEffect(() => {
-    if (!userId) return;
-    let current = true;
-    AsyncStorage.getItem(`discovery-settings:${userId}`).then((value) => {
-      if (!current || !value) return;
-      const parsed: Partial<DiscoverySettings> = JSON.parse(value);
-      if (!parsed.radiusKm || ![25, 100, 500, 2000, 20000].includes(parsed.radiusKm)) return;
-      // Settings saved before venues existed show every kind.
-      const venues = Array.isArray(parsed.venues) ? parsed.venues.filter((item) => venueFilters.includes(item)) : venueFilters;
-      setDiscoverySettingsState({ radiusKm: parsed.radiusKm, centerId: parsed.centerId ?? null, venues });
-    }).catch(() => undefined);
-    return () => { current = false; };
   }, [userId]);
 
   useEffect(() => {
@@ -232,7 +234,12 @@ function useTravelState() {
         const joined = shared.filter((item) => item.status === "accepted");
         const known = (id: string | null) => !!id && (data.trips.some((item) => item.trip.id === id) || joined.some((item) => item.tripId === id));
         const chosen = known(storedTrip) ? storedTrip : nextTrip(data.trips)?.trip.id ?? (joined.length === 1 ? joined[0].tripId : null);
-        showTrip(chosen ? await loadTripData(chosen).catch(() => null) : null, userId);
+        const opened = chosen ? await loadTripData(chosen).catch(() => null) : null;
+        // The party is part of what the trip card shows (Solo, Duo, Group), so it comes in with the trip.
+        const people = opened?.trip.id ? await loadTripCompanions(opened.trip.id).catch(() => null) : null;
+        if (!current) return;
+        showTrip(opened, userId);
+        if (opened && people) setParty({ trip: opened.trip, people });
         setSaved(data.saved.filter((item) => item.kind === "destination").map((item) => item.item_id));
         setSavedPlaces(data.saved.filter((item) => item.kind === "place").map((item) => item.item_id));
         const savedPlaceIds = new Set(data.saved.filter((item) => item.kind === "place").map((item) => item.item_id));
@@ -245,6 +252,7 @@ function useTravelState() {
         setJournalAvailable(data.journalAvailable);
         setSyncError("");
         setOfflineSince(null);
+        loadedAt.current = Date.now();
         setCloudReady(true);
       })
       .catch(async () => {
@@ -500,6 +508,10 @@ function useTravelState() {
   /** Fetches the latest of the open trip and of the trip lists, so a companion's edits show up. */
   const refreshTrip = useCallback(async () => {
     if (!user || !cloudReady || offlineSince) return;
+    // Explore checks on every focus, the first one right after launch: fetching again what was just loaded swapped
+    // the trip for an identical copy and reloaded its party, which looked like the app refreshing itself.
+    if (Date.now() - loadedAt.current < 15 * 1000) return;
+    loadedAt.current = Date.now();
     const [shared, own, data] = await Promise.all([loadSharedTrips(), loadOwnTrips(user.id).catch(() => undefined),
       tripId ? loadTripData(tripId).catch(() => undefined) : Promise.resolve(null)]);
     setSharedTrips(shared);
@@ -517,6 +529,7 @@ function useTravelState() {
   // A new or refreshed trip is a new object, so this also picks up companions who joined or left on their phones.
   useEffect(() => {
     if (!user || !cloudReady || offlineSince || !trip || !tripId) return;
+    if (partyRef.current?.trip === trip) return;
     let current = true;
     loadTripCompanions(tripId).then((people) => { if (current) setParty({ trip, people }); }).catch(() => undefined);
     return () => { current = false; };
@@ -620,7 +633,7 @@ function useTravelState() {
     discoverySettings, setDiscoverySettings,
     profile, setProfile, avatarUrl, uploadAvatar, removeAvatar, plan, monthlyUsage, refreshMembership, journal, setJournal, journalEntries, journalAvailable, setArchivedReflection, deleteJournalEntry,
     notifications, setNotifications: updateNotifications,
-    cloudReady, offlineSince, loadError, retryLoad: () => {
+    cloudReady: cloudReady && localReadFor === userId, offlineSince, loadError, retryLoad: () => {
       setCloudReady(false);
       setLoadError("");
       setReload((value) => value + 1);

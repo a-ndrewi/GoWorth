@@ -9,6 +9,7 @@ import Svg, { Circle } from "react-native-svg";
 import { themedStyles } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
 import { GlyphIcon } from "@/components/goworth/icons";
+import { useBootDone } from "@/state/boot";
 
 const SIZE = 48;
 const START_DELAY = 400;
@@ -22,7 +23,10 @@ export function TripShortcut({ label, onPress }: { label: string; onPress: () =>
   const press = useSharedValue(1);
   // Driven by focus events rather than useIsFocused: Explore's tab is frozen when it loses focus, before it can
   // re-render as unfocused, so on return the focus value looked unchanged and the flight did not start again.
+  // At launch Explore is focused behind the splash; the flight waits for the cover to lift.
+  const bootDone = useBootDone();
   useFocusEffect(useCallback(() => {
+    if (!bootDone) return;
     // A couple of turns each time Explore is shown: an endless loop would redraw every frame and keep the CPU busy.
     const fly = () => {
       cancelAnimation(orbit); cancelAnimation(pulse);
@@ -38,7 +42,7 @@ export function TripShortcut({ label, onPress }: { label: string; onPress: () =>
     const sub = AppState.addEventListener("change", (next) => { if (next === "active" && state === "background") fly(); state = next; });
     // Back to the start of the route rather than frozen mid-orbit when interrupted.
     return () => { sub.remove(); cancelAnimation(orbit); cancelAnimation(pulse); orbit.set(0); pulse.set(0); };
-  }, [orbit, pulse]));
+  }, [orbit, pulse, bootDone]));
   const orbitStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${orbit.value * 360}deg` }] }));
   const pulseStyle = useAnimatedStyle(() => ({ opacity: 0.45 * (1 - pulse.value), transform: [{ scale: 1 + pulse.value * 0.32 }] }));
   const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press.value }, { rotate: `${(1 - press.value) * -40}deg` }] }));

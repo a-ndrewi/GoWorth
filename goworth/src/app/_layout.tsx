@@ -16,7 +16,7 @@ import { UsernameGate } from "@/features/username-gate";
 // Also defines the background task that wakes the app for nearby places, which must exist before the app renders.
 import { DeviceSync } from "@/state/device-sync";
 import { setPhotoStore } from "@/data/place-photo";
-import { finishBoot, useBootDone } from "@/state/boot";
+import { bootTimeoutMs, finishBoot, useBootDone } from "@/state/boot";
 import { BootCover } from "@/features/onboarding";
 import { VisaAwardHost } from "@/features/passport";
 import { VisaProvider } from "@/state/visas-context";
@@ -59,6 +59,13 @@ function AppNavigator() {
   const { scheme } = useThemePreference();
   const { cloudReady, loadError, retryLoad, trip, offlineSince, profile: { username: profileUsername } } = useTravel();
   const bootDone = useBootDone();
+  // The native splash stays until the saved session is read: before then the tree is drawn for no one and is drawn
+  // again for the account, which showed as a flicker right after the logo.
+  useEffect(() => {
+    if (ready) { SplashScreen.hide(); return; }
+    const timer = setTimeout(() => SplashScreen.hide(), 4000);
+    return () => clearTimeout(timer);
+  }, [ready]);
   const signedInId = user?.id;
   useEffect(() => {
     if (signedInId) warmDeviceLocation();
@@ -70,7 +77,7 @@ function AppNavigator() {
   }, [user, isSplash, activeTab]);
   useEffect(() => {
     if (!warmingUp) return;
-    const timer = setTimeout(finishBoot, 6000);
+    const timer = setTimeout(finishBoot, bootTimeoutMs);
     return () => clearTimeout(timer);
   }, [warmingUp]);
   const itineraryDay = trip ? Math.min(Math.max(1, Math.trunc(Number(dayParam)) || 1), tripDays(trip.start, trip.end)) : 1;
@@ -141,7 +148,8 @@ function AppNavigator() {
             </Stack.Protected>
           </Stack>
           {!!user && !!offlineSince && <OfflineBanner since={offlineSince} onRetry={retryLoad} />}
-          {!!user && activeTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.canvas }}><BottomNav active={activeTab} /></SafeAreaView>}
+          {/* Kept in the layout but invisible under the launch cover: its native glass draws above the cover otherwise. */}
+          {!!user && activeTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.canvas, opacity: warmingUp ? 0 : 1 }}><BottomNav active={activeTab} /></SafeAreaView>}
           {!!user && !!trip && itineraryTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.canvas }}><ItineraryNav active={itineraryTab} day={itineraryDay} /></SafeAreaView>}
           <BootCover visible={warmingUp} />
           <VisaAwardHost ready={!!user && cloudReady && bootDone && !!activeTab && !!profileUsername} />
@@ -169,9 +177,7 @@ function AppContent() {
 function NavigationTheme({ children }: { children: ReactNode }) {
   const palette = usePalette();
   const { scheme, ready } = useThemePreference();
-  useEffect(() => {
-    if (ready) SplashScreen.hide();
-  }, [ready]);
+  // The native splash is hidden by AppNavigator once the session is read as well.
   if (!ready) return null;
   const base = scheme === "dark" ? DarkTheme : DefaultTheme;
   return (
