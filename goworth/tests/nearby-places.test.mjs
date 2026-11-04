@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { filterVenues, venueFromCategory, isExplorePlace, mergeSourcePlaces, parseOsmPlaces, parseOsmVenues, parsePhotonPlaces, parseWikipediaPlaces, photonBoundingBoxes, withWikidata } from "../src/data/nearby-places.ts";
+import { commonsFileTag, filterVenues, venueFromCategory, isExplorePlace, mergeSourcePlaces, parseOsmPlaces, parseOsmVenues, parsePhotonPlaces, parseWikipediaPlaces, photonBoundingBoxes, withWikidata } from "../src/data/nearby-places.ts";
 
 const center = { latitude: 44.4268, longitude: 26.1025 };
 
@@ -54,7 +54,9 @@ test("city searches distinguish explore places from addresses and settlements", 
   assert.equal(isExplorePlace({ osm_key: "tourism", osm_value: "museum" }), true);
   assert.equal(isExplorePlace({ osm_key: "historic", osm_value: "monument" }), true);
   assert.equal(isExplorePlace({ osm_key: "tourism", osm_value: "hotel" }), false);
-  assert.equal(isExplorePlace({ osm_key: "amenity", osm_value: "theatre" }), false);
+  assert.equal(isExplorePlace({ osm_key: "amenity", osm_value: "theatre" }), true);
+  assert.equal(isExplorePlace({ osm_key: "historic", osm_value: "palace" }), true);
+  assert.equal(isExplorePlace({ osm_key: "amenity", osm_value: "bench" }), false);
   assert.equal(isExplorePlace({ osm_key: "office", osm_value: "government" }), false);
   assert.equal(isExplorePlace({ osm_key: "leisure", osm_value: "playground" }), false);
   assert.equal(isExplorePlace({ osm_key: "amenity", osm_value: "restaurant" }), false);
@@ -130,4 +132,33 @@ test("Wikipedia articles join OpenStreetMap places unless OpenStreetMap already 
   ], center, 8);
   assert.deepEqual(mergeSourcePlaces(osm, wiki, center).map((place) => place.id), ["wiki:12", "osm:node:1", "osm:node:2"]);
   assert.deepEqual(mergeSourcePlaces([], wiki, center).length, 3);
+});
+
+test("OpenStreetMap photo tags name a Commons photo, never a category or another host", () => {
+  assert.equal(commonsFileTag("File:Biserica Neagra Brasov.jpg"), "Biserica Neagra Brasov.jpg");
+  assert.equal(commonsFileTag("https://commons.wikimedia.org/wiki/File:Castelul_Bran.jpg"), "Castelul Bran.jpg");
+  assert.equal(commonsFileTag("https://upload.wikimedia.org/wikipedia/commons/a/ab/Peles_Castle.JPG"), "Peles Castle.JPG");
+  assert.equal(commonsFileTag("Category:Bran Castle"), undefined);
+  assert.equal(commonsFileTag("https://example.com/photo.jpg"), undefined);
+  assert.equal(commonsFileTag("File:Map of Brasov.svg"), undefined);
+  assert.equal(commonsFileTag(undefined), undefined);
+});
+
+test("local-language Wikipedia articles are judged by their Wikidata description and keep their own link", () => {
+  const center = { latitude: 46.77, longitude: 23.59 };
+  const page = (pageid, title, item) => ({ pageid, title, lat: 46.77, lon: 23.59, pageprops: { page_image_free: "x.jpg", wikibase_item: item } });
+  const places = parseWikipediaPlaces([
+    page(1, "Biserica Sfântul Mihail (Cluj-Napoca)", "Q1"),
+    page(2, "Colegiul Național George Barițiu", "Q2"),
+    page(3, "Fără descriere", "Q3"),
+  ], center, 5, false, { language: "ro", descriptions: new Map([["Q1", "church in Cluj-Napoca, Romania"], ["Q2", "high school in Cluj-Napoca"]]) });
+  assert.deepEqual(places.map((place) => [place.id, place.name, place.sourceUrl, place.wikidata]),
+    [["wiki:ro:1", "Biserica Sfântul Mihail", "https://ro.wikipedia.org/?curid=1", "Q1"]]);
+});
+
+test("the same Wikidata item from OpenStreetMap and Wikipedia is listed once", () => {
+  const center = { latitude: 0, longitude: 0 };
+  const osm = [{ id: "osm:way:1", name: "Peleș", latitude: 0, longitude: 0, kind: "place", category: "Landmarks", detail: "", source: "OpenStreetMap", sourceUrl: "https://www.openstreetmap.org/way/1", wikidata: "Q9" }];
+  const wiki = [{ id: "wiki:5", name: "Peleș Castle", latitude: 0.02, longitude: 0, kind: "place", category: "Landmarks", detail: "", source: "Wikipedia", sourceUrl: "https://en.wikipedia.org/?curid=5", wikidata: "Q9" }];
+  assert.equal(mergeSourcePlaces(osm, wiki, center).length, 1);
 });

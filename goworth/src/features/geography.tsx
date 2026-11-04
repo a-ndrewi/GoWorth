@@ -185,7 +185,7 @@ export function PlaceScreen() {
   const key = `${city?.id ?? ""}|${placeId ?? ""}`;
   const routePlace = useMemo(() => {
     const osm = /^osm:(?:node|way|relation):\d+$/.test(placeId ?? "") && /^https:\/\/www\.openstreetmap\.org\/(?:node|way|relation)\/\d+$/.test(sourceUrl ?? "");
-    const wiki = /^wiki:\d+$/.test(placeId ?? "") && /^https:\/\/en\.wikipedia\.org\/\?curid=\d+$/.test(sourceUrl ?? "");
+    const wiki = /^wiki:(?:[a-z]{2,3}:)?\d+$/.test(placeId ?? "") && /^https:\/\/[a-z]{2,3}\.wikipedia\.org\/\?curid=\d+$/.test(sourceUrl ?? "");
     if (!city || !country || !placeId || (!osm && !wiki)) return null;
     return externalPlaceFromSaved(placeId, { id: placeId, name, latitude: Number(latitude), longitude: Number(longitude), category, detail, source: wiki ? "Wikipedia" : "OpenStreetMap", sourceUrl, location: `${city.name}, ${country.name}` });
   }, [city, country, placeId, name, latitude, longitude, category, detail, sourceUrl]);

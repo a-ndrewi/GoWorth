@@ -192,8 +192,10 @@ function photoFromPage(page: CommonsPage, name: string, location: string, { trus
   const distinctiveWords = placeWords.filter((word) => !genericWords.has(word));
   const nameKinds = kindWords.filter((group) => placeWords.some((word) => group.includes(word)));
   const matchesKind = nameKinds.every((group) => group.some((word) => has(contextWords, word) || (word.length >= 6 && fileCompact.includes(word))));
+  // A file taken nearby must still name the place: two of its distinctive words (all, when it has fewer), so that
+  // "Sfântul Nicolae" does not take the photo of "Sfântul Gheorghe" across the street.
   const matchesName = placeWords.length > 0 && matchesKind && (nearby
-    ? distinctiveWords.some(wordMatches)
+    ? distinctiveWords.filter(wordMatches).length >= Math.min(2, distinctiveWords.length) && distinctiveWords.length > 0
     : (distinctiveWords.length ? distinctiveWords : placeWords).every(wordMatches));
   const namesPlace = (distinctiveWords.length ? distinctiveWords : placeWords).some(wordMatches);
   const genericName = distinctiveWords.length < 2 || placeWords.some((word) => genericWords.has(word));
@@ -309,12 +311,13 @@ async function verifiedPhoto(title: string, name: string, location: string) {
 }
 
 async function wikipediaPhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string) {
-  const pageId = sourceUrl?.match(/^https:\/\/en\.wikipedia\.org\/\?curid=(\d+)$/)?.[1];
+  const linked = wikipediaPage(sourceUrl);
+  const pageId = linked?.pageId;
   if (!pageId && (latitude === undefined || longitude === undefined)) return null;
   const params = new URLSearchParams({ action: "query", prop: "pageimages|coordinates", piprop: "name", format: "json", origin: "*" });
   if (pageId) params.set("pageids", pageId);
   else params.set("titles", name);
-  const data = await wikimediaJson<{ query?: { pages?: Record<string, { title?: string; pageimage?: string; coordinates?: { lat: number; lon: number }[] }> } }>(`https://en.wikipedia.org/w/api.php?${params}`);
+  const data = await wikimediaJson<{ query?: { pages?: Record<string, { title?: string; pageimage?: string; coordinates?: { lat: number; lon: number }[] }> } }>(`https://${linked?.language ?? "en"}.wikipedia.org/w/api.php?${params}`);
   const page = Object.values(data.query?.pages || {})[0];
   if (!page?.pageimage) return null;
   if (!pageId) {
@@ -368,7 +371,14 @@ function settle(key: string, photos: PlacePhoto[]) {
 export type PhotoRequest = { name: string; location: string; latitude?: number; longitude?: number; sourceUrl?: string;
   /** The place's Wikidata item (from OpenStreetMap): its image belongs to this exact place, so it needs no name check. */
   wikidata?: string;
+  /** The Commons file OpenStreetMap tags as the place's own photo: used when its Wikidata item has no image. */
+  commonsFile?: string;
   near?: { latitude: number; longitude: number; radiusKm: number } };
+/** An article link from any Wikipedia, as places carry it: its language and page id. */
+const wikipediaPage = (sourceUrl: string | undefined) => {
+  const match = sourceUrl?.match(/^https:\/\/([a-z]{2,3})\.wikipedia\.org\/\?curid=(\d+)$/);
+  return match ? { language: match[1], pageId: match[2] } : undefined;
+};
 /** Bulk lookups in flight, by place key; a single lookup for one of these places waits for it instead of racing it. */
 const prefetching = new Map<string, Promise<unknown>>();
 type WikiLeadPage = { pageid?: number; title?: string; pageimage?: string; coordinates?: { lat: number; lon: number }[] };
@@ -409,14 +419,18 @@ async function bulkPhotos(places: PhotoRequest[]): Promise<boolean[]> {
         if (image) lead.set(index, image);
       }
     }
+    // Next the file OpenStreetMap tags on the place itself: chosen by a mapper for this very object.
+    for (const { place, index } of chunk) if (!lead.has(index) && place.commonsFile) lead.set(index, place.commonsFile);
     const rest = chunk.filter(({ index }) => !lead.has(index));
-    const byPageId = rest.filter(({ place }) => /^https:\/\/en\.wikipedia\.org\/\?curid=\d+$/.test(place.sourceUrl ?? ""));
+    const byPageId = rest.filter(({ place }) => !!wikipediaPage(place.sourceUrl));
     const byTitle = rest.filter((item) => !byPageId.includes(item));
-    for (const [group, param] of [[byTitle, "titles"], [byPageId, "pageids"]] as const) {
+    const pageGroups = [...new Set(byPageId.map(({ place }) => wikipediaPage(place.sourceUrl)!.language))]
+      .map((language) => [byPageId.filter(({ place }) => wikipediaPage(place.sourceUrl)!.language === language), "pageids", language] as const);
+    for (const [group, param, language] of [[byTitle, "titles", "en"] as const, ...pageGroups]) {
       if (!group.length) continue;
       const params = new URLSearchParams({ action: "query", prop: "pageimages|coordinates", piprop: "name", redirects: "1", format: "json", origin: "*" });
-      params.set(param, group.map(({ place }) => param === "pageids" ? place.sourceUrl!.split("curid=")[1] : place.name).join("|"));
-      const data = await wikimediaJson<{ query?: { normalized?: { from: string; to: string }[]; redirects?: { from: string; to: string; tofragment?: string }[]; pages?: Record<string, WikiLeadPage> } }>(`https://en.wikipedia.org/w/api.php?${params}`).catch(() => null);
+      params.set(param, group.map(({ place }) => param === "pageids" ? wikipediaPage(place.sourceUrl)!.pageId : place.name).join("|"));
+      const data = await wikimediaJson<{ query?: { normalized?: { from: string; to: string }[]; redirects?: { from: string; to: string; tofragment?: string }[]; pages?: Record<string, WikiLeadPage> } }>(`https://${language}.wikipedia.org/w/api.php?${params}`).catch(() => null);
       const pages = Object.values(data?.query?.pages ?? {});
       // A redirect to a section, or to an article that does not name the place ("Mila 23" leads to the village of
       // Crișan), is about something broader: its image is not this place's.
@@ -427,7 +441,7 @@ async function bulkPhotos(places: PhotoRequest[]): Promise<boolean[]> {
         return !redirect.tofragment && titleNamesPlace(redirect.to, title) ? redirect.to : undefined;
       };
       for (const { place, index } of group) {
-        const page = param === "pageids" ? pages.find((item) => String(item.pageid) === place.sourceUrl!.split("curid=")[1]) : pages.find((item) => item.title === follow(place.name));
+        const page = param === "pageids" ? pages.find((item) => String(item.pageid) === wikipediaPage(place.sourceUrl)!.pageId) : pages.find((item) => item.title === follow(place.name));
         const point = page?.coordinates?.[0];
         if (!page?.pageimage) continue;
         // A title lookup can land on a namesake elsewhere; the article must sit within 5 km of the place.

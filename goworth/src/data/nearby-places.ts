@@ -18,6 +18,8 @@ export type NearbyPlace = MapPin & {
   location?: string;
   /** The OpenStreetMap object's Wikidata item, whose image is the quickest reliable photo of the place. */
   wikidata?: string;
+  /** The Commons file OpenStreetMap tags as the place's photo (`wikimedia_commons` or `image`). */
+  commonsFile?: string;
   /** Set for restaurants, bars, cafés and clubs, which rarely have a free photo and get their own card. */
   venue?: Venue;
 };
@@ -32,7 +34,7 @@ type OsmElement = {
   tags?: Record<string, string>;
 };
 type WikiPlace = { pageid: number; title: string; lat?: number; lon?: number; dist?: number; index?: number;
-  coordinates?: { lat: number; lon: number }[]; pageprops?: { page_image_free?: string; "wikibase-shortdesc"?: string } };
+  coordinates?: { lat: number; lon: number }[]; pageprops?: { page_image_free?: string; "wikibase-shortdesc"?: string; wikibase_item?: string } };
 type PhotonFeature = {
   properties: { osm_type: "N" | "W" | "R"; osm_id: number; osm_key: string; osm_value: string; name?: string; city?: string; country?: string; street?: string; housenumber?: string };
   geometry: { coordinates: [number, number] };
@@ -44,13 +46,27 @@ const venueCache = new Map<string, { expiresAt: number; places: NearbyPlace[] }>
 const venuePending = new Map<string, Promise<NearbyPlace[]>>();
 const wikipediaSearchCache = new Map<string, { expiresAt: number; places: NearbyPlace[] }>();
 const photoReadyCache = new Map<string, Promise<boolean>>();
-const photonCategories = [
-  "osm.tourism.attraction", "osm.tourism.museum", "osm.tourism.gallery", "osm.tourism.viewpoint",
-  "osm.tourism.zoo", "osm.tourism.theme_park", "osm.tourism.aquarium",
-  "osm.historic.castle", "osm.historic.fort", "osm.historic.archaeological_site",
-  "osm.historic.monument", "osm.historic.memorial", "osm.historic.ruins",
-  "osm.natural.peak", "osm.natural.waterfall", "osm.natural.cave_entrance", "osm.natural.beach",
-  "osm.leisure.park", "osm.leisure.nature_reserve", "osm.amenity.marketplace",
+/** The kinds of OpenStreetMap objects listed as places to see, by key. */
+const attractionKinds: Record<string, string[]> = {
+  tourism: ["attraction", "museum", "gallery", "viewpoint", "zoo", "theme_park", "aquarium", "artwork"],
+  historic: ["castle", "fort", "archaeological_site", "monument", "memorial", "ruins", "palace", "manor", "monastery",
+    "church", "city_gate", "tower", "citywalls", "aqueduct", "ship", "building"],
+  natural: ["peak", "waterfall", "cave_entrance", "beach", "volcano", "glacier", "cliff", "arch", "hot_spring", "gorge"],
+  leisure: ["park", "nature_reserve", "garden"],
+  amenity: ["marketplace", "theatre", "place_of_worship", "fountain", "arts_centre", "planetarium"],
+  man_made: ["lighthouse"],
+};
+const photonCategories = Object.entries(attractionKinds).flatMap(([key, values]) => values.map((value) => `osm.${key}.${value}`));
+/**
+ * Photon answers at most 50 places a request, so the kinds are asked for in groups: one long list would let the
+ * best-known parks and churches fill every slot and hide the museums, ruins and viewpoints.
+ */
+const photonCategoryGroups = [
+  attractionKinds.tourism.map((value) => `osm.tourism.${value}`),
+  attractionKinds.historic.slice(0, 8).map((value) => `osm.historic.${value}`),
+  attractionKinds.historic.slice(8).map((value) => `osm.historic.${value}`),
+  [...attractionKinds.natural.map((value) => `osm.natural.${value}`), ...attractionKinds.leisure.map((value) => `osm.leisure.${value}`)],
+  [...attractionKinds.amenity.map((value) => `osm.amenity.${value}`), "osm.man_made.lighthouse"],
 ];
 export const photonSearchCategories = photonCategories;
 
@@ -83,10 +99,13 @@ const later = <T,>(ms: number, value: T) => new Promise<T>((resolve) => setTimeo
  * false so it is not kept for long.
  */
 async function keepPhotoBackedPlaces(places: NearbyPlace[]): Promise<{ places: NearbyPlace[]; complete: boolean }> {
-  const candidates = places.slice(0, 60);
-  const deadline = Date.now() + 8000;
+  // Places that link a Wikidata item or a Wikipedia article are the notable ones and confirm their photo in bulk, so
+  // they are checked first; the source order (nearest first) is restored afterwards.
+  const notable = (place: NearbyPlace) => place.source === "Wikipedia" || !!place.wikidata || !!place.commonsFile;
+  const candidates = [...places.filter(notable), ...places.filter((place) => !notable(place))].slice(0, 200);
+  const deadline = Date.now() + 9000;
   const bulk = await Promise.race([
-    prefetchPlacePhotos(candidates.map((place) => ({ name: place.name, location: place.location ?? "", latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl, wikidata: place.wikidata })))
+    prefetchPlacePhotos(candidates.map((place) => ({ name: place.name, location: place.location ?? "", latitude: place.latitude, longitude: place.longitude, sourceUrl: place.sourceUrl, wikidata: place.wikidata, commonsFile: place.commonsFile })))
       .catch(() => candidates.map(() => false)),
     later(deadline - Date.now(), null),
   ]);
@@ -95,9 +114,9 @@ async function keepPhotoBackedPlaces(places: NearbyPlace[]): Promise<{ places: N
   const ready = new Set(candidates.filter((place, index) => place.source === "Wikipedia" || bulk?.[index]));
   let complete = !!bulk;
   const rest = candidates.filter((place) => !ready.has(place));
-  for (let start = 0; complete && start < rest.length && ready.size < 12; start += 6) {
+  for (let start = 0; complete && start < rest.length && ready.size < 40; start += 8) {
     if (Date.now() >= deadline) { complete = false; break; }
-    const batch = rest.slice(start, start + 6);
+    const batch = rest.slice(start, start + 8);
     const results = await Promise.race([
       Promise.all(batch.map(async (place) => ({ place, ok: await hasVerifiedPhoto(place) }))),
       later(Math.max(0, deadline - Date.now()), null),
@@ -106,9 +125,9 @@ async function keepPhotoBackedPlaces(places: NearbyPlace[]): Promise<{ places: N
     for (const result of results) if (result.ok) ready.add(result.place);
   }
   // Keep the source's order (nearest or best-known first) rather than the order the photos were confirmed in.
-  const verified = candidates.filter((place) => ready.has(place));
-  if (complete || verified.length >= 8) return { places: verified.slice(0, 30), complete };
-  return { places: [...verified, ...candidates.filter((place) => !ready.has(place))].slice(0, 20), complete: false };
+  const verified = places.filter((place) => ready.has(place));
+  if (complete || verified.length >= 20) return { places: verified.slice(0, 150), complete };
+  return { places: [...verified, ...places.filter((place) => candidates.includes(place) && !ready.has(place))].slice(0, 60), complete: false };
 }
 
 /**
@@ -138,22 +157,15 @@ function validCoordinates(latitude: number, longitude: number) {
 }
 
 function osmCategory(tags: Record<string, string>) {
-  if (tags.tourism === "museum" || tags.tourism === "gallery") return "Museums";
+  if (tags.tourism === "museum" || tags.tourism === "gallery" || tags.amenity === "arts_centre" || tags.amenity === "planetarium") return "Museums";
   if (tags.natural === "beach") return "Beaches";
   if (tags.amenity === "marketplace") return "Food & Markets";
-  if (tags.natural || tags.leisure) return "Nature";
+  if (tags.natural || tags.leisure === "park" || tags.leisure === "nature_reserve" || tags.leisure === "garden") return "Nature";
   return "Landmarks";
 }
 
 function isAttraction(key: string, value: string) {
-  const allowed: Record<string, string[]> = {
-    tourism: ["attraction", "museum", "gallery", "viewpoint", "zoo", "theme_park", "aquarium"],
-    historic: ["castle", "fort", "archaeological_site", "monument", "memorial", "ruins"],
-    natural: ["peak", "waterfall", "cave_entrance", "beach"],
-    leisure: ["park", "nature_reserve"],
-    amenity: ["marketplace"],
-  };
-  return allowed[key]?.includes(value) ?? false;
+  return attractionKinds[key]?.includes(value) ?? false;
 }
 
 export function parseOsmPlaces(elements: OsmElement[], center: Center, radiusKm: number): NearbyPlace[] {
@@ -178,7 +190,30 @@ export function parseOsmPlaces(elements: OsmElement[], center: Center, radiusKm:
       ...(element.tags?.city && element.tags?.country ? { location: `${element.tags.city}, ${element.tags.country}` } : {}),
       ...(wikidataId(element.tags?.wikidata) ? { wikidata: wikidataId(element.tags?.wikidata) } : {}),
     }];
-  }).sort((a, b) => distanceKm(center, a) - distanceKm(center, b)).slice(0, 100);
+  }).sort((a, b) => distanceKm(center, a) - distanceKm(center, b)).slice(0, 400);
+}
+
+/**
+ * The Commons file an OpenStreetMap tag names: `wikimedia_commons=File:X.jpg`, or an `image` link to a Commons file
+ * page or upload. Categories, other hosts and non-photos are ignored.
+ */
+export function commonsFileTag(value: string | undefined): string | undefined {
+  const text = value?.trim().split(";")[0]?.trim();
+  if (!text) return undefined;
+  let file: string | undefined;
+  if (/^File:/i.test(text)) file = text.slice(5);
+  else {
+    try {
+      const url = new URL(text);
+      if (url.protocol !== "https:" && url.protocol !== "http:") return undefined;
+      if (url.hostname === "commons.wikimedia.org") file = decodeURIComponent(url.pathname).match(/^\/wiki\/File:(.+)$/i)?.[1];
+      else if (url.hostname === "upload.wikimedia.org") file = decodeURIComponent(url.pathname).match(/\/commons\/(?:thumb\/)?[0-9a-f]\/[0-9a-f]{2}\/([^/]+)/)?.[1];
+    } catch {
+      return undefined;
+    }
+  }
+  file = file?.replace(/_/g, " ").trim();
+  return file && /\.(?:jpe?g|png|webp)$/i.test(file) ? file : undefined;
 }
 
 function wikidataId(value: string | undefined) {
@@ -190,8 +225,18 @@ function wikidataId(value: string | undefined) {
  * request. When it is slow or down the places come back as they were and photos fall back to the search by name.
  */
 export async function withWikidata(places: NearbyPlace[], limit = 50): Promise<NearbyPlace[]> {
-  const types = { node: "N", way: "W", relation: "R" } as Record<string, string>;
   const missing = places.slice(0, limit).filter((place) => !place.wikidata && place.id.startsWith("osm:"));
+  let result = places;
+  // Nominatim takes 50 objects a request and asks for one request a second.
+  for (let start = 0; start < missing.length; start += 50) {
+    if (start) await wait(1000);
+    result = await wikidataBatch(result, missing.slice(start, start + 50));
+  }
+  return result;
+}
+
+async function wikidataBatch(places: NearbyPlace[], missing: NearbyPlace[]): Promise<NearbyPlace[]> {
+  const types = { node: "N", way: "W", relation: "R" } as Record<string, string>;
   if (!missing.length) return places;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
@@ -203,11 +248,12 @@ export async function withWikidata(places: NearbyPlace[], limit = 50): Promise<N
     const response = await fetch(url.toString(), { headers: overpassHeaders, signal: controller.signal });
     if (!response.ok) return places;
     const data: { osm_type?: string; osm_id?: number; extratags?: Record<string, string> | null }[] = await response.json();
-    const items = new Map<string, string>((Array.isArray(data) ? data : []).flatMap((element) => {
+    const items = new Map<string, { wikidata?: string; commonsFile?: string }>((Array.isArray(data) ? data : []).flatMap((element) => {
       const item = wikidataId(element.extratags?.wikidata);
-      return item ? [[`osm:${element.osm_type}:${element.osm_id}`, item] as const] : [];
+      const file = commonsFileTag(element.extratags?.wikimedia_commons) ?? commonsFileTag(element.extratags?.image);
+      return item || file ? [[`osm:${element.osm_type}:${element.osm_id}`, { ...(item ? { wikidata: item } : {}), ...(file ? { commonsFile: file } : {}) }] as const] : [];
     }));
-    return items.size ? places.map((place) => items.has(place.id) ? { ...place, wikidata: items.get(place.id) } : place) : places;
+    return items.size ? places.map((place) => items.has(place.id) ? { ...place, ...items.get(place.id) } : place) : places;
   } catch {
     return places;
   } finally {
@@ -246,20 +292,26 @@ function locationAt(latitude: number, longitude: number) {
   return city && country ? `${city.name}, ${country.name}` : undefined;
 }
 
-export function parseWikipediaPlaces(items: WikiPlace[], center: Center, radiusKm: number, includeSettlements = false): NearbyPlace[] {
+export function parseWikipediaPlaces(items: WikiPlace[], center: Center, radiusKm: number, includeSettlements = false,
+  { language = "en", descriptions }: { language?: string; descriptions?: Map<string, string> } = {}): NearbyPlace[] {
   return items.flatMap((item) => {
     const latitude = item.coordinates?.[0]?.lat ?? item.lat;
     const longitude = item.coordinates?.[0]?.lon ?? item.lon;
-    const description = item.pageprops?.["wikibase-shortdesc"] ?? "";
+    const wikidata = wikidataId(item.pageprops?.wikibase_item);
+    // Local-language articles rarely carry an English short description; their Wikidata item's English one stands in.
+    const description = (wikidata && descriptions?.get(wikidata)) || (language === "en" ? item.pageprops?.["wikibase-shortdesc"] ?? "" : "");
     const settlement = includeSettlements && settlementDescription.test(description);
     if (!item.title.trim() || !item.pageprops?.page_image_free || (!settlement &&
       (!visitableDescription.test(description) || nonDestinationDescription.test(description))) || latitude === undefined || longitude === undefined ||
       !validCoordinates(latitude, longitude) || distanceKm(center, { latitude, longitude }) > radiusKm) return [];
-    return [{ id: `wiki:${item.pageid}`, name: item.title, latitude, longitude, kind: "place" as const,
+    return [{ id: language === "en" ? `wiki:${item.pageid}` : `wiki:${language}:${item.pageid}`,
+      // "Biserica Sfântul Mihail (Cluj)": the parenthesis only tells namesakes apart.
+      name: language === "en" ? item.title : item.title.replace(/\s*\([^)]*\)\s*$/, "") || item.title,
+      latitude, longitude, kind: "place" as const,
       category: settlement ? /\b(?:country|sovereign state)\b/i.test(description) ? "Country" : "City" : wikipediaCategory(description),
       detail: "Wikipedia article", source: "Wikipedia" as const, location: locationAt(latitude, longitude),
-      sourceUrl: `https://en.wikipedia.org/?curid=${item.pageid}` }];
-  }).slice(0, 40);
+      sourceUrl: `https://${language}.wikipedia.org/?curid=${item.pageid}`, ...(wikidata ? { wikidata } : {}) }];
+  }).slice(0, 200);
 }
 
 export async function searchWikipediaPlaces(query: string, center: Center, radiusKm: number, includeSettlements = false): Promise<NearbyPlace[]> {
@@ -329,11 +381,15 @@ async function overpassPlaces(center: Center, radiusKm: number) {
   const around = `around:${radius},${center.latitude},${center.longitude}`;
   const query = `[out:json][timeout:15];(` +
     `nwr(${around})["tourism"~"^(attraction|museum|gallery|viewpoint|zoo|theme_park|aquarium)$"]["name"];` +
-    `nwr(${around})["historic"~"^(castle|fort|archaeological_site|monument|memorial|ruins)$"]["name"];` +
-    `nwr(${around})["natural"~"^(peak|waterfall|cave_entrance|beach)$"]["name"];` +
-    `nwr(${around})["leisure"~"^(park|nature_reserve)$"]["name"];` +
-    `nwr(${around})["amenity"="marketplace"]["name"];` +
-    `);out center 200;`;
+    `nwr(${around})["tourism"="artwork"]["name"]["wikidata"];` +
+    `nwr(${around})["historic"~"^(castle|fort|archaeological_site|monument|memorial|ruins|palace|manor|monastery|city_gate|tower|citywalls|aqueduct|ship)$"]["name"];` +
+    `nwr(${around})["historic"~"^(church|building)$"]["name"]["wikidata"];` +
+    `nwr(${around})["natural"~"^(peak|waterfall|cave_entrance|beach|volcano|glacier|cliff|arch|hot_spring|gorge)$"]["name"];` +
+    `nwr(${around})["leisure"~"^(park|nature_reserve|garden)$"]["name"];` +
+    `nwr(${around})["amenity"~"^(marketplace|theatre|arts_centre|planetarium)$"]["name"];` +
+    `nwr(${around})["amenity"~"^(place_of_worship|fountain)$"]["name"]["wikidata"];` +
+    `nwr(${around})["man_made"="lighthouse"]["name"];` +
+    `);out center 600;`;
   const data = await overpassQuery(query, 9000);
   return parseOsmPlaces(data.elements ?? [], center, radiusKm);
 }
@@ -355,17 +411,17 @@ async function photonPlaces(center: Center, radiusKm: number) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 7000);
   try {
-    const requests = boxes.map(async (box) => {
+    const requests = boxes.flatMap((box) => photonCategoryGroups.map(async (group) => {
       const url = new URL("https://photon.komoot.io/api/");
       for (const [key, value] of Object.entries({
         lat: String(center.latitude), lon: String(center.longitude),
-        bbox: box.join(","), include: photonCategories.join(","), limit: "100",
+        bbox: box.join(","), include: group.join(","), limit: "50",
       })) url.searchParams.set(key, value);
       const response = await fetch(url.toString(), { signal: controller.signal });
       if (!response.ok) throw new Error("OpenStreetMap place search is unavailable.");
       const data: { features?: PhotonFeature[] } = await response.json();
       return data.features ?? [];
-    });
+    }));
     const responses = await Promise.allSettled(requests);
     const features = responses.flatMap((result) => result.status === "fulfilled" ? result.value : []);
     if (responses.every((result) => result.status === "rejected")) throw new Error("OpenStreetMap place search is unavailable.");
@@ -375,10 +431,85 @@ async function photonPlaces(center: Center, radiusKm: number) {
   }
 }
 
+/**
+ * Wikipedia's geosearch reaches 10 km at most, so a wider area is covered by a ring of searches around its centre as
+ * well; the same article found twice is kept once.
+ */
 async function wikipediaPlaces(center: Center, radiusKm: number) {
-  const url = new URL("https://en.wikipedia.org/w/api.php");
+  const points = [center];
+  if (radiusKm > 10) {
+    const offset = Math.min(radiusKm - 5, 15);
+    const lonScale = 111 * Math.max(0.2, Math.cos(center.latitude * Math.PI / 180));
+    for (let step = 0; step < 6; step++) {
+      const angle = step * Math.PI / 3;
+      points.push({ latitude: center.latitude + offset * Math.sin(angle) / 111, longitude: center.longitude + offset * Math.cos(angle) / lonScale });
+    }
+  }
+  // English Wikipedia covers the famous sights; the country's own Wikipedia has many more (most Romanian churches,
+  // fortresses and museums have a Romanian article and no English one).
+  const local = localWikipedia(center);
+  const languages = local && local !== "en" ? ["en", local] : ["en"];
+  const lists = await Promise.allSettled(languages.flatMap((language) => points.map((point) => wikipediaPlacesAround(point, center, radiusKm, language))));
+  if (lists.every((list) => list.status === "rejected")) throw new Error("Nearby places are unavailable.");
+  // The same sight found in both languages, or from two search points, is kept once; English comes first.
+  const seen = new Set<string>();
+  return lists.flatMap((list) => list.status === "fulfilled" ? list.value : [])
+    .filter((place) => {
+      const keys = [place.id, ...(place.wikidata ? [place.wikidata] : [])];
+      if (keys.some((key) => seen.has(key))) return false;
+      for (const key of keys) seen.add(key);
+      return true;
+    })
+    .sort((a, b) => distanceKm(center, a) - distanceKm(center, b));
+}
+
+/** The Wikipedia language of the country a point is in, for the countries whose own Wikipedia is large. */
+const countryWikipedia: Record<string, string> = {
+  RO: "ro", MD: "ro", FR: "fr", MC: "fr", LU: "fr", DE: "de", AT: "de", LI: "de", CH: "de", IT: "it", SM: "it", VA: "it",
+  ES: "es", AD: "ca", PT: "pt", BR: "pt", NL: "nl", BE: "nl", PL: "pl", CZ: "cs", SK: "sk", HU: "hu", BG: "bg",
+  GR: "el", CY: "el", HR: "hr", RS: "sr", SI: "sl", BA: "sh", ME: "sr", MK: "mk", AL: "sq", UA: "uk", RU: "ru",
+  BY: "be", LT: "lt", LV: "lv", EE: "et", SE: "sv", NO: "no", DK: "da", FI: "fi", IS: "is", TR: "tr", GE: "ka",
+  AM: "hy", IL: "he", JP: "ja", CN: "zh", TW: "zh", KR: "ko", VN: "vi", TH: "th", ID: "id", IR: "fa",
+  MX: "es", AR: "es", CL: "es", CO: "es", PE: "es", VE: "es", EC: "es", BO: "es", UY: "es", PY: "es", CU: "es",
+  CR: "es", PA: "es", GT: "es", DO: "es", EG: "ar", MA: "fr", TN: "fr", DZ: "fr",
+};
+function localWikipedia(center: Center) {
+  const code = nearestCity(center.latitude, center.longitude)?.countryCode;
+  return code ? countryWikipedia[code] : undefined;
+}
+
+/**
+ * English descriptions of Wikidata items, 50 a request, so local-language articles can be told apart (a church, not a
+ * school or a footballer) by the same rules as English ones.
+ */
+async function wikidataDescriptions(ids: string[]): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  const chunks = Array.from({ length: Math.ceil(ids.length / 50) }, (_, index) => ids.slice(index * 50, index * 50 + 50));
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+  try {
+    await Promise.allSettled(chunks.map(async (chunk) => {
+      const url = new URL("https://www.wikidata.org/w/api.php");
+      for (const [key, value] of Object.entries({ action: "wbgetentities", ids: chunk.join("|"), props: "descriptions",
+        languages: "en", format: "json", origin: "*" })) url.searchParams.set(key, value);
+      const response = await fetch(url.toString(), { headers: wikipediaHeaders, signal: controller.signal });
+      if (!response.ok) return;
+      const data: { entities?: Record<string, { descriptions?: { en?: { value?: string } } }> } = await response.json();
+      for (const [id, entity] of Object.entries(data.entities ?? {})) {
+        const description = entity.descriptions?.en?.value;
+        if (description) result.set(id, description);
+      }
+    }));
+  } finally {
+    clearTimeout(timeout);
+  }
+  return result;
+}
+
+async function wikipediaPlacesAround(point: Center, center: Center, radiusKm: number, language = "en") {
+  const url = new URL(`https://${language}.wikipedia.org/w/api.php`);
   for (const [key, value] of Object.entries({
-    action: "query", generator: "geosearch", ggscoord: `${center.latitude}|${center.longitude}`,
+    action: "query", generator: "geosearch", ggscoord: `${point.latitude}|${point.longitude}`,
     ggsradius: String(Math.min(10000, Math.round(radiusKm * 1000))), ggslimit: "500",
     // Without `colimit` only 10 of the pages found come back with coordinates, and the others are dropped.
     prop: "coordinates|pageprops", colimit: "max", format: "json", origin: "*",
@@ -389,7 +520,11 @@ async function wikipediaPlaces(center: Center, radiusKm: number) {
     const response = await fetch(url.toString(), { headers: wikipediaHeaders, signal: controller.signal });
     if (!response.ok) throw new Error("Nearby places are unavailable.");
     const data: { query?: { pages?: Record<string, WikiPlace> } } = await response.json();
-    return parseWikipediaPlaces(Object.values(data.query?.pages ?? {}).sort((a, b) => (a.index ?? 0) - (b.index ?? 0)), center, radiusKm);
+    const pages = Object.values(data.query?.pages ?? {}).sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    if (language === "en") return parseWikipediaPlaces(pages, center, radiusKm);
+    // Only articles with a free lead photo can be listed, so only their items need a description.
+    const ids = [...new Set(pages.flatMap((page) => page.pageprops?.page_image_free ? [wikidataId(page.pageprops.wikibase_item)].filter((id): id is string => !!id) : []))];
+    return parseWikipediaPlaces(pages, center, radiusKm, false, { language, descriptions: await wikidataDescriptions(ids) });
   } finally {
     clearTimeout(timeout);
   }
@@ -409,6 +544,7 @@ const withLocations = (places: NearbyPlace[]) => places.map((place) => place.loc
 
 export function mergeSourcePlaces(osm: NearbyPlace[], wiki: NearbyPlace[], center: Center): NearbyPlace[] {
   const extra = wiki.filter((article) => !osm.some((place) => {
+    if (place.wikidata && place.wikidata === article.wikidata) return true;
     const distance = distanceKm(place, article);
     return distance < 0.04 || distance < 1 && comparableName(place.name) === comparableName(article.name);
   }));
@@ -439,7 +575,7 @@ export async function loadNearbyPlaces(center: Center, radiusKm = 8, within?: Bo
     const osmInside = osm ? inside(osm) : null;
     // Nothing answered (offline, every provider busy): fail so the screen offers a retry instead of caching an empty list.
     if (!osmInside && !wikiInside) throw new Error("Nearby places are unavailable.");
-    const rawPlaces = mergeSourcePlaces(osmInside?.length ? await withWikidata(osmInside) : [], wikiInside ?? [], center);
+    const rawPlaces = mergeSourcePlaces(osmInside?.length ? await withWikidata(osmInside, 100) : [], wikiInside ?? [], center);
     const { places: checked, complete } = await keepPhotoBackedPlaces(rawPlaces);
     const places = withLocations(checked);
     // A list missing one of its sources is kept only briefly, so the next visit tries that source again.
