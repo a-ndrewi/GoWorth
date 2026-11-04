@@ -59,6 +59,7 @@ export function SplashScreen() {
     }
     // The short intro pause is for the welcome screen; signed-in users go straight in.
     if (!introDone) return;
+    settleMark();
     const animation = Animated.timing(actionReveal, {
       toValue: 1,
       duration: 650,
@@ -75,33 +76,53 @@ export function SplashScreen() {
 }
 
 /**
- * The splash's mark, flipped once like a tossed coin with a small bounce, then floating while the app loads.
+ * The splash's mark, flipped like a tossed coin with a small bounce, over and over while the app loads, and floating.
  * It starts where the native splash left it, so the hand-over shows no jump. The motion is shared app-wide:
  * the launch cover over the tabs shows the same mark mid-flight instead of a still copy, so passing from the
  * splash to the cover looks like one screen.
  */
-const mark = { flip: new Animated.Value(0), float: new Animated.Value(0), started: false, users: 0, running: null as Animated.CompositeAnimation | null };
+const mark = { flip: new Animated.Value(0), float: new Animated.Value(0), started: false, users: 0,
+  running: null as Animated.CompositeAnimation | null, spinning: null as Animated.CompositeAnimation | null };
 
 function startMark() {
   if (mark.started) return;
   mark.started = true;
   void AccessibilityInfo.isReduceMotionEnabled().catch(() => false).then((reduce) => {
     if (reduce || !mark.started) return;
-    mark.running = Animated.sequence([
+    // A full turn ends where it started, so each loop restarts from 0 without a jump.
+    mark.spinning = Animated.sequence([
       Animated.delay(150),
-      Animated.timing(mark.flip, { toValue: 1, duration: 950, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
       Animated.loop(Animated.sequence([
-        Animated.timing(mark.float, { toValue: 1, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(mark.float, { toValue: 0, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(mark.flip, { toValue: 1, duration: 950, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.delay(300),
       ])),
     ]);
+    mark.running = Animated.loop(Animated.sequence([
+      Animated.timing(mark.float, { toValue: 1, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(mark.float, { toValue: 0, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    mark.spinning.start();
     mark.running.start();
   });
 }
 
 /** Stops the float once nothing shows the mark any more, and lets a later splash (after sign-out) play it again. */
+/** Loading is over (the welcome buttons come up): the turn under way finishes and the mark stays still, only floating. */
+function settleMark() {
+  const spin = mark.spinning;
+  if (!spin) return;
+  mark.spinning = null;
+  spin.stop();
+  mark.flip.stopAnimation((value) => {
+    if (value <= 0) return;
+    Animated.timing(mark.flip, { toValue: 1, duration: Math.max(1, (1 - value) * 950), easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  });
+}
+
 function stopMark() {
   if (mark.users > 0) return;
+  mark.spinning?.stop();
+  mark.spinning = null;
   mark.running?.stop();
   mark.running = null;
   mark.started = false;
