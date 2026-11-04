@@ -25,6 +25,34 @@ export function finishBoot() {
   emit();
 }
 
+/**
+ * The splash's logo and name are images drawn a few frames after the screen; hiding the native splash before they were
+ * up showed the screen without them for a moment, as if the logo had reloaded.
+ */
+const artPending = new Set(["mark", "name"]);
+let artShown = false;
+
+/** One of the splash's images is on screen. */
+export function splashArtShown(name: "mark" | "name") {
+  if (artShown || !artPending.delete(name)) return;
+  if (!artPending.size) { artShown = true; emit(); }
+}
+
+const getArtShown = () => artShown;
+
+/** Resolves once the splash's images are on screen (at once if they already are). */
+export function whenSplashArtShown() {
+  return new Promise<void>((resolve) => {
+    if (artShown) { resolve(); return; }
+    const listener = () => { if (artShown) { listeners.delete(listener); resolve(); } };
+    listeners.add(listener);
+  });
+}
+
+export function useSplashArtShown() {
+  return useSyncExternalStore(subscribe, getArtShown, getArtShown);
+}
+
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 const getDone = () => done;
 

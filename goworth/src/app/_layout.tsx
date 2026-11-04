@@ -16,7 +16,7 @@ import { UsernameGate } from "@/features/username-gate";
 // Also defines the background task that wakes the app for nearby places, which must exist before the app renders.
 import { DeviceSync } from "@/state/device-sync";
 import { setPhotoStore } from "@/data/place-photo";
-import { bootTimeoutMs, finishBoot, useBootDone } from "@/state/boot";
+import { bootTimeoutMs, finishBoot, useBootDone, useSplashArtShown } from "@/state/boot";
 import { BootCover } from "@/features/onboarding";
 import { VisaAwardHost } from "@/features/passport";
 import { VisaProvider } from "@/state/visas-context";
@@ -59,13 +59,16 @@ function AppNavigator() {
   const { scheme } = useThemePreference();
   const { cloudReady, loadError, retryLoad, trip, offlineSince, profile: { username: profileUsername } } = useTravel();
   const bootDone = useBootDone();
-  // The native splash stays until the saved session is read: before then the tree is drawn for no one and is drawn
-  // again for the account, which showed as a flicker right after the logo.
+  // The native splash stays until the saved session is read (before then the tree is drawn for no one and is drawn
+  // again for the account) and, on the splash route, until its logo and name are drawn, so the hand-over shows the
+  // same picture instead of a screen that is blank for a moment.
+  const artShown = useSplashArtShown();
+  const nativeSplashDone = ready && (artShown || !isSplash);
   useEffect(() => {
-    if (ready) { SplashScreen.hide(); return; }
+    if (nativeSplashDone) { SplashScreen.hide(); return; }
     const timer = setTimeout(() => SplashScreen.hide(), 4000);
     return () => clearTimeout(timer);
-  }, [ready]);
+  }, [nativeSplashDone]);
   const signedInId = user?.id;
   useEffect(() => {
     if (signedInId) warmDeviceLocation();

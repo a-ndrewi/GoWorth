@@ -29,6 +29,7 @@ import { supabase } from "@/lib/supabase";
 import { translate } from "@/data/i18n";
 import { useAppLanguage, type AppLanguage } from "@/data/formatting";
 import { useTimedMessage } from "@/hooks/use-timed-message";
+import { splashArtShown, whenSplashArtShown } from "@/state/boot";
 
 // Email links land on a small page of the presentation site, which opens the app with the link's one-time code.
 // Mail apps follow an https link reliably; many refuse to follow a redirect straight to goworth://.
@@ -87,7 +88,9 @@ const mark = { flip: new Animated.Value(0), float: new Animated.Value(0), starte
 function startMark() {
   if (mark.started) return;
   mark.started = true;
-  void AccessibilityInfo.isReduceMotionEnabled().catch(() => false).then((reduce) => {
+  // Still while the native splash is up: the turn starts once the drawn mark has taken its place, so the hand-over
+  // shows no jump.
+  void Promise.all([AccessibilityInfo.isReduceMotionEnabled().catch(() => false), whenSplashArtShown()]).then(([reduce]) => {
     if (reduce || !mark.started) return;
     // A full turn ends where it started, so each loop restarts from 0 without a jump.
     mark.spinning = Animated.sequence([
@@ -167,6 +170,7 @@ function WelcomeContent({ actionReveal, actionsEnabled = true, animated = false 
                 style={{ width: 132, height: 104 }}
                 contentFit="contain"
                 accessibilityLabel="GoWorth logo"
+                onDisplay={() => splashArtShown("mark")}
               />
             </Animated.View>
             <Image
@@ -175,6 +179,7 @@ function WelcomeContent({ actionReveal, actionsEnabled = true, animated = false 
               tintColor={scheme === "dark" ? p.ink : undefined}
               contentFit="contain"
               accessibilityLabel="GoWorth"
+              onDisplay={() => splashArtShown("name")}
             />
           </View>
           <Animated.View
