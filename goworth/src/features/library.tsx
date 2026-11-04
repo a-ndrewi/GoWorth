@@ -12,6 +12,7 @@ import { socialLinks } from "@/constants/links";
 import { openStoreReview, reviewStoreName } from "@/lib/store-review";
 import { TripHero, heroStylesSheet } from "@/components/goworth/trip-hero";
 import { PastTripCard } from "@/components/goworth/past-trip-card";
+import { TripSwitcher } from "@/components/goworth/companions";
 import { photos, themedStyles } from "@/constants/design";
 import { usePalette, useThemePreference, useStyles } from "@/state/theme-context";
 import { findDestination, money, places } from "@/data/travel";
@@ -106,7 +107,8 @@ export function SavedScreen() {
   const p = usePalette();
   const language = useAppLanguage();
   const { tab: initialTab } = useLocalSearchParams<{ tab?: string }>();
-  const { savedPlaces, togglePlace, externalPlaces, toggleExternalPlace, trip, activities, expenses, journalEntries, journalAvailable } = useTravel();
+  const { savedPlaces, togglePlace, externalPlaces, toggleExternalPlace, trip, trips, sharedTrips, activities, expenses, journalEntries, journalAvailable } = useTravel();
+  const activeTrips = trips.length + sharedTrips.filter((item) => item.status === "accepted").length;
   const [history, setHistory] = useState<"all" | "completed" | "replaced">("all");
   const [placeQuery, setPlaceQuery] = useState("");
   const [tripQuery, setTripQuery] = useState("");
@@ -173,7 +175,7 @@ export function SavedScreen() {
   }, [placesOpened, placeItems]);
   const unavailablePlaces = Math.max(0, savedPlaces.length - savedPlaceRecords.length - externalPlaces.length);
   const spent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-  const tabs = [{ id: "Places", count: placeCount }, { id: "Trips", count: (trip ? 1 : 0) + journalEntries.length }];
+  const tabs = [{ id: "Places", count: placeCount }, { id: "Trips", count: Math.max(activeTrips, trip ? 1 : 0) + journalEntries.length }];
   // Past trips are found by any city or country on their route, or by year.
   const tripNeedle = normalizeSearchText(tripQuery.trim());
   const pastTrips = journalEntries.filter((entry) => history === "all" || entry.status === history)
@@ -218,7 +220,8 @@ export function SavedScreen() {
         </View>}
       />}
       {opened.has("Trips") && <ScrollView style={[{ flex: 1, marginHorizontal: -22 }, tab !== "Trips" && { display: "none" }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ flexGrow: 1, gap: 14, paddingHorizontal: 22, paddingBottom: 90 }} showsVerticalScrollIndicator={false}>
-        {!!trip && <Text style={styles.section}>{translate("Current trip", language)}</Text>}
+        {!!trip && <Text style={styles.section}>{translate(activeTrips > 1 ? "My trips" : "Current trip", language)}</Text>}
+        {!!trip && <TripSwitcher />}
         {trip ? <>
           <Pressable accessibilityRole="button" accessibilityLabel={translate("Open itinerary", language)} onPress={() => router.push("/itinerary" as Href)}>
             <TripHero trip={trip}>
@@ -234,7 +237,7 @@ export function SavedScreen() {
             <QuickAction icon="edit" label="Edit trip" detail={translate("Dates, cities, style", language)} onPress={() => router.push({ pathname: "/planner", params: { edit: "1" } } as Href)} />
           </View>
           <Pressable accessibilityRole="button" onPress={() => router.push("/planner" as Href)} style={({ pressed }) => [styles.newTrip, pressed && { backgroundColor: p.blueSoft }]}>
-            <Icon name="plus" size={18} color={p.blue} /><Text style={styles.newTripText}>{translate("Plan a new trip", language)}</Text>
+            <Icon name="plus" size={18} color={p.blue} /><Text style={styles.newTripText}>{translate("Plan another trip", language)}</Text>
           </Pressable>
         </> : <View style={[styles.empty, !journalEntries.length && { marginTop: 40 }]}>
           <View style={styles.emptyIcon}><Icon name="trip" size={26} color={p.blue} /></View>

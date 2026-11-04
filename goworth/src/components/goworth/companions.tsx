@@ -54,16 +54,15 @@ export function CompanionStrip() {
   const p = usePalette();
   const language = useAppLanguage();
   const { user } = useAuth();
-  const { trip, tripOwner, profile, avatarUrl } = useTravel();
+  const { trip, tripId, tripOwner, profile, avatarUrl } = useTravel();
   const [open, setOpen] = useState(false);
   const [people, setPeople] = useState<TripCompanion[] | null>(null);
-  const owner = tripOwner ?? user?.id;
   useEffect(() => {
-    if (!owner || !trip || open) return;
+    if (!tripId || !trip || open) return;
     let current = true;
-    loadTripCompanions(owner).then((value) => { if (current) setPeople(value); }).catch(() => { if (current) setPeople(null); });
+    loadTripCompanions(tripId).then((value) => { if (current) setPeople(value); }).catch(() => { if (current) setPeople(null); });
     return () => { current = false; };
-  }, [owner, trip, open]);
+  }, [tripId, trip, open]);
   if (!trip || !user) return null;
   const others = (people ?? []).filter((person) => person.id !== user.id && person.status !== "pending");
   const pending = (people ?? []).filter((person) => person.status === "pending").length;
@@ -106,8 +105,7 @@ export function CompanionsPanel({ onClose }: { onClose: () => void }) {
   const p = usePalette();
   const language = useAppLanguage();
   const { user } = useAuth();
-  const { trip, tripOwner, tripPeople, plan, profile, setProfile, inviteCompanion, removeCompanion } = useTravel();
-  const owner = tripOwner ?? user?.id;
+  const { trip, tripId, tripOwner, tripPeople, plan, profile, setProfile, inviteCompanion, removeCompanion } = useTravel();
   const isOwner = !tripOwner;
   // The list the trip already loaded shows straight away, so the sheet does not wait on a spinner or grow
   // mid-animation; a fresh copy replaces it once it arrives.
@@ -122,11 +120,11 @@ export function CompanionsPanel({ onClose }: { onClose: () => void }) {
   const [limitHit, setLimitHit] = useState(false);
   const searchId = useRef(0);
 
-  const reload = () => owner ? loadTripCompanions(owner).then(setPeople) : Promise.resolve();
+  const reload = () => tripId ? loadTripCompanions(tripId).then(setPeople) : Promise.resolve();
   useEffect(() => {
     reload().catch(() => setError("Could not load companions. Try again.")).finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [owner]);
+  }, [tripId]);
 
   // Search as the traveller types, a moment after they pause; only the answer for the current text is shown.
   const term = query.trim().replace(/^@/, "");
@@ -259,16 +257,16 @@ export function TripInvites() {
   const [error, setError] = useTimedMessage();
   if (!pendingInvites.length) return null;
   const date = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDateString(locale, { day: "numeric", month: "short", timeZone: "UTC" });
-  const answer = async (owner: string, accept: boolean) => {
-    setBusy(`${owner}:${accept}`); setError("");
+  const answer = async (tripId: string, accept: boolean) => {
+    setBusy(`${tripId}:${accept}`); setError("");
     try {
-      await answerInvite(owner, accept);
+      await answerInvite(tripId, accept);
       if (accept) router.push("/itinerary" as Href);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not answer the invitation."); }
     finally { setBusy(""); }
   };
   return <View style={{ gap: 10 }}>
-    {pendingInvites.map((invite) => <View key={invite.owner.id} style={styles.inviteCard}>
+    {pendingInvites.map((invite) => <View key={invite.tripId} style={styles.inviteCard}>
       <Row style={{ gap: 12 }}>
         <TravelerAvatar traveler={invite.owner} size={46} />
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
@@ -278,39 +276,39 @@ export function TripInvites() {
         </View>
       </Row>
       <Row style={{ gap: 9 }}>
-        <Button secondary busy={busy === `${invite.owner.id}:false`} disabled={!!busy} onPress={() => void answer(invite.owner.id, false)} style={{ flex: 1 }}>Decline</Button>
-        <Button icon="check" busy={busy === `${invite.owner.id}:true`} disabled={!!busy} onPress={() => void answer(invite.owner.id, true)} style={{ flex: 1 }}>Join trip</Button>
+        <Button secondary busy={busy === `${invite.tripId}:false`} disabled={!!busy} onPress={() => void answer(invite.tripId, false)} style={{ flex: 1 }}>Decline</Button>
+        <Button icon="check" busy={busy === `${invite.tripId}:true`} disabled={!!busy} onPress={() => void answer(invite.tripId, true)} style={{ flex: 1 }}>Join trip</Button>
       </Row>
     </View>)}
     {!!error && <Copy style={{ color: p.danger, fontSize: 13 }}>{error}</Copy>}
   </View>;
 }
 
-/** Chips to move between the traveller's own trip and the trips they joined; hidden when there is only one. */
+/** Chips to move between the traveller's own trips and the trips they joined; hidden when there is only one. */
 export function TripSwitcher() {
   const p = usePalette();
   const styles = useStyles(stylesSheet);
   const language = useAppLanguage();
-  const { tripOwner, hasOwnTrip, sharedTrips, openTrip } = useTravel();
-  const [busy, setBusy] = useState<string | null | undefined>(undefined);
-  const joined = sharedTrips.filter((item) => item.status === "accepted");
-  const options: { owner: string | null; label: string }[] = [
-    ...(hasOwnTrip || !tripOwner ? [{ owner: null, label: translate("My trip", language) }] : []),
-    ...joined.map((item) => ({ owner: item.owner.id, label: `${routeTitle(item.trip, language)} · ${shownName(item.owner, language).split(" ")[0]}` })),
+  const { tripId, trips, sharedTrips, openTrip } = useTravel();
+  const [busy, setBusy] = useState<string | null>(null);
+  const options: { id: string; label: string; shared: boolean }[] = [
+    ...trips.flatMap((item) => item.trip.id ? [{ id: item.trip.id, label: routeTitle(item.trip, language), shared: false }] : []),
+    ...sharedTrips.filter((item) => item.status === "accepted")
+      .map((item) => ({ id: item.tripId, label: `${routeTitle(item.trip, language)} · ${shownName(item.owner, language).split(" ")[0]}`, shared: true })),
   ];
   if (options.length < 2) return null;
-  const choose = async (owner: string | null) => {
-    if (owner === tripOwner) return;
-    setBusy(owner);
-    try { await openTrip(owner); } catch { /* The list refreshes itself when a trip is gone. */ } finally { setBusy(undefined); }
+  const choose = async (id: string) => {
+    if (id === tripId) return;
+    setBusy(id);
+    try { await openTrip(id); } catch { /* The list refreshes itself when a trip is gone. */ } finally { setBusy(null); }
   };
   return <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 8 }}>
     {options.map((option) => {
-      const selected = option.owner === tripOwner;
-      return <Pressable key={option.owner ?? "own"} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => void choose(option.owner)}
+      const selected = option.id === tripId;
+      return <Pressable key={option.id} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => void choose(option.id)}
         style={({ pressed }) => [styles.switch, selected && { backgroundColor: p.ink, borderColor: p.ink }, pressed && { opacity: 0.8 }]}>
-        {busy === option.owner ? <ActivityIndicator size="small" color={selected ? p.canvas : p.muted} />
-          : <Icon name={option.owner ? "people" : "person"} size={14} color={selected ? p.canvas : p.muted} />}
+        {busy === option.id ? <ActivityIndicator size="small" color={selected ? p.canvas : p.muted} />
+          : <Icon name={option.shared ? "people" : "trip"} size={14} color={selected ? p.canvas : p.muted} />}
         <Text numberOfLines={1} style={[styles.switchText, selected && { color: p.canvas }]}>{option.label}</Text>
       </Pressable>;
     })}

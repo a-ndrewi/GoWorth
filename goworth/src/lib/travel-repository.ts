@@ -14,6 +14,28 @@ function requireData<T>(result: { data: T; error: { message: string } | null }) 
   return result.data;
 }
 
+type TripRow = {
+  id: string; user_id: string; destination_id: string; start_date: string; end_date: string; budget: number | string;
+  companions: string; interests: string[]; day_destinations: string[] | null; day_cities: string[][] | null;
+  route_stops: Trip["routeStops"] | null; note: string | null;
+};
+const tripColumns = "id,user_id,destination_id,start_date,end_date,budget,companions,interests,day_destinations,day_cities,route_stops,note";
+
+/** One planned trip with its id, owner and note, as the app works with it. */
+export type PlannedTrip = { trip: Trip; owner: string; note: string };
+
+function mapTrip(row: TripRow): PlannedTrip {
+  return {
+    owner: row.user_id,
+    note: row.note ?? "",
+    trip: {
+      id: row.id, destinationId: row.destination_id, dayDestinations: row.day_destinations || undefined,
+      dayCities: row.day_cities || undefined, routeStops: row.route_stops || undefined, start: row.start_date, end: row.end_date,
+      budget: Number(row.budget), companions: row.companions, interests: row.interests,
+    },
+  };
+}
+
 async function profileFunctionError(error: { message: string; context?: unknown } | null, fallback: string) {
   const response = error?.context;
   if (response instanceof Response) {
@@ -29,15 +51,12 @@ export async function loadTravelData(userId: string) {
   const monthStart = new Date();
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
-  const [profile, preferences, trip, activities, expenses, saved, memory, journalEntries, entitlement, usage] =
+  const [profile, preferences, trips, saved, journalEntries, entitlement, usage] =
     await Promise.all([
       db.from("profiles").select("display_name,username,notifications_enabled,language,currency,avatar_path,avatar_status").eq("user_id", userId).maybeSingle(),
       db.from("travel_preferences").select("interests,region,budget,pace").eq("user_id", userId).maybeSingle(),
-      db.from("trips").select("destination_id,start_date,end_date,budget,companions,interests,day_destinations,day_cities,route_stops").eq("user_id", userId).maybeSingle(),
-      db.from("trip_activities").select("id,day,period,activity_time,name,note,place_id,latitude,longitude").eq("user_id", userId).order("position"),
-      db.from("trip_expenses").select("id,label,category,amount").eq("user_id", userId).order("position"),
+      db.from("trips").select("id,user_id,destination_id,start_date,end_date,budget,companions,interests,day_destinations,day_cities,route_stops,note").eq("user_id", userId).order("start_date"),
       db.from("saved_items").select("kind,item_id,details").eq("user_id", userId),
-      db.from("travel_memories").select("journal").eq("user_id", userId).maybeSingle(),
       db.from("trip_journal_entries").select("id,destination_id,start_date,end_date,budget,companions,interests,day_destinations,day_cities,route_stops,activities,expenses,saved_place_ids,reflection,status,archived_at").eq("user_id", userId).order("archived_at", { ascending: false }),
       db.rpc("my_membership").then((result) => result.error
         ? db.from("user_entitlements").select("plan,valid_until").eq("user_id", userId).maybeSingle()
@@ -48,12 +67,7 @@ export async function loadTravelData(userId: string) {
   const profileRow = requireData(profile.error
     ? await db.from("profiles").select("display_name,username,notifications_enabled").eq("user_id", userId).maybeSingle()
     : profile);
-  const tripRow = requireData(trip.error
-    ? await db.from("trips").select("destination_id,start_date,end_date,budget,companions,interests").eq("user_id", userId).maybeSingle()
-    : trip);
-  const activityRows = requireData(activities.error
-    ? await db.from("trip_activities").select("id,day,period,activity_time,name,note").eq("user_id", userId).order("position")
-    : activities);
+  const tripRows = requireData(trips) ?? [];
   const journalRows = journalEntries.error
     ? await db.from("trip_journal_entries").select("id,destination_id,start_date,end_date,budget,companions,interests,activities,expenses,saved_place_ids,reflection,status,archived_at").eq("user_id", userId).order("archived_at", { ascending: false })
     : journalEntries;
@@ -69,38 +83,8 @@ export async function loadTravelData(userId: string) {
       avatar_status: "avatar_status" in profileRow && typeof profileRow.avatar_status === "string" ? profileRow.avatar_status : "none",
     } : null,
     preferences: requireData(preferences),
-    trip: tripRow
-      ? {
-          destinationId: tripRow.destination_id,
-          dayDestinations: "day_destinations" in tripRow ? tripRow.day_destinations || undefined : undefined,
-          dayCities: "day_cities" in tripRow ? tripRow.day_cities || undefined : undefined,
-          routeStops: "route_stops" in tripRow ? tripRow.route_stops || undefined : undefined,
-          start: tripRow.start_date,
-          end: tripRow.end_date,
-          budget: Number(tripRow.budget),
-          companions: tripRow.companions,
-          interests: tripRow.interests,
-        } as Trip
-      : null,
-    activities: (activityRows ?? []).map((item) => ({
-      id: item.id,
-      day: item.day,
-      period: item.period,
-      time: item.activity_time,
-      name: item.name,
-      note: item.note,
-      placeId: "place_id" in item ? item.place_id || undefined : undefined,
-      latitude: "latitude" in item ? item.latitude ?? undefined : undefined,
-      longitude: "longitude" in item ? item.longitude ?? undefined : undefined,
-    })) as Activity[],
-    expenses: (requireData(expenses) ?? []).map((item) => ({
-      id: item.id,
-      label: item.label,
-      category: item.category,
-      amount: Number(item.amount),
-    })) as Expense[],
+    trips: tripRows.map(mapTrip),
     saved: savedRows ?? [],
-    journal: requireData(memory)?.journal ?? "",
     journalAvailable: !journalRows.error,
     journalEntries: journalRows.error ? [] : mapJournalEntries(journalRows.data ?? []),
     entitlement: entitlement.error ? null : entitlement.data,
@@ -163,8 +147,8 @@ export async function loadTripJournal(userId: string): Promise<TripJournalEntry[
   return mapJournalEntries(requireData(rows) ?? []);
 }
 
-export async function archiveCurrentTrip() {
-  return requireData(await client().rpc("archive_trip", { p_status: "completed" }));
+export async function archiveTrip(tripId: string) {
+  return requireData(await client().rpc("archive_trip", { p_trip: tripId, p_status: "completed" }));
 }
 
 export async function saveTripReflection(userId: string, entryId: string, reflection: string) {
@@ -253,9 +237,9 @@ export async function savePreferences(
   }));
 }
 
-export async function replaceTrip(userId: string, trip: Trip, activities: Activity[]) {
-  const db = client();
-  const payload = {
+/** Plans a new trip and returns its id. On Free the server moves the current trip to the journal first. */
+export async function createTrip(trip: Trip) {
+  const id = requireData(await client().rpc("create_trip", {
     p_destination_id: trip.destinationId,
     p_start_date: trip.start,
     p_end_date: trip.end,
@@ -265,48 +249,34 @@ export async function replaceTrip(userId: string, trip: Trip, activities: Activi
     p_day_destinations: trip.dayDestinations || null,
     p_day_cities: trip.dayCities || null,
     p_route_stops: trip.routeStops || null,
-    p_activities: activities.map((activity, position) => ({
-      id: activity.id,
-      day: activity.day,
-      period: activity.period,
-      activity_time: activity.time,
-      name: activity.name,
-      note: activity.note,
-      place_id: activity.placeId || null,
-      latitude: activity.latitude ?? null,
-      longitude: activity.longitude ?? null,
-      position,
-    })),
-  };
-  const result = await db.rpc("replace_trip", payload);
-  if (result.error && !trip.dayDestinations && !trip.dayCities && !trip.routeStops && /function|schema cache/i.test(result.error.message)) {
-    const { p_day_destinations, p_day_cities, p_route_stops, ...legacyPayload } = payload;
-    void p_day_destinations; void p_day_cities; void p_route_stops;
-    requireData(await db.rpc("replace_trip", legacyPayload));
-    return;
-  }
-  requireData(result);
+  }));
+  if (typeof id !== "string") throw new Error("Could not create the trip. Try again.");
+  return id;
 }
 
-/** Saves changes to the current trip in place: no archive, and activities on days that no longer exist are removed. */
-export async function updateTrip(userId: string, trip: Trip, removedActivityIds: string[]) {
+/** Saves changes to a trip in place: no archive, and activities on days that no longer exist are removed. */
+export async function updateTrip(tripId: string, trip: Trip, removedActivityIds: string[]) {
   const db = client();
   requireData(await db.from("trips").update({
     destination_id: trip.destinationId, start_date: trip.start, end_date: trip.end, budget: trip.budget,
     companions: trip.companions, interests: trip.interests, day_destinations: trip.dayDestinations ?? null,
     day_cities: trip.dayCities ?? null, route_stops: trip.routeStops ?? null,
-  }).eq("user_id", userId));
-  if (removedActivityIds.length) requireData(await db.from("trip_activities").delete().eq("user_id", userId).in("id", removedActivityIds));
+  }).eq("id", tripId));
+  if (removedActivityIds.length) requireData(await db.from("trip_activities").delete().eq("trip_id", tripId).in("id", removedActivityIds));
 }
 
-export async function deleteTrip(userId: string) {
-  requireData(await client().from("trips").delete().eq("user_id", userId));
+export async function saveTripNote(tripId: string, note: string) {
+  requireData(await client().from("trips").update({ note }).eq("id", tripId));
 }
 
-export async function saveActivity(userId: string, activity: Activity, position: number) {
-  const db = client();
-  const values = {
-    user_id: userId,
+export async function deleteTrip(tripId: string) {
+  requireData(await client().from("trips").delete().eq("id", tripId));
+}
+
+// Rows carry the trip's owner, which the database fills in from the trip, so companions write them the same way.
+export async function saveActivity(tripId: string, activity: Activity, position: number) {
+  requireData(await client().from("trip_activities").upsert({
+    trip_id: tripId,
     id: activity.id,
     day: activity.day,
     period: activity.period,
@@ -317,31 +287,23 @@ export async function saveActivity(userId: string, activity: Activity, position:
     latitude: activity.latitude ?? null,
     longitude: activity.longitude ?? null,
     position,
-  };
-  const result = await db.from("trip_activities").upsert(values);
-  if (result.error && !activity.placeId && /column|schema cache/i.test(result.error.message)) {
-    const { place_id, latitude, longitude, ...legacyValues } = values;
-    void place_id; void latitude; void longitude;
-    requireData(await db.from("trip_activities").upsert(legacyValues));
-    return;
-  }
-  requireData(result);
+  }, { onConflict: "trip_id,id" }));
 }
 
-export async function deleteActivity(userId: string, id: string) {
-  requireData(await client().from("trip_activities").delete().eq("user_id", userId).eq("id", id));
+export async function deleteActivity(tripId: string, id: string) {
+  requireData(await client().from("trip_activities").delete().eq("trip_id", tripId).eq("id", id));
 }
 
-export async function saveExpense(userId: string, expense: Expense, position: number) {
+export async function saveExpense(tripId: string, expense: Expense, position: number) {
   requireData(await client().from("trip_expenses").upsert({
-    user_id: userId,
+    trip_id: tripId,
     ...expense,
     position,
-  }));
+  }, { onConflict: "trip_id,id" }));
 }
 
-export async function deleteExpense(userId: string, id: string) {
-  requireData(await client().from("trip_expenses").delete().eq("user_id", userId).eq("id", id));
+export async function deleteExpense(tripId: string, id: string) {
+  requireData(await client().from("trip_expenses").delete().eq("trip_id", tripId).eq("id", id));
 }
 
 export async function setSavedItem(
@@ -377,34 +339,23 @@ export async function recordDiscoveryFavorite(
   requireData(await client().from("discovery_activity").insert({ user_id: userId, kind, item_id: itemId }));
 }
 
-export async function saveJournal(userId: string, journal: string) {
-  requireData(await client().from("travel_memories").upsert({
-    user_id: userId,
-    journal,
-    updated_at: new Date().toISOString(),
-  }));
-}
-
 /** A traveller as others see them: findable only with a username, photo only once approved. */
 export type Traveler = { id: string; username: string; name: string; avatarPath: string | null };
 export type TripCompanion = Traveler & { status: "owner" | "pending" | "accepted" };
-export type SharedTrip = { owner: Traveler; status: "pending" | "accepted"; invitedAt: string; trip: Trip; companions: number };
+export type SharedTrip = { tripId: string; owner: Traveler; status: "pending" | "accepted"; invitedAt: string; trip: Trip; companions: number };
 
-export async function loadTripData(ownerId: string) {
+/** The trip itself, its note, owner, itinerary and expenses; null once it is gone or no longer shared. */
+export async function loadTripData(tripId: string) {
   const db = client();
   const [trip, activities, expenses] = await Promise.all([
-    db.from("trips").select("destination_id,start_date,end_date,budget,companions,interests,day_destinations,day_cities,route_stops").eq("user_id", ownerId).maybeSingle(),
-    db.from("trip_activities").select("id,day,period,activity_time,name,note,place_id,latitude,longitude").eq("user_id", ownerId).order("position"),
-    db.from("trip_expenses").select("id,label,category,amount").eq("user_id", ownerId).order("position"),
+    db.from("trips").select(tripColumns).eq("id", tripId).maybeSingle(),
+    db.from("trip_activities").select("id,day,period,activity_time,name,note,place_id,latitude,longitude").eq("trip_id", tripId).order("position"),
+    db.from("trip_expenses").select("id,label,category,amount").eq("trip_id", tripId).order("position"),
   ]);
-  const row = requireData(trip);
+  const row = requireData(trip) as TripRow | null;
   if (!row) return null;
   return {
-    trip: {
-      destinationId: row.destination_id, dayDestinations: row.day_destinations || undefined, dayCities: row.day_cities || undefined,
-      routeStops: row.route_stops || undefined, start: row.start_date, end: row.end_date, budget: Number(row.budget),
-      companions: row.companions, interests: row.interests,
-    } as Trip,
+    ...mapTrip(row),
     activities: (requireData(activities) ?? []).map((item) => ({
       id: item.id, day: item.day, period: item.period, time: item.activity_time, name: item.name, note: item.note,
       placeId: item.place_id || undefined, latitude: item.latitude ?? undefined, longitude: item.longitude ?? undefined,
@@ -413,20 +364,24 @@ export async function loadTripData(ownerId: string) {
   };
 }
 
+export async function loadOwnTrips(userId: string): Promise<PlannedTrip[]> {
+  return ((requireData(await client().from("trips").select(tripColumns).eq("user_id", userId).order("start_date")) ?? []) as TripRow[]).map(mapTrip);
+}
+
 export async function searchTravelers(query: string): Promise<Traveler[]> {
   return (requireData(await client().rpc("search_travelers", { p_query: query })) ?? []) as Traveler[];
 }
 
-export async function inviteTripMember(memberId: string) {
-  requireData(await client().rpc("invite_trip_member", { p_member: memberId }));
+export async function inviteTripMember(tripId: string, memberId: string) {
+  requireData(await client().rpc("invite_trip_member", { p_trip: tripId, p_member: memberId }));
 }
 
-export async function respondTripInvite(ownerId: string, accept: boolean) {
-  requireData(await client().rpc("respond_trip_invite", { p_owner: ownerId, p_accept: accept }));
+export async function respondTripInvite(tripId: string, accept: boolean) {
+  requireData(await client().rpc("respond_trip_invite", { p_trip: tripId, p_accept: accept }));
 }
 
-export async function removeTripMember(ownerId: string, memberId: string) {
-  requireData(await client().rpc("remove_trip_member", { p_owner: ownerId, p_member: memberId }));
+export async function removeTripMember(tripId: string, memberId: string) {
+  requireData(await client().rpc("remove_trip_member", { p_trip: tripId, p_member: memberId }));
 }
 
 /** Empty when the companions migration is not deployed yet, so the rest of the app keeps working. */
@@ -439,6 +394,6 @@ export async function loadSharedTrips(): Promise<SharedTrip[]> {
   } }));
 }
 
-export async function loadTripCompanions(ownerId: string): Promise<TripCompanion[]> {
-  return (requireData(await client().rpc("trip_companions", { p_owner: ownerId })) ?? []) as TripCompanion[];
+export async function loadTripCompanions(tripId: string): Promise<TripCompanion[]> {
+  return (requireData(await client().rpc("trip_companions", { p_trip: tripId })) ?? []) as TripCompanion[];
 }

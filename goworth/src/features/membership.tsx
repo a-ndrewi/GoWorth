@@ -36,7 +36,7 @@ const wording = {
     rules: "Premium & wheel rules", terms: "Terms", privacy: "Privacy",
     wonEnds: "Your won Premium ends in {days} days", wonEndsTomorrow: "Your won Premium ends tomorrow",
     wonKeep: "Pick a plan before then to keep everything you use now:", keepVisas: "Your passport and its {count} visas",
-    keepPassport: "Your passport, open for every visa you earn", keepCompanions: "Unlimited companions on shared trips", keepTrips: "Unlimited trips, saves and offline access",
+    keepPassport: "Your passport, open for every visa you earn", keepCompanions: "Unlimited companions on shared trips", keepTrips: "Several trips side by side, unlimited saves and offline access",
   },
   ro: {
     title: "Premium", current: "Planul actual", trip: "Călătorii", places: "Locuri salvate",
@@ -56,7 +56,7 @@ const wording = {
     rules: "Regulile Premium și ale roții", terms: "Termeni", privacy: "Confidențialitate",
     wonEnds: "Premium-ul câștigat expiră în {days} zile", wonEndsTomorrow: "Premium-ul câștigat expiră mâine",
     wonKeep: "Alege un plan până atunci ca să păstrezi tot ce folosești acum:", keepVisas: "Pașaportul tău și cele {count} vize",
-    keepPassport: "Pașaportul tău, deschis pentru fiecare viză câștigată", keepCompanions: "Însoțitori nelimitați în călătoriile comune", keepTrips: "Călătorii, salvări și acces offline nelimitate",
+    keepPassport: "Pașaportul tău, deschis pentru fiecare viză câștigată", keepCompanions: "Însoțitori nelimitați în călătoriile comune", keepTrips: "Mai multe călătorii în paralel, salvări nelimitate și acces offline",
   },
 } as const;
 

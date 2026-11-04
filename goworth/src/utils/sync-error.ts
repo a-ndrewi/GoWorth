@@ -12,7 +12,7 @@ export class SyncFailure extends Error {
 
 export function isFreeLimitFailure(error: unknown): boolean {
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
-  return /Free monthly (trip|place|destination) limit reached \(\d+\)/i.test(message);
+  return /Free monthly (trip|place|destination) limit reached \(\d+\)|Free plan includes one active trip/i.test(message);
 }
 
 export function describeSyncFailure(error: unknown, language: Language): string {

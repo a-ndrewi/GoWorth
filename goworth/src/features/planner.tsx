@@ -81,9 +81,11 @@ export function PlannerScreen() {
   const language = useAppLanguage();
   const locale = language === "ro" ? "ro-RO" : "en-US";
   const params = useLocalSearchParams<{ edit?: string; destination?: string; country?: string; city?: string; stopId?: string; stopName?: string; stopCountry?: string; stopLatitude?: string; stopLongitude?: string }>();
-  const { trip, tripOwner, hasOwnTrip, activities, preferences, generateTrip, updateTrip, plan, monthlyUsage } = useTravel();
-  // A new trip replaces only the traveller's own trip, never a shared one they have open.
-  const replacesOwn = tripOwner ? hasOwnTrip : !!trip;
+  const { trip, trips, activities, preferences, generateTrip, updateTrip, plan, monthlyUsage } = useTravel();
+  // Premium plans trips side by side. Free keeps one, so a new trip moves the traveller's own trip to the
+  // journal (never a shared one), and an account left with several after Premium must finish some first.
+  const replaced = plan === "free" && trips.length === 1 ? trips[0].trip : null;
+  const tooManyForFree = plan === "free" && trips.length > 1;
   // Editing reopens the current trip with its route, dates and style; saving keeps its activities and expenses.
   const [editing] = useState(() => params.edit === "1" && !!trip);
   const [initial] = useState(() => editing && trip ? editableTrip(trip) : null);
@@ -184,14 +186,18 @@ export function PlannerScreen() {
       setConfirmReplace(false);
       setError(caught instanceof Error ? caught.message : "Could not save your trip. Try again.");
       const limited = caught instanceof SyncFailure ? caught.isFreeLimit : isFreeLimitFailure(caught);
+      // The error stays on the planner with a "Go unlimited" link; Premium opens only if the traveller taps it.
       setFreeLimit(limited);
-      // Hitting the monthly limit is the moment Premium matters, so open it right there with the reason.
-      if (limited) router.push({ pathname: "/membership", params: { reason: "trip" } } as Href);
     } finally {
       setBusy(false);
     }
   };
-  const create = () => editing ? droppedActivities ? setConfirmReplace(true) : void save() : replacesOwn ? setConfirmReplace(true) : void save();
+  // Free accounts get one new trip per calendar month (UTC); the database refuses a second one, so the planner stops it first.
+  const tripsLeft = plan === "free" && !editing ? Math.max(0, freeAllowance.trip - monthlyUsage.trip) : null;
+  const limitReached = tripsLeft === 0;
+  const openPremium = () => router.push({ pathname: "/membership", params: { reason: "trip" } } as Href);
+  const create = () => editing ? droppedActivities ? setConfirmReplace(true) : void save()
+    : limitReached || tooManyForFree ? openPremium() : replaced ? setConfirmReplace(true) : void save();
 
   const short = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
   const compact = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString(locale, { day: "numeric", month: "short", timeZone: "UTC" });
@@ -201,24 +207,29 @@ export function PlannerScreen() {
     : "";
 
   // Free accounts see their monthly trip before they use it, not only once it is gone.
-  const tripsLeft = plan === "free" && !editing ? Math.max(0, freeAllowance.trip - monthlyUsage.trip) : null;
   const footer = <View style={{ gap: 9 }}>
-    {tripsLeft !== null && !error && <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/membership", params: { reason: "trip" } } as Href)}
-      style={({ pressed }) => [styles.allowance, pressed && { opacity: 0.8 }]}>
-      <Icon name="crown" size={13} color={p.orange} />
-      <Text style={styles.allowanceText}>{formatMessage(tripsLeft === 1 ? "Free plan · 1 trip left this month" : "Free plan · {count} trips left this month", { count: tripsLeft }, language)}</Text>
-      <Text style={styles.allowanceLink}>{translate("Go unlimited", language)}</Text>
+    {tripsLeft !== null && !error && <Pressable accessibilityRole="button" onPress={openPremium}
+      style={({ pressed }) => [styles.allowance, pressed && { opacity: 0.85 }]}>
+      <View style={styles.allowanceIcon}><Icon name="crown" size={15} color={p.orange} /></View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.allowanceTitle}>{translate("Free plan", language)}</Text>
+        <Text style={styles.allowanceText}>{tooManyForFree ? formatMessage("You have {count} trips. Free keeps one: finish or delete the others first", { count: trips.length }, language)
+          : limitReached ? translate("This month's trip is used. A new one opens on the 1st", language)
+          : formatMessage(tripsLeft === 1 ? "1 trip left this month" : "{count} trips left this month", { count: tripsLeft }, language)}</Text>
+      </View>
+      {!limitReached && !tooManyForFree && <Text style={styles.allowanceLink}>{translate("Go unlimited", language)}</Text>}
+      <Icon name="right" size={15} color={limitReached || tooManyForFree ? p.muted : p.blue} />
     </Pressable>}
     {!!error && <View style={{ gap: 4 }}>
       <Copy style={[s.error, { textAlign: "center" }]}>{error}</Copy>
-      {freeLimit && <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/membership", params: { reason: "trip" } } as Href)}><Copy style={{ color: p.blue, fontWeight: "700", textAlign: "center", fontSize: 13 }}>Go unlimited</Copy></Pressable>}
+      {freeLimit && <Pressable accessibilityRole="button" onPress={openPremium}><Copy style={{ color: p.blue, fontWeight: "700", textAlign: "center", fontSize: 13 }}>Go unlimited</Copy></Pressable>}
     </View>}
     <Row style={{ gap: 12 }}>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text numberOfLines={1} style={styles.footerTitle}>{stops.length ? routeLabel : translate(editing ? "Edit trip" : "New trip", language)}</Text>
         <Text numberOfLines={1} style={styles.footerMeta}>{missing || formatMessage(days === 1 ? "{days} day · {start}" : "{days} days · {start} – {end}", { days, start: compact(dates.start), end: compact(dates.end) }, language)}</Text>
       </View>
-      <Button icon="trip" busy={busy} disabled={!draft} onPress={create} style={{ paddingHorizontal: 22 }}>{editing ? "Save changes" : "Create trip"}</Button>
+      <Button icon={limitReached || tooManyForFree ? "crown" : "trip"} busy={busy} disabled={!limitReached && !tooManyForFree && !draft} onPress={create} style={{ paddingHorizontal: 22 }}>{limitReached || tooManyForFree ? "Go unlimited" : editing ? "Save changes" : "Create trip"}</Button>
     </Row>
   </View>;
 
@@ -357,9 +368,17 @@ export function PlannerScreen() {
     </Sheet>
 
     <Sheet visible={confirmReplace && !editing} title={translate("Replace your current trip?", language)} onClose={() => { if (!busy) setConfirmReplace(false); }}>
-      {tripOwner ? <Copy muted>Your own current trip will move to your journal with its activities and expenses. Shared trips stay as they are.</Copy>
-        : !!trip && <Copy muted>{formatMessage("{trip} will move to your journal with its activities and expenses. You can still open it there.", { trip: routeTitle(trip, language) }, language)}</Copy>}
-      <Button busy={busy} onPress={() => void save()}>Create new trip</Button>
+      {!!replaced && <Copy muted>{formatMessage("{trip} will move to your journal with its activities and expenses. You can still open it there.", { trip: routeTitle(replaced, language) }, language)}</Copy>}
+      <Pressable accessibilityRole="button" disabled={busy} onPress={() => { setConfirmReplace(false); openPremium(); }}
+        style={({ pressed }) => [styles.allowance, pressed && { opacity: 0.85 }]}>
+        <View style={styles.allowanceIcon}><Icon name="crown" size={15} color={p.orange} /></View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.allowanceTitle}>{translate("Keep both trips", language)}</Text>
+          <Text style={styles.allowanceText}>{translate("Premium plans as many trips as you like, side by side.", language)}</Text>
+        </View>
+        <Icon name="right" size={15} color={p.blue} />
+      </Pressable>
+      <Button busy={busy} onPress={() => void save()}>Replace trip</Button>
       <Button secondary disabled={busy} onPress={() => setConfirmReplace(false)}>Keep current trip</Button>
     </Sheet>
   </Screen>;
@@ -380,8 +399,11 @@ function withCountryCode(stop: RouteStop): RouteStop {
 }
 
 const stylesSheet = themedStyles((p) => ({
-  allowance: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: p.orangeSoft },
-  allowanceText: { color: p.ink, fontSize: 12, fontWeight: "600" },
+  allowance: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14,
+    borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
+  allowanceIcon: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: p.orangeSoft },
+  allowanceTitle: { color: p.ink, fontSize: 13, fontWeight: "800" },
+  allowanceText: { color: p.muted, fontSize: 12, lineHeight: 16, fontWeight: "500" },
   allowanceLink: { color: p.blue, fontSize: 12, fontWeight: "800" },
   step: { gap: 14, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: p.line, backgroundColor: p.white,
     shadowColor: p.shadow, shadowOpacity: 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 1 },

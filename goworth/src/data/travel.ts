@@ -118,6 +118,8 @@ export type Expense = {
 };
 
 export type Trip = {
+  /** Set once the trip is saved; trips in the journal and drafts in the planner have none. */
+  id?: string;
   destinationId: string;
   dayDestinations?: string[];
   dayCities?: string[][];

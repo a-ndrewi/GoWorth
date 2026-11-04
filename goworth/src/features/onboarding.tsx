@@ -355,14 +355,14 @@ export function AuthScreen() {
       </Row>
       <View style={{ marginTop: 36, gap: 10 }}>
         <Heading>
-          {passwordRecovery ? "Choose a new\npassword" : resetMode ? "Reset your\npassword" : signUp
-            ? "Your next chapter\nstarts here"
-            : "Welcome back\nto GoWorth"}
+          {passwordRecovery ? "Choose a new password" : resetMode ? "Reset your password" : signUp
+            ? "Your next chapter starts here"
+            : "Welcome back to GoWorth"}
         </Heading>
         <Copy muted>
           {passwordRecovery ? "Set a new password for your account." : resetMode ? "We'll email you a link to continue." : signUp
             ? "A world of worthy adventures awaits."
-            : "Sign in to continue your\ntravel journey."}
+            : "Sign in to continue your travel journey."}
         </Copy>
       </View>
       <View style={{ gap: 20 }}>
