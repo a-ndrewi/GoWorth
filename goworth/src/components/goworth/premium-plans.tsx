@@ -16,11 +16,11 @@ const wording = {
   en: {
     eyebrow: "GoWorth Premium", title: "Travel without limits",
     perks: [["book", "Your passport, with a visa for every country you visit"], ["people", "Unlimited companions on every trip"],
-      ["trip", "Unlimited trips and saved places"], ["plane", "Your trips offline, even in airplane mode"],
+      ["trip", "Plan several trips side by side, no monthly limit"], ["plane", "Your trips offline, even in airplane mode"],
       ["star", "Rare stamps for every travel milestone"]],
     reasons: {
       companions: ["Bring the whole group", "Free trips include one companion. With Premium, everyone comes along."],
-      trip: ["Your free trip this month is planned", "Premium plans as many trips as you like, starting now."],
+      trip: ["Your free trip this month is planned", "Premium plans as many trips as you like, side by side, starting now."],
       place: ["Your free saves are used up", "Keep every place you love with unlimited saves."],
       passport: ["Open your passport", "Your visas are already waiting inside."],
       offline: ["Take your trips offline", "Itinerary, budget and saved places, with or without signal."],
@@ -43,11 +43,11 @@ const wording = {
   ro: {
     eyebrow: "GoWorth Premium", title: "Călătorește fără limite",
     perks: [["book", "Pașaportul tău, cu o viză pentru fiecare țară vizitată"], ["people", "Însoțitori nelimitați în fiecare călătorie"],
-      ["trip", "Călătorii și locuri salvate nelimitate"], ["plane", "Călătoriile tale offline, chiar și în modul avion"],
+      ["trip", "Mai multe călătorii în paralel, fără limită lunară"], ["plane", "Călătoriile tale offline, chiar și în modul avion"],
       ["star", "Ștampile rare pentru fiecare reper din călătorii"]],
     reasons: {
       companions: ["Adu tot grupul", "Călătoriile gratuite includ un însoțitor. Cu Premium, vine toată lumea."],
-      trip: ["Călătoria gratuită a lunii e planificată", "Cu Premium planifici oricâte călătorii vrei, de acum."],
+      trip: ["Călătoria gratuită a lunii e planificată", "Cu Premium planifici oricâte călătorii vrei, în paralel, de acum."],
       place: ["Salvările gratuite s-au terminat", "Păstrează fiecare loc îndrăgit cu salvări nelimitate."],
       passport: ["Deschide-ți pașaportul", "Vizele tale te așteaptă deja înăuntru."],
       offline: ["Ia-ți călătoriile offline", "Itinerariu, buget și locuri salvate, cu sau fără semnal."],
@@ -185,9 +185,10 @@ export function PremiumPlans({ signedIn, storeProduct, willRenew, onPurchased, r
     {purchasesAvailable && signedIn && <>
       <Text style={styles.fine}>{formatMessage(t.renewal, { store })}</Text>
       <Row style={{ gap: 18, justifyContent: "center", flexWrap: "wrap" }}>
-        <Pressable accessibilityRole="button" hitSlop={8} disabled={!!busy} onPress={() => void restore()}>
+        {/* A store purchase already on the account has nothing left to restore; wheel Premium still can. */}
+        {!storeProduct && <Pressable accessibilityRole="button" hitSlop={8} disabled={!!busy} onPress={() => void restore()}>
           <Text style={styles.link}>{busy === "restore" ? "…" : t.restore}</Text>
-        </Pressable>
+        </Pressable>}
         {!!storeProduct && willRenew !== null && <Pressable accessibilityRole="button" hitSlop={8} onPress={() => void manageSubscription()}>
           <Text style={styles.link}>{t.manage}</Text>
         </Pressable>}

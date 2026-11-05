@@ -16,7 +16,10 @@ import { UsernameGate } from "@/features/username-gate";
 // Also defines the background task that wakes the app for nearby places, which must exist before the app renders.
 import { DeviceSync } from "@/state/device-sync";
 import { setPhotoStore } from "@/data/place-photo";
-import { finishBoot, useBootDone } from "@/state/boot";
+import { setNearbyPlacesStore, setSharedPlaceLists } from "@/data/nearby-places";
+import { supabase } from "@/lib/supabase";
+import { setBoundaryStore } from "@/data/city-boundary";
+import { bootTimeoutMs, finishBoot, useBootDone, useSplashArtShown } from "@/state/boot";
 import { BootCover } from "@/features/onboarding";
 import { VisaAwardHost } from "@/features/passport";
 import { VisaProvider } from "@/state/visas-context";
@@ -32,6 +35,32 @@ void AsyncStorage.removeItem("place-photo-lookups").catch(() => undefined);
 setPhotoStore({
   load: () => AsyncStorage.getItem("place-photo-lookups-v2"),
   save: (value) => AsyncStorage.setItem("place-photo-lookups-v2", value),
+});
+// City outlines and finished place lists, so a city opened before shows its places at once on the next launch.
+setBoundaryStore({
+  load: () => AsyncStorage.getItem("city-boundaries-v1"),
+  save: (value) => AsyncStorage.setItem("city-boundaries-v1", value),
+});
+// v2: lists now include squares, bridges, bays and more; lists saved before that are fetched afresh.
+void AsyncStorage.removeItem("nearby-places-v1").catch(() => undefined);
+setNearbyPlacesStore({
+  load: () => AsyncStorage.getItem("nearby-places-v2"),
+  save: (value) => AsyncStorage.setItem("nearby-places-v2", value),
+});
+// Lists other travellers already loaded, so a city's places come from one request to our database. Anyone can read
+// them; a signed-in device shares the lists it finishes (the database checks every place before keeping it).
+const sharedDb = supabase;
+setSharedPlaceLists(sharedDb && {
+  get: async (key) => {
+    const { data, error } = await sharedDb.from("place_lists").select("places, updated_at").eq("key", key).maybeSingle();
+    if (error) throw error;
+    return data ? { places: data.places, savedAt: Date.parse(data.updated_at) } : null;
+  },
+  put: async (key, places) => {
+    if (!(await sharedDb.auth.getSession()).data.session) return;
+    const { error } = await sharedDb.rpc("save_place_list", { list_key: key, list: places });
+    if (error) throw error;
+  },
 });
 
 const tabByPath: Record<string, string> = {
@@ -59,6 +88,16 @@ function AppNavigator() {
   const { scheme } = useThemePreference();
   const { cloudReady, loadError, retryLoad, trip, offlineSince, profile: { username: profileUsername } } = useTravel();
   const bootDone = useBootDone();
+  // The native splash stays until the saved session is read (before then the tree is drawn for no one and is drawn
+  // again for the account) and, on the splash route, until its logo and name are drawn, so the hand-over shows the
+  // same picture instead of a screen that is blank for a moment.
+  const artShown = useSplashArtShown();
+  const nativeSplashDone = ready && (artShown || !isSplash);
+  useEffect(() => {
+    if (nativeSplashDone) { SplashScreen.hide(); return; }
+    const timer = setTimeout(() => SplashScreen.hide(), 4000);
+    return () => clearTimeout(timer);
+  }, [nativeSplashDone]);
   const signedInId = user?.id;
   useEffect(() => {
     if (signedInId) warmDeviceLocation();
@@ -70,7 +109,7 @@ function AppNavigator() {
   }, [user, isSplash, activeTab]);
   useEffect(() => {
     if (!warmingUp) return;
-    const timer = setTimeout(finishBoot, 6000);
+    const timer = setTimeout(finishBoot, bootTimeoutMs);
     return () => clearTimeout(timer);
   }, [warmingUp]);
   const itineraryDay = trip ? Math.min(Math.max(1, Math.trunc(Number(dayParam)) || 1), tripDays(trip.start, trip.end)) : 1;
@@ -141,7 +180,8 @@ function AppNavigator() {
             </Stack.Protected>
           </Stack>
           {!!user && !!offlineSince && <OfflineBanner since={offlineSince} onRetry={retryLoad} />}
-          {!!user && activeTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.canvas }}><BottomNav active={activeTab} /></SafeAreaView>}
+          {/* Kept in the layout but invisible under the launch cover: its native glass draws above the cover otherwise. */}
+          {!!user && activeTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.canvas, opacity: warmingUp ? 0 : 1 }}><BottomNav active={activeTab} /></SafeAreaView>}
           {!!user && !!trip && itineraryTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.canvas }}><ItineraryNav active={itineraryTab} day={itineraryDay} /></SafeAreaView>}
           <BootCover visible={warmingUp} />
           <VisaAwardHost ready={!!user && cloudReady && bootDone && !!activeTab && !!profileUsername} />
@@ -169,9 +209,7 @@ function AppContent() {
 function NavigationTheme({ children }: { children: ReactNode }) {
   const palette = usePalette();
   const { scheme, ready } = useThemePreference();
-  useEffect(() => {
-    if (ready) SplashScreen.hide();
-  }, [ready]);
+  // The native splash is hidden by AppNavigator once the session is read as well.
   if (!ready) return null;
   const base = scheme === "dark" ? DarkTheme : DefaultTheme;
   return (

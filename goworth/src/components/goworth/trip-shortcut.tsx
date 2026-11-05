@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { AppState, Pressable, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import Animated, {
@@ -9,6 +9,7 @@ import Svg, { Circle } from "react-native-svg";
 import { themedStyles } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
 import { GlyphIcon } from "@/components/goworth/icons";
+import { useBootDone } from "@/state/boot";
 
 const SIZE = 48;
 const START_DELAY = 400;
@@ -18,13 +19,20 @@ export function TripShortcut({ label, onPress }: { label: string; onPress: () =>
   const styles = useStyles(stylesSheet);
   const p = usePalette();
   const orbit = useSharedValue(0);
+  const [flight, setFlight] = useState(0);
   const pulse = useSharedValue(0);
   const press = useSharedValue(1);
   // Driven by focus events rather than useIsFocused: Explore's tab is frozen when it loses focus, before it can
   // re-render as unfocused, so on return the focus value looked unchanged and the flight did not start again.
+  // At launch Explore is focused behind the splash; the flight waits for the cover to lift.
+  const bootDone = useBootDone();
   useFocusEffect(useCallback(() => {
+    if (!bootDone) return;
     // A couple of turns each time Explore is shown: an endless loop would redraw every frame and keep the CPU busy.
     const fly = () => {
+      // A fresh plane each flight: Explore is frozen while away, and a flight started on the views it froze often never
+      // showed, leaving the plane parked where it stopped.
+      setFlight((count) => count + 1);
       cancelAnimation(orbit); cancelAnimation(pulse);
       orbit.set(0);
       pulse.set(0);
@@ -32,13 +40,14 @@ export function TripShortcut({ label, onPress }: { label: string; onPress: () =>
       orbit.set(withDelay(START_DELAY, withRepeat(withTiming(1, { duration: 5200, easing: Easing.linear }), 2)));
       pulse.set(withDelay(START_DELAY, withRepeat(withSequence(withTiming(1, { duration: 1500, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 0 })), 3)));
     };
-    fly();
+    // A frame later, once the screen has been unfrozen and the new plane is on screen.
+    let frame = requestAnimationFrame(() => { frame = requestAnimationFrame(fly); });
     // Returning from the background leaves Explore focused, so coming back to the app also restarts the flight.
     let state = AppState.currentState;
     const sub = AppState.addEventListener("change", (next) => { if (next === "active" && state === "background") fly(); state = next; });
     // Back to the start of the route rather than frozen mid-orbit when interrupted.
-    return () => { sub.remove(); cancelAnimation(orbit); cancelAnimation(pulse); orbit.set(0); pulse.set(0); };
-  }, [orbit, pulse]));
+    return () => { cancelAnimationFrame(frame); sub.remove(); cancelAnimation(orbit); cancelAnimation(pulse); orbit.set(0); pulse.set(0); };
+  }, [orbit, pulse, bootDone]));
   const orbitStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${orbit.value * 360}deg` }] }));
   const pulseStyle = useAnimatedStyle(() => ({ opacity: 0.45 * (1 - pulse.value), transform: [{ scale: 1 + pulse.value * 0.32 }] }));
   const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press.value }, { rotate: `${(1 - press.value) * -40}deg` }] }));
@@ -50,7 +59,7 @@ export function TripShortcut({ label, onPress }: { label: string; onPress: () =>
     onPressOut={() => { press.set(withSpring(1, { damping: 6, stiffness: 240 })); }}
     style={styles.hit}
   >
-    <Animated.View pointerEvents="none" style={[styles.pulse, pulseStyle]} />
+    <Animated.View key={`pulse-${flight}`} pointerEvents="none" style={[styles.pulse, pulseStyle]} />
     <Animated.View style={[styles.button, pressStyle]}>
       <View style={styles.clip}>
         <LinearGradient colors={[p.blue, "#3B7BF0", p.teal]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
@@ -61,7 +70,7 @@ export function TripShortcut({ label, onPress }: { label: string; onPress: () =>
         </Svg>
       </View>
       <View><GlyphIcon name="globe" size={20} color={p.onColor} /></View>
-      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, orbitStyle]}>
+      <Animated.View key={`orbit-${flight}`} pointerEvents="none" style={[StyleSheet.absoluteFill, orbitStyle]}>
         <View style={styles.plane}>
           <GlyphIcon name="plane" size={13} color={p.onColor} />
         </View>

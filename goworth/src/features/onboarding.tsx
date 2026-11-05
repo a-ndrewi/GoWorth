@@ -29,6 +29,7 @@ import { supabase } from "@/lib/supabase";
 import { translate } from "@/data/i18n";
 import { useAppLanguage, type AppLanguage } from "@/data/formatting";
 import { useTimedMessage } from "@/hooks/use-timed-message";
+import { splashArtShown, whenSplashArtShown } from "@/state/boot";
 
 // Email links land on a small page of the presentation site, which opens the app with the link's one-time code.
 // Mail apps follow an https link reliably; many refuse to follow a redirect straight to goworth://.
@@ -59,6 +60,7 @@ export function SplashScreen() {
     }
     // The short intro pause is for the welcome screen; signed-in users go straight in.
     if (!introDone) return;
+    settleMark();
     const animation = Animated.timing(actionReveal, {
       toValue: 1,
       duration: 650,
@@ -75,33 +77,55 @@ export function SplashScreen() {
 }
 
 /**
- * The splash's mark, flipped once like a tossed coin with a small bounce, then floating while the app loads.
+ * The splash's mark, flipped like a tossed coin with a small bounce, over and over while the app loads, and floating.
  * It starts where the native splash left it, so the hand-over shows no jump. The motion is shared app-wide:
  * the launch cover over the tabs shows the same mark mid-flight instead of a still copy, so passing from the
  * splash to the cover looks like one screen.
  */
-const mark = { flip: new Animated.Value(0), float: new Animated.Value(0), started: false, users: 0, running: null as Animated.CompositeAnimation | null };
+const mark = { flip: new Animated.Value(0), float: new Animated.Value(0), started: false, users: 0,
+  running: null as Animated.CompositeAnimation | null, spinning: null as Animated.CompositeAnimation | null };
 
 function startMark() {
   if (mark.started) return;
   mark.started = true;
-  void AccessibilityInfo.isReduceMotionEnabled().catch(() => false).then((reduce) => {
+  // Still while the native splash is up: the turn starts once the drawn mark has taken its place, so the hand-over
+  // shows no jump.
+  void Promise.all([AccessibilityInfo.isReduceMotionEnabled().catch(() => false), whenSplashArtShown()]).then(([reduce]) => {
     if (reduce || !mark.started) return;
-    mark.running = Animated.sequence([
+    // A full turn ends where it started, so each loop restarts from 0 without a jump.
+    mark.spinning = Animated.sequence([
       Animated.delay(150),
-      Animated.timing(mark.flip, { toValue: 1, duration: 950, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
       Animated.loop(Animated.sequence([
-        Animated.timing(mark.float, { toValue: 1, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(mark.float, { toValue: 0, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(mark.flip, { toValue: 1, duration: 950, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.delay(300),
       ])),
     ]);
+    mark.running = Animated.loop(Animated.sequence([
+      Animated.timing(mark.float, { toValue: 1, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(mark.float, { toValue: 0, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    mark.spinning.start();
     mark.running.start();
   });
 }
 
 /** Stops the float once nothing shows the mark any more, and lets a later splash (after sign-out) play it again. */
+/** Loading is over (the welcome buttons come up): the turn under way finishes and the mark stays still, only floating. */
+function settleMark() {
+  const spin = mark.spinning;
+  if (!spin) return;
+  mark.spinning = null;
+  spin.stop();
+  mark.flip.stopAnimation((value) => {
+    if (value <= 0) return;
+    Animated.timing(mark.flip, { toValue: 1, duration: Math.max(1, (1 - value) * 950), easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  });
+}
+
 function stopMark() {
   if (mark.users > 0) return;
+  mark.spinning?.stop();
+  mark.spinning = null;
   mark.running?.stop();
   mark.running = null;
   mark.started = false;
@@ -146,6 +170,7 @@ function WelcomeContent({ actionReveal, actionsEnabled = true, animated = false 
                 style={{ width: 132, height: 104 }}
                 contentFit="contain"
                 accessibilityLabel="GoWorth logo"
+                onDisplay={() => splashArtShown("mark")}
               />
             </Animated.View>
             <Image
@@ -154,6 +179,7 @@ function WelcomeContent({ actionReveal, actionsEnabled = true, animated = false 
               tintColor={scheme === "dark" ? p.ink : undefined}
               contentFit="contain"
               accessibilityLabel="GoWorth"
+              onDisplay={() => splashArtShown("name")}
             />
           </View>
           <Animated.View
@@ -189,13 +215,16 @@ export function WelcomeScreen() {
 export function BootCover({ visible }: { visible: boolean }) {
   const [opacity] = useState(() => new Animated.Value(1));
   const [shown, setShown] = useState(visible);
-  if (visible && !shown) setShown(true);
+  if (visible && !shown) { opacity.setValue(1); setShown(true); }
   useEffect(() => {
-    if (visible) { opacity.setValue(1); return; }
-    const animation = Animated.timing(opacity, { toValue: 0, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: true });
+    // Only a cover that was on screen fades. Fading one that was never shown (the app mounts on the splash route)
+    // left the value at 0, and the cover then came up invisible over a half-drawn Explore.
+    if (visible || !shown) return;
+    // On the JS thread: a native-driven value set back to 1 from JS did not always reach the view.
+    const animation = Animated.timing(opacity, { toValue: 0, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: false });
     animation.start(({ finished }) => { if (finished) setShown(false); });
     return () => animation.stop();
-  }, [visible, opacity]);
+  }, [visible, shown, opacity]);
   if (!shown) return null;
   // Above the bottom bar as well, so the logo sits exactly where the splash left it until the tabs are ready.
   return <Animated.View pointerEvents={visible ? "auto" : "none"} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, elevation: 100, opacity }}>
@@ -355,14 +384,14 @@ export function AuthScreen() {
       </Row>
       <View style={{ marginTop: 36, gap: 10 }}>
         <Heading>
-          {passwordRecovery ? "Choose a new\npassword" : resetMode ? "Reset your\npassword" : signUp
-            ? "Your next chapter\nstarts here"
-            : "Welcome back\nto GoWorth"}
+          {passwordRecovery ? "Choose a new password" : resetMode ? "Reset your password" : signUp
+            ? "Your next chapter starts here"
+            : "Welcome back to GoWorth"}
         </Heading>
         <Copy muted>
           {passwordRecovery ? "Set a new password for your account." : resetMode ? "We'll email you a link to continue." : signUp
             ? "A world of worthy adventures awaits."
-            : "Sign in to continue your\ntravel journey."}
+            : "Sign in to continue your travel journey."}
         </Copy>
       </View>
       <View style={{ gap: 20 }}>

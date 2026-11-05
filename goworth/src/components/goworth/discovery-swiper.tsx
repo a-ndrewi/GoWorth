@@ -12,6 +12,7 @@ import { Copy, DestinationPhoto, Heading, Icon, IconButton, Row } from "@/compon
 import { themedStyles } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
 import { deviceLocation } from "@/utils/device-location";
+import { finishBootTask } from "@/state/boot";
 import { WeatherBadge } from "@/components/goworth/weather-badge";
 import { discoveryDeck, distanceKm, type Coordinates, type DiscoveryItem } from "@/data/discovery";
 import { destinations, places } from "@/data/travel";
@@ -260,7 +261,10 @@ export function DiscoverySwiper() {
   const selectedCity = useMemo(() => cityForGlobalId(discoverySettings.centerId), [discoverySettings.centerId]);
   const manualPin = useMemo(() => destinationPins.find((pin) => pin.id === discoverySettings.centerId) ?? (selectedCity ? { ...selectedCity, name: `${selectedCity.name}, ${countryForCode(selectedCity.countryCode)?.name ?? selectedCity.countryCode}` } : undefined), [discoverySettings.centerId, selectedCity]);
   const tripPin = destinationPins.find((pin) => pin.id === trip?.destinationId);
-  const center = manualPin ?? (discoverySettings.centerId ? null : location ?? tripPin ?? null);
+  // While the device is still being located the deck waits: falling back to the trip's city first and moving to the
+  // device's position a moment later dealt one deck and then replaced it, which looked like Explore reloading.
+  const locating = !discoverySettings.centerId && locationStatus === "checking";
+  const center = manualPin ?? (discoverySettings.centerId || locating ? null : location ?? tripPin ?? null);
   const centerLabel = manualPin ? manualPin.name.split(",")[0] : location ? translate("near you", language) : tripPin ? formatMessage("near {city}", { city: tripPin.name.split(",")[0] }, language) : translate("around the world", language);
   const radiusLabel = center ? discoverySettings.radiusKm === 20000 ? translate("Worldwide", language) : formatMessage("{distance} km radius", { distance: discoverySettings.radiusKm.toLocaleString(language === "ro" ? "ro-RO" : "en-US") }, language) : translate("Explore worldwide", language);
   const centerKey = center ? `${center.latitude.toFixed(3)}|${center.longitude.toFixed(3)}|${Math.min(discoverySettings.radiusKm, 25)}` : "";
@@ -378,7 +382,10 @@ export function DiscoverySwiper() {
   useEffect(() => { seenCount.current = seenKeys.length; }, [seenKeys]);
   const item = unseen[0];
   const worldwide = discoverySettings.radiusKm === 20000 || !center;
-  const wantsMoreWorld = worldwide && !nearbyLoading && remaining.length < 6 && worldMissCount < worldMisses && worldCursor < worldCities().length;
+  const wantsMoreWorld = !locating && worldwide && !nearbyLoading && remaining.length < 6 && worldMissCount < worldMisses && worldCursor < worldCities().length;
+  // The launch cover waits for the first card (its photo already downloaded), or for the deck to settle without one.
+  const deckSettled = !locating && !nearbyLoading && (!!item || !(pendingKeys.length || wantsMoreWorld));
+  useEffect(() => { if (deckSettled) finishBootTask("deck"); }, [deckSettled]);
 
   useEffect(() => {
     if (!wantsMoreWorld || worldRequest.current !== null) return;

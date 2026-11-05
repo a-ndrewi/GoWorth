@@ -12,19 +12,20 @@ import { tripDays, validateTrip } from "@/utils/trip";
 import { emptyExploreHistory, parseExploreHistory, rememberCountry, rememberPlace, type ExploreHistory } from "@/utils/explore-history";
 import { setDisplaySettings, type AppCurrency, type AppLanguage } from "@/data/formatting";
 import {
-  archiveCurrentTrip,
+  archiveTrip,
   deleteActivity,
   deleteExpense,
   deleteTrip,
   deleteTripJournalEntry,
   loadTravelData,
   loadTripJournal,
-  replaceTrip,
+  createTrip,
+  loadOwnTrips,
+  saveTripNote,
   updateTrip as saveTripChanges,
   recordDiscoveryFavorite,
   saveActivity,
   saveExpense,
-  saveJournal,
   saveTripReflection,
   savePreferences,
   saveProfile,
@@ -39,6 +40,7 @@ import {
   loadTripCompanions,
   respondTripInvite,
   removeTripMember,
+  type PlannedTrip,
   type SharedTrip,
   type TripCompanion,
 } from "@/lib/travel-repository";
@@ -56,13 +58,13 @@ export type DiscoverySettings = { radiusKm: number; centerId: string | null; ven
 const defaultDiscoverySettings: DiscoverySettings = { radiusKm: 500, centerId: null, venues: venueFilters };
 const externalPlacesKey = (userId: string) => `external-places:${userId}`;
 const exploreHistoryKey = (userId: string) => `explore-history:${userId}`;
-const tripOwnerKey = (userId: string) => `trip-owner:${userId}`;
+const openTripKey = (userId: string) => `open-trip:${userId}`;
 const offlineKey = (userId: string) => `offline-snapshot:${userId}`;
 
 /** The account as last seen online, kept on the phone for Premium so trips open without a connection. */
 type OfflineSnapshot = {
   savedAt: string; plan: "premium" | "lifetime"; profile: TravelProfile; preferences: TravelPreferences; hasPreferences: boolean;
-  trip: Trip | null; tripOwner: string | null; hasOwnTrip: boolean; activities: Activity[]; expenses: Expense[];
+  trip: Trip | null; tripId: string | null; tripOwner: string | null; ownTrips?: PlannedTrip[]; activities: Activity[]; expenses: Expense[];
   saved: string[]; savedPlaces: string[]; externalPlaces: NearbyPlace[]; journal: string; journalEntries: TripJournalEntry[];
   sharedTrips: SharedTrip[]; monthlyUsage: { trip: number; place: number; destination: number };
 };
@@ -92,6 +94,16 @@ async function ensurePlaceFitsDay(trip: Trip, activity: Pick<Activity, "day" | "
   throw new Error(formatMessage("Day {day} is planned for {city}. Only places in {city} can be added to it.", { day: activity.day, city: dayCityNames(trip, activity.day).join(", ") }));
 }
 
+type OpenedTrip = PlannedTrip & { activities: Activity[]; expenses: Expense[] };
+const byStart = (a: PlannedTrip, b: PlannedTrip) => a.trip.start.localeCompare(b.trip.start);
+
+/** The trip to open when none is chosen: the next one still ahead, or the latest when all have ended. */
+function nextTrip(trips: PlannedTrip[]) {
+  const today = new Date().toISOString().slice(0, 10);
+  const sorted = [...trips].sort(byStart);
+  return sorted.find((item) => item.trip.end >= today) ?? sorted.at(-1) ?? null;
+}
+
 function useTravelState() {
   const { user } = useAuth();
   const userId = user?.id;
@@ -103,12 +115,16 @@ function useTravelState() {
   const [externalPlaces, setExternalPlaces] = useState<NearbyPlace[]>([]);
   const [exploreHistoryState, setExploreHistoryState] = useState<{ owner: string | null; history: ExploreHistory }>({ owner: null, history: emptyExploreHistory });
   const [trip, setTrip] = useState<Trip | null>(null);
-  // Whose trip is open: null for the traveller's own, or the owner of a trip they joined as a companion.
+  // The open trip's id, and its owner when it is a trip the traveller joined as a companion (null for their own).
+  const [tripId, setTripId] = useState<string | null>(null);
   const [tripOwner, setTripOwner] = useState<string | null>(null);
+  // Every trip the traveller owns and has not finished; Premium plans several side by side.
+  const [ownTrips, setOwnTrips] = useState<PlannedTrip[]>([]);
   const [sharedTrips, setSharedTrips] = useState<SharedTrip[]>([]);
   // Everyone on the open trip who has joined (the owner included), so its party reads Solo, Duo or Group.
   const [party, setParty] = useState<{ trip: Trip; people: TripCompanion[] } | null>(null);
-  const [hasOwnTrip, setHasOwnTrip] = useState(false);
+  const partyRef = useRef(party);
+  useEffect(() => { partyRef.current = party; }, [party]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [preferences, setPreferencesState] = useState<TravelPreferences>(blankPreferences);
@@ -129,18 +145,32 @@ function useTravelState() {
   const [syncError, setSyncError] = useTimedMessage();
   const [reload, setReload] = useState(0);
   const writeQueue = useRef<Promise<void>>(Promise.resolve());
+  // When the account or the open trip was last fetched; Explore's check on focus skips data that is seconds old.
+  const loadedAt = useRef(0);
   const exploreHistoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     if (!userId) setDisplaySettings({ language: "en", currency: "EUR" });
   }, [userId]);
 
+  // What only this phone remembers (recently viewed, the discovery centre and radius) is read before the account counts
+  // as loaded, so Explore opens with it instead of drawing a default deck and reloading it a moment later.
+  const [localReadFor, setLocalReadFor] = useState<string | null>(null);
   useEffect(() => {
     if (!userId) return;
     let current = true;
-    AsyncStorage.getItem(exploreHistoryKey(userId))
+    const history = AsyncStorage.getItem(exploreHistoryKey(userId))
       .then((value) => { if (current) setExploreHistoryState({ owner: userId, history: parseExploreHistory(value) }); })
       .catch(() => { if (current) setExploreHistoryState({ owner: userId, history: emptyExploreHistory }); });
+    const discovery = AsyncStorage.getItem(`discovery-settings:${userId}`).then((value) => {
+      if (!current || !value) return;
+      const parsed: Partial<DiscoverySettings> = JSON.parse(value);
+      if (!parsed.radiusKm || ![25, 100, 500, 2000, 20000].includes(parsed.radiusKm)) return;
+      // Settings saved before venues existed show every kind.
+      const venues = Array.isArray(parsed.venues) ? parsed.venues.filter((item) => venueFilters.includes(item)) : venueFilters;
+      setDiscoverySettingsState({ radiusKm: parsed.radiusKm, centerId: parsed.centerId ?? null, venues });
+    }).catch(() => undefined);
+    void Promise.all([history, discovery]).then(() => { if (current) setLocalReadFor(userId); });
     return () => { current = false; };
   }, [userId]);
 
@@ -168,23 +198,9 @@ function useTravelState() {
   useEffect(() => {
     if (!userId) return;
     let current = true;
-    AsyncStorage.getItem(`discovery-settings:${userId}`).then((value) => {
-      if (!current || !value) return;
-      const parsed: Partial<DiscoverySettings> = JSON.parse(value);
-      if (!parsed.radiusKm || ![25, 100, 500, 2000, 20000].includes(parsed.radiusKm)) return;
-      // Settings saved before venues existed show every kind.
-      const venues = Array.isArray(parsed.venues) ? parsed.venues.filter((item) => venueFilters.includes(item)) : venueFilters;
-      setDiscoverySettingsState({ radiusKm: parsed.radiusKm, centerId: parsed.centerId ?? null, venues });
-    }).catch(() => undefined);
-    return () => { current = false; };
-  }, [userId]);
-
-  useEffect(() => {
-    if (!userId) return;
-    let current = true;
     Promise.all([loadTravelData(userId), AsyncStorage.getItem(externalPlacesKey(userId)).catch(() => null),
-      loadSharedTrips().catch(() => []), AsyncStorage.getItem(tripOwnerKey(userId)).catch(() => null)])
-      .then(async ([data, localValue, shared, storedOwner]) => {
+      loadSharedTrips().catch(() => []), AsyncStorage.getItem(openTripKey(userId)).catch(() => null)])
+      .then(async ([data, localValue, shared, storedTrip]) => {
         if (!current) return;
         const language = accountLanguage === "ro" ||
           (!accountLanguage && data.profile?.language === "ro") ? "ro" : "en";
@@ -213,22 +229,17 @@ function useTravelState() {
           pace: data.preferences.pace,
         } : blankPreferences);
         setSharedTrips(shared);
-        setHasOwnTrip(!!data.trip);
-        // Reopen the shared trip last chosen, or the only one joined when the traveller has none of their own.
+        setOwnTrips(data.trips);
+        // Reopen the trip last chosen, else the next one ahead, else the only trip joined.
         const joined = shared.filter((item) => item.status === "accepted");
-        const owner = joined.find((item) => item.owner.id === storedOwner)?.owner.id ?? (!data.trip && joined.length === 1 ? joined[0].owner.id : null);
-        const sharedData = owner ? await loadTripData(owner).catch(() => null) : null;
-        if (owner && sharedData) {
-          setTripOwner(owner);
-          setTrip(sharedData.trip);
-          setActivities(sharedData.activities);
-          setExpenses(sharedData.expenses);
-        } else {
-          setTripOwner(null);
-          setTrip(data.trip);
-          setActivities(data.trip ? data.activities : []);
-          setExpenses(data.trip ? data.expenses : []);
-        }
+        const known = (id: string | null) => !!id && (data.trips.some((item) => item.trip.id === id) || joined.some((item) => item.tripId === id));
+        const chosen = known(storedTrip) ? storedTrip : nextTrip(data.trips)?.trip.id ?? (joined.length === 1 ? joined[0].tripId : null);
+        const opened = chosen ? await loadTripData(chosen).catch(() => null) : null;
+        // The party is part of what the trip card shows (Solo, Duo, Group), so it comes in with the trip.
+        const people = opened?.trip.id ? await loadTripCompanions(opened.trip.id).catch(() => null) : null;
+        if (!current) return;
+        showTrip(opened, userId);
+        if (opened && people) setParty({ trip: opened.trip, people });
         setSaved(data.saved.filter((item) => item.kind === "destination").map((item) => item.item_id));
         setSavedPlaces(data.saved.filter((item) => item.kind === "place").map((item) => item.item_id));
         const savedPlaceIds = new Set(data.saved.filter((item) => item.kind === "place").map((item) => item.item_id));
@@ -237,11 +248,11 @@ function useTravelState() {
           .filter((item): item is NearbyPlace => !!item);
         const localPlaces = parseLocalExternalPlaces(localValue).filter((item) => savedPlaceIds.has(item.id));
         setExternalPlaces([...new Map([...localPlaces, ...cloudPlaces].map((item) => [item.id, item])).values()]);
-        setJournalState(data.journal);
         setJournalEntries(data.journalEntries);
         setJournalAvailable(data.journalAvailable);
         setSyncError("");
         setOfflineSince(null);
+        loadedAt.current = Date.now();
         setCloudReady(true);
       })
       .catch(async () => {
@@ -258,7 +269,8 @@ function useTravelState() {
         setPreferencesState(snapshot.preferences);
         setHasPreferences(snapshot.hasPreferences);
         setTripOwner(snapshot.tripOwner);
-        setHasOwnTrip(snapshot.hasOwnTrip);
+        setTripId(snapshot.tripId ?? null);
+        setOwnTrips(snapshot.ownTrips ?? []);
         setTrip(snapshot.trip);
         setActivities(snapshot.activities);
         setExpenses(snapshot.expenses);
@@ -274,6 +286,8 @@ function useTravelState() {
         setCloudReady(true);
       });
     return () => { current = false; };
+    // showTrip only sets state; it is recreated each render and must not restart the load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, fallbackName, accountLanguage, accountCurrency, reload, setSyncError]);
 
   // Premium keeps a copy of the account on the phone, refreshed after every change made online.
@@ -281,13 +295,25 @@ function useTravelState() {
     if (!userId || !cloudReady || offlineSince) return;
     if (plan === "free") { void AsyncStorage.removeItem(offlineKey(userId)).catch(() => undefined); return; }
     const snapshot: OfflineSnapshot = {
-      savedAt: new Date().toISOString(), plan, profile, preferences, hasPreferences, trip, tripOwner, hasOwnTrip, activities, expenses,
+      savedAt: new Date().toISOString(), plan, profile, preferences, hasPreferences, trip, tripId, tripOwner, ownTrips, activities, expenses,
       saved, savedPlaces, externalPlaces, journal, journalEntries, sharedTrips, monthlyUsage,
     };
     const timer = setTimeout(() => void AsyncStorage.setItem(offlineKey(userId), JSON.stringify(snapshot)).catch(() => undefined), 800);
     return () => clearTimeout(timer);
-  }, [userId, cloudReady, offlineSince, plan, profile, preferences, hasPreferences, trip, tripOwner, hasOwnTrip, activities, expenses,
+  }, [userId, cloudReady, offlineSince, plan, profile, preferences, hasPreferences, trip, tripId, tripOwner, ownTrips, activities, expenses,
     saved, savedPlaces, externalPlaces, journal, journalEntries, sharedTrips, monthlyUsage]);
+
+  /** Puts a loaded trip (or none) on screen and remembers it as the one to reopen. */
+  function showTrip(data: OpenedTrip | null, account = userId) {
+    const id = data?.trip.id ?? null;
+    setTripId(id);
+    setTripOwner(data && data.owner !== account ? data.owner : null);
+    setTrip(data?.trip ?? null);
+    setActivities(data?.activities ?? []);
+    setExpenses(data?.expenses ?? []);
+    setJournalState(data?.note ?? "");
+    if (account) void (id ? AsyncStorage.setItem(openTripKey(account), id) : AsyncStorage.removeItem(openTripKey(account))).catch(() => undefined);
+  }
 
   const persist = (work: () => Promise<unknown>, showGlobalError = true) => {
     const next = writeQueue.current.then(work);
@@ -365,176 +391,171 @@ function useTravelState() {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
     const validation = validateTrip(next);
     if (validation) throw new Error(validation);
-    if (trip && !journalAvailable) throw new Error("Update the trip journal database before replacing this trip.");
+    // Free keeps one trip: the new one moves the current one to the journal. Several left over from Premium stay
+    // until some are finished or deleted.
+    if (plan === "free" && ownTrips.length > 1) throw new Error("Free plan includes one active trip. Finish or delete a trip, or upgrade for unlimited trips");
+    const replacing = plan === "free" && ownTrips.length > 0;
+    if (replacing && !journalAvailable) throw new Error("Update the trip journal database before replacing this trip.");
     await writeQueue.current;
-    const replacing = tripOwner ? hasOwnTrip : !!trip;
-    await replaceTrip(user.id, next, []);
-    if (replacing) {
-      setJournalEntries(await loadTripJournal(user.id));
-      setJournalState("");
-    }
-    selectOwner(null);
-    setHasOwnTrip(true);
-    setTrip(next);
+    const created: PlannedTrip = { trip: { ...next, id: await createTrip(next) }, owner: user.id, note: "" };
+    if (replacing) setJournalEntries(await loadTripJournal(user.id));
+    setOwnTrips((current) => [...(replacing ? [] : current), created].sort(byStart));
+    showTrip({ ...created, activities: [], expenses: [] });
     setMonthlyUsage((current) => ({ ...current, trip: current.trip + 1 }));
-    setActivities([]);
-    setExpenses([]);
     setSyncError("");
   };
 
-  /** Edits the current trip (dates, cities, style or budget) and keeps its activities and expenses. */
+  /** Edits the open trip (dates, cities, style or budget) and keeps its activities and expenses. */
   const updateTrip = async (next: Trip) => {
-    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    if (!user || !trip || !tripId || !cloudReady) throw new Error("Your trip is not ready. Try again.");
     const validation = validateTrip(next);
     if (validation) throw new Error(validation);
     const days = tripDays(next.start, next.end);
     const removed = activities.filter((activity) => activity.day > days).map((activity) => activity.id);
-    await persist(() => saveTripChanges(tripOwner ?? user.id, next, removed));
-    setTrip(next);
+    await persist(() => saveTripChanges(tripId, next, removed));
+    const saved = { ...next, id: tripId };
+    setTrip(saved);
+    setOwnTrips((current) => current.map((item) => item.trip.id === tripId ? { ...item, trip: saved } : item).sort(byStart));
     setActivities((current) => current.filter((activity) => activity.day <= days));
   };
 
+  /** After the open trip is finished or deleted, opens the next of the traveller's own trips, if any. */
+  const closeTrip = async (closedId: string) => {
+    const remaining = ownTrips.filter((item) => item.trip.id !== closedId);
+    setOwnTrips(remaining);
+    const next = nextTrip(remaining);
+    showTrip(next?.trip.id ? await loadTripData(next.trip.id).catch(() => null) : null);
+    setSyncError("");
+  };
+
   const clearTrip = async () => {
-    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    if (!user || !tripId || !cloudReady) throw new Error("Your account is not ready. Try again.");
     if (tripOwner) throw new Error("Only the trip owner can delete this trip.");
     await writeQueue.current;
-    await deleteTrip(user.id);
-    setHasOwnTrip(false);
-    setTrip(null);
-    setActivities([]);
-    setExpenses([]);
-    setSyncError("");
+    await deleteTrip(tripId);
+    await closeTrip(tripId);
   };
 
   const finishTrip = async () => {
-    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    if (!user || !trip || !tripId || !cloudReady) throw new Error("Your trip is not ready. Try again.");
     if (tripOwner) throw new Error("Only the trip owner can finish this trip.");
     if (!journalAvailable) throw new Error("Update the trip journal database before finishing this trip.");
     await writeQueue.current;
-    await archiveCurrentTrip();
-    setHasOwnTrip(false);
+    await archiveTrip(tripId);
     setJournalEntries(await loadTripJournal(user.id));
-    setTrip(null);
-    setActivities([]);
-    setExpenses([]);
-    setJournalState("");
-    setSyncError("");
+    await closeTrip(tripId);
   };
 
   const addActivity = async (activity: Omit<Activity, "id">) => {
-    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    if (!user || !trip || !tripId || !cloudReady) throw new Error("Your trip is not ready. Try again.");
     if (activity.day < 1 || activity.day > tripDays(trip.start, trip.end)) throw new Error("Choose a day in this trip.");
     await ensurePlaceFitsDay(trip, activity);
     const next = { ...activity, id: `activity-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
-    await persist(() => saveActivity(tripOwner ?? user.id, next, activities.length));
+    await persist(() => saveActivity(tripId!, next, activities.length));
     setActivities((current) => [...current, next]);
   };
 
   const updateActivity = async (activity: Activity) => {
-    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    if (!user || !trip || !tripId || !cloudReady) throw new Error("Your trip is not ready. Try again.");
     await ensurePlaceFitsDay(trip, activity);
     const position = activities.findIndex((item) => item.id === activity.id);
     if (position < 0) throw new Error("Activity not found. Reload your itinerary.");
-    await persist(() => saveActivity(tripOwner ?? user.id, activity, position));
+    await persist(() => saveActivity(tripId!, activity, position));
     setActivities((current) => current.map((item) => item.id === activity.id ? activity : item));
   };
 
   const removeActivity = async (id: string) => {
-    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
-    await persist(() => deleteActivity(tripOwner ?? user.id, id));
+    if (!user || !trip || !tripId || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    await persist(() => deleteActivity(tripId!, id));
     setActivities((current) => current.filter((item) => item.id !== id));
   };
 
   const addExpense = async (expense: Omit<Expense, "id">) => {
-    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    if (!user || !trip || !tripId || !cloudReady) throw new Error("Your trip is not ready. Try again.");
     const next = { ...expense, id: `expense-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
-    await persist(() => saveExpense(tripOwner ?? user.id, next, expenses.length));
+    await persist(() => saveExpense(tripId!, next, expenses.length));
     setExpenses((current) => [...current, next]);
   };
 
   const updateExpense = async (expense: Expense) => {
-    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    if (!user || !trip || !tripId || !cloudReady) throw new Error("Your trip is not ready. Try again.");
     const position = expenses.findIndex((item) => item.id === expense.id);
     if (position < 0) throw new Error("Expense not found. Reload your budget.");
-    await persist(() => saveExpense(tripOwner ?? user.id, expense, position));
+    await persist(() => saveExpense(tripId!, expense, position));
     setExpenses((current) => current.map((item) => item.id === expense.id ? expense : item));
   };
 
   const removeExpense = async (id: string) => {
-    if (!user || !trip || !cloudReady) throw new Error("Your trip is not ready. Try again.");
-    await persist(() => deleteExpense(tripOwner ?? user.id, id));
+    if (!user || !trip || !tripId || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    await persist(() => deleteExpense(tripId!, id));
     setExpenses((current) => current.filter((item) => item.id !== id));
   };
 
-  const selectOwner = (owner: string | null) => {
-    setTripOwner(owner);
-    if (userId) void (owner ? AsyncStorage.setItem(tripOwnerKey(userId), owner) : AsyncStorage.removeItem(tripOwnerKey(userId))).catch(() => undefined);
-  };
-
   /** Opens the traveller's own trip (null) or a trip they joined; edits then go to that trip. */
-  const openTrip = async (owner: string | null) => {
+  const openTrip = async (id: string | null) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
     await writeQueue.current;
-    const data = await loadTripData(owner ?? user.id);
-    if (owner && !data) {
-      setSharedTrips(await loadSharedTrips());
-      throw new Error("This trip is no longer shared with you.");
+    const target = id ?? nextTrip(ownTrips)?.trip.id ?? null;
+    const data = target ? await loadTripData(target) : null;
+    if (target && !data) {
+      const [shared, own] = await Promise.all([loadSharedTrips(), loadOwnTrips(user.id)]);
+      setSharedTrips(shared); setOwnTrips(own);
+      throw new Error(ownTrips.some((item) => item.trip.id === target) ? "This trip no longer exists." : "This trip is no longer shared with you.");
     }
-    selectOwner(owner);
-    if (!owner) setHasOwnTrip(!!data);
-    setTrip(data?.trip ?? null);
-    setActivities(data?.activities ?? []);
-    setExpenses(data?.expenses ?? []);
+    showTrip(data);
   };
 
-  /** Fetches the latest of the open trip, so a companion's edits show up. */
+  /** Fetches the latest of the open trip and of the trip lists, so a companion's edits show up. */
   const refreshTrip = useCallback(async () => {
     if (!user || !cloudReady || offlineSince) return;
-    const [shared, data] = await Promise.all([loadSharedTrips(), loadTripData(tripOwner ?? user.id).catch(() => undefined)]);
+    // Explore checks on every focus, the first one right after launch: fetching again what was just loaded swapped
+    // the trip for an identical copy and reloaded its party, which looked like the app refreshing itself.
+    if (Date.now() - loadedAt.current < 15 * 1000) return;
+    loadedAt.current = Date.now();
+    const [shared, own, data] = await Promise.all([loadSharedTrips(), loadOwnTrips(user.id).catch(() => undefined),
+      tripId ? loadTripData(tripId).catch(() => undefined) : Promise.resolve(null)]);
     setSharedTrips(shared);
+    if (own) setOwnTrips(own);
     if (data === undefined) return;
-    if (tripOwner && !data) {
-      selectOwner(null);
-      const own = await loadTripData(user.id).catch(() => null);
-      setTrip(own?.trip ?? null); setActivities(own?.activities ?? []); setExpenses(own?.expenses ?? []);
+    if (tripId && !data) {
+      const next = own ? nextTrip(own) : null;
+      showTrip(next?.trip.id ? await loadTripData(next.trip.id).catch(() => null) : null);
       return;
     }
-    setTrip(data?.trip ?? null);
-    setActivities(data?.activities ?? []);
-    setExpenses(data?.expenses ?? []);
+    if (data) showTrip(data);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, cloudReady, offlineSince, tripOwner]);
+  }, [user, cloudReady, offlineSince, tripId]);
 
   // A new or refreshed trip is a new object, so this also picks up companions who joined or left on their phones.
   useEffect(() => {
-    if (!user || !cloudReady || offlineSince || !trip) return;
+    if (!user || !cloudReady || offlineSince || !trip || !tripId) return;
+    if (partyRef.current?.trip === trip) return;
     let current = true;
-    loadTripCompanions(tripOwner ?? user.id).then((people) => { if (current) setParty({ trip, people }); }).catch(() => undefined);
+    loadTripCompanions(tripId).then((people) => { if (current) setParty({ trip, people }); }).catch(() => undefined);
     return () => { current = false; };
-  }, [user, cloudReady, offlineSince, tripOwner, trip]);
+  }, [user, cloudReady, offlineSince, tripId, trip]);
 
-  const answerInvite = async (owner: string, accept: boolean) => {
+  const answerInvite = async (id: string, accept: boolean) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
-    await respondTripInvite(owner, accept);
+    await respondTripInvite(id, accept);
     setSharedTrips(await loadSharedTrips());
-    if (accept) await openTrip(owner);
+    if (accept) await openTrip(id);
   };
 
   const inviteCompanion = async (memberId: string) => {
-    if (!user || !trip || tripOwner) throw new Error("Only the trip owner can invite companions.");
-    await inviteTripMember(memberId);
+    if (!user || !trip || !tripId || tripOwner) throw new Error("Only the trip owner can invite companions.");
+    await inviteTripMember(tripId, memberId);
   };
 
   /** The owner removes a companion; a companion passing their own id leaves the trip. */
   const removeCompanion = async (memberId: string) => {
-    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
-    const owner = tripOwner ?? user.id;
-    await removeTripMember(owner, memberId);
+    if (!user || !tripId || !cloudReady) throw new Error("Your account is not ready. Try again.");
+    await removeTripMember(tripId, memberId);
     if (memberId === user.id) {
-      setSharedTrips((current) => current.filter((item) => item.owner.id !== owner));
+      setSharedTrips((current) => current.filter((item) => item.tripId !== tripId));
       await openTrip(null);
     } else if (trip) {
-      const people = await loadTripCompanions(owner).catch(() => null);
+      const people = await loadTripCompanions(tripId).catch(() => null);
       if (people) setParty({ trip, people });
     }
   };
@@ -572,8 +593,9 @@ function useTravelState() {
     setProfileState((current) => ({ ...current, avatarPath: undefined, avatarStatus: "none" }));
   };
   const setJournal = async (next: string) => {
-    if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
-    await saveJournal(user.id, next);
+    if (!user || !tripId || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    await saveTripNote(tripId, next);
+    setOwnTrips((current) => current.map((item) => item.trip.id === tripId ? { ...item, note: next } : item));
     setJournalState(next);
     setSyncError("");
   };
@@ -601,7 +623,7 @@ function useTravelState() {
     exploreHistory: exploreHistoryState.owner === userId ? exploreHistoryState.history : emptyExploreHistory,
     exploreHistoryReady: !!userId && exploreHistoryState.owner === userId,
     recordCountryVisit, recordPlaceVisit,
-    trip, hasTrip: !!trip, hasOwnTrip, tripOwner, sharedTrips, pendingInvites: sharedTrips.filter((item) => item.status === "pending"),
+    trip, tripId, hasTrip: !!trip, trips: ownTrips, hasOwnTrip: ownTrips.length > 0, tripOwner, sharedTrips, pendingInvites: sharedTrips.filter((item) => item.status === "pending"),
     // The open trip's people as last loaded, and how many have joined (owner included; pending invitations do not count).
     tripPeople: trip && party?.trip === trip ? party.people : null,
     travellers: trip && party?.trip === trip ? Math.max(1, party.people.filter((person) => person.status !== "pending").length) : 1, openTrip, refreshTrip, answerInvite, inviteCompanion, removeCompanion, generateTrip, updateTrip, clearTrip, finishTrip,
@@ -611,7 +633,7 @@ function useTravelState() {
     discoverySettings, setDiscoverySettings,
     profile, setProfile, avatarUrl, uploadAvatar, removeAvatar, plan, monthlyUsage, refreshMembership, journal, setJournal, journalEntries, journalAvailable, setArchivedReflection, deleteJournalEntry,
     notifications, setNotifications: updateNotifications,
-    cloudReady, offlineSince, loadError, retryLoad: () => {
+    cloudReady: cloudReady && localReadFor === userId, offlineSince, loadError, retryLoad: () => {
       setCloudReady(false);
       setLoadError("");
       setReload((value) => value + 1);

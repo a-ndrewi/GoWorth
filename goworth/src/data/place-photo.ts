@@ -1,4 +1,5 @@
 import { catalogPhotos } from "./catalog-photos.ts";
+import { appUserAgent } from "./user-agent.ts";
 
 export type PlacePhoto = {
   url: string;
@@ -35,7 +36,7 @@ export function sizedPhotoUrl(url: string, width: PhotoWidth) {
  * Headers for downloading Wikimedia images. Wikimedia refuses generic HTTP library User-Agents (Android's "okhttp" gets
  * HTTP 403 for every image), so the app names itself; browsers send their own and cannot change it.
  */
-export const wikimediaImageHeaders: Record<string, string> = { "User-Agent": "GoWorth/1.0 (travel app)" };
+export const wikimediaImageHeaders: Record<string, string> = { "User-Agent": appUserAgent };
 
 /** An image source for a Wikimedia photo at a standard width, with the headers Wikimedia requires. */
 export function photoSource(url: string, width: PhotoWidth) {
@@ -53,7 +54,8 @@ export function setBundledPhotos(enabled: boolean) { bundledEnabled = enabled; }
 /** Where finished lookups survive app restarts; the app plugs in device storage, tests leave it unset. */
 export type PhotoStore = { load: () => Promise<string | null>; save: (value: string) => Promise<void> };
 type StoredLookup = { expiresAt: number; photos: PlacePhoto[] };
-const storedLimit = 500;
+// Explore now lists a few hundred places a city, so a few cities' worth of answers are kept.
+const storedLimit = 1500;
 let stored: Record<string, StoredLookup> = {};
 let storeReady: Promise<void> = Promise.resolve();
 let photoStore: PhotoStore | null = null;
@@ -192,8 +194,10 @@ function photoFromPage(page: CommonsPage, name: string, location: string, { trus
   const distinctiveWords = placeWords.filter((word) => !genericWords.has(word));
   const nameKinds = kindWords.filter((group) => placeWords.some((word) => group.includes(word)));
   const matchesKind = nameKinds.every((group) => group.some((word) => has(contextWords, word) || (word.length >= 6 && fileCompact.includes(word))));
+  // A file taken nearby must still name the place: two of its distinctive words (all, when it has fewer), so that
+  // "Sfântul Nicolae" does not take the photo of "Sfântul Gheorghe" across the street.
   const matchesName = placeWords.length > 0 && matchesKind && (nearby
-    ? distinctiveWords.some(wordMatches)
+    ? distinctiveWords.filter(wordMatches).length >= Math.min(2, distinctiveWords.length) && distinctiveWords.length > 0
     : (distinctiveWords.length ? distinctiveWords : placeWords).every(wordMatches));
   const namesPlace = (distinctiveWords.length ? distinctiveWords : placeWords).some(wordMatches);
   const genericName = distinctiveWords.length < 2 || placeWords.some((word) => genericWords.has(word));
@@ -228,7 +232,7 @@ function photoFromPage(page: CommonsPage, name: string, location: string, { trus
 }
 
 // Wikimedia throttles anonymous clients without an identifying User-Agent; browsers keep their own and may not set it.
-const wikimediaHeaders: Record<string, string> = { "User-Agent": "GoWorth/1.0 (travel app)" };
+const wikimediaHeaders: Record<string, string> = { "User-Agent": appUserAgent };
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** How far from a place its photo may have been taken: far enough for a mountain seen from the valley, not for another town. */
 const trustedRadiusKm = 15;
@@ -309,12 +313,13 @@ async function verifiedPhoto(title: string, name: string, location: string) {
 }
 
 async function wikipediaPhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string) {
-  const pageId = sourceUrl?.match(/^https:\/\/en\.wikipedia\.org\/\?curid=(\d+)$/)?.[1];
+  const linked = wikipediaPage(sourceUrl);
+  const pageId = linked?.pageId;
   if (!pageId && (latitude === undefined || longitude === undefined)) return null;
   const params = new URLSearchParams({ action: "query", prop: "pageimages|coordinates", piprop: "name", format: "json", origin: "*" });
   if (pageId) params.set("pageids", pageId);
   else params.set("titles", name);
-  const data = await wikimediaJson<{ query?: { pages?: Record<string, { title?: string; pageimage?: string; coordinates?: { lat: number; lon: number }[] }> } }>(`https://en.wikipedia.org/w/api.php?${params}`);
+  const data = await wikimediaJson<{ query?: { pages?: Record<string, { title?: string; pageimage?: string; coordinates?: { lat: number; lon: number }[] }> } }>(`https://${linked?.language ?? "en"}.wikipedia.org/w/api.php?${params}`);
   const page = Object.values(data.query?.pages || {})[0];
   if (!page?.pageimage) return null;
   if (!pageId) {
@@ -368,7 +373,14 @@ function settle(key: string, photos: PlacePhoto[]) {
 export type PhotoRequest = { name: string; location: string; latitude?: number; longitude?: number; sourceUrl?: string;
   /** The place's Wikidata item (from OpenStreetMap): its image belongs to this exact place, so it needs no name check. */
   wikidata?: string;
+  /** The Commons file OpenStreetMap tags as the place's own photo: used when its Wikidata item has no image. */
+  commonsFile?: string;
   near?: { latitude: number; longitude: number; radiusKm: number } };
+/** An article link from any Wikipedia, as places carry it: its language and page id. */
+const wikipediaPage = (sourceUrl: string | undefined) => {
+  const match = sourceUrl?.match(/^https:\/\/([a-z]{2,3})\.wikipedia\.org\/\?curid=(\d+)$/);
+  return match ? { language: match[1], pageId: match[2] } : undefined;
+};
 /** Bulk lookups in flight, by place key; a single lookup for one of these places waits for it instead of racing it. */
 const prefetching = new Map<string, Promise<unknown>>();
 type WikiLeadPage = { pageid?: number; title?: string; pageimage?: string; coordinates?: { lat: number; lon: number }[] };
@@ -409,14 +421,18 @@ async function bulkPhotos(places: PhotoRequest[]): Promise<boolean[]> {
         if (image) lead.set(index, image);
       }
     }
+    // Next the file OpenStreetMap tags on the place itself: chosen by a mapper for this very object.
+    for (const { place, index } of chunk) if (!lead.has(index) && place.commonsFile) lead.set(index, place.commonsFile);
     const rest = chunk.filter(({ index }) => !lead.has(index));
-    const byPageId = rest.filter(({ place }) => /^https:\/\/en\.wikipedia\.org\/\?curid=\d+$/.test(place.sourceUrl ?? ""));
+    const byPageId = rest.filter(({ place }) => !!wikipediaPage(place.sourceUrl));
     const byTitle = rest.filter((item) => !byPageId.includes(item));
-    for (const [group, param] of [[byTitle, "titles"], [byPageId, "pageids"]] as const) {
+    const pageGroups = [...new Set(byPageId.map(({ place }) => wikipediaPage(place.sourceUrl)!.language))]
+      .map((language) => [byPageId.filter(({ place }) => wikipediaPage(place.sourceUrl)!.language === language), "pageids", language] as const);
+    for (const [group, param, language] of [[byTitle, "titles", "en"] as const, ...pageGroups]) {
       if (!group.length) continue;
       const params = new URLSearchParams({ action: "query", prop: "pageimages|coordinates", piprop: "name", redirects: "1", format: "json", origin: "*" });
-      params.set(param, group.map(({ place }) => param === "pageids" ? place.sourceUrl!.split("curid=")[1] : place.name).join("|"));
-      const data = await wikimediaJson<{ query?: { normalized?: { from: string; to: string }[]; redirects?: { from: string; to: string; tofragment?: string }[]; pages?: Record<string, WikiLeadPage> } }>(`https://en.wikipedia.org/w/api.php?${params}`).catch(() => null);
+      params.set(param, group.map(({ place }) => param === "pageids" ? wikipediaPage(place.sourceUrl)!.pageId : place.name).join("|"));
+      const data = await wikimediaJson<{ query?: { normalized?: { from: string; to: string }[]; redirects?: { from: string; to: string; tofragment?: string }[]; pages?: Record<string, WikiLeadPage> } }>(`https://${language}.wikipedia.org/w/api.php?${params}`).catch(() => null);
       const pages = Object.values(data?.query?.pages ?? {});
       // A redirect to a section, or to an article that does not name the place ("Mila 23" leads to the village of
       // Crișan), is about something broader: its image is not this place's.
@@ -427,7 +443,7 @@ async function bulkPhotos(places: PhotoRequest[]): Promise<boolean[]> {
         return !redirect.tofragment && titleNamesPlace(redirect.to, title) ? redirect.to : undefined;
       };
       for (const { place, index } of group) {
-        const page = param === "pageids" ? pages.find((item) => String(item.pageid) === place.sourceUrl!.split("curid=")[1]) : pages.find((item) => item.title === follow(place.name));
+        const page = param === "pageids" ? pages.find((item) => String(item.pageid) === wikipediaPage(place.sourceUrl)!.pageId) : pages.find((item) => item.title === follow(place.name));
         const point = page?.coordinates?.[0];
         if (!page?.pageimage) continue;
         // A title lookup can land on a namesake elsewhere; the article must sit within 5 km of the place.
@@ -460,6 +476,29 @@ async function bulkPhotos(places: PhotoRequest[]): Promise<boolean[]> {
   return found;
 }
 
+/** A photo that arrived with a saved or shared list: only a Wikimedia image with its credit is accepted. */
+export function listPhoto(value: unknown): PlacePhoto | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const photo = value as Partial<PlacePhoto>;
+  const text = (item: unknown, max: number) => typeof item === "string" && item.length <= max;
+  if (!safeUrl(photo.url, "wikimedia.org") || !safeUrl(photo.pageUrl, "wikimedia.org") || !text(photo.artist, 300) || !text(photo.license, 100)
+    || !(safeUrl(photo.licenseUrl, "creativecommons.org") || safeUrl(photo.licenseUrl, "wikimedia.org"))) return undefined;
+  return { url: photo.url!, pageUrl: photo.pageUrl!, artist: photo.artist!, license: photo.license!, licenseUrl: photo.licenseUrl! };
+}
+
+/**
+ * Takes the photos a saved or shared list of places carries, so their thumbnails draw at once instead of each one
+ * searching Wikimedia again. A place already looked up on this device keeps what it found.
+ */
+export function rememberListPhotos(places: { name: string; location?: string; latitude: number; longitude: number; sourceUrl?: string; photo?: unknown }[]) {
+  for (const place of places) {
+    const photo = listPhoto(place.photo);
+    if (!photo) continue;
+    const key = lookupKey(place.name, place.location ?? "", place.latitude, place.longitude, place.sourceUrl);
+    if (!resolved.get(key)?.length) settle(key, [photo]);
+  }
+}
+
 /** The photo if it was already looked up (this session or a previous one), so a list can draw it on its first frame. `undefined` means unknown yet. */
 export function peekPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string): PlacePhoto | null | undefined {
   const bundled = bundledPhoto(name, location);
@@ -469,7 +508,10 @@ export function peekPlacePhoto(name: string, location: string, latitude?: number
   return photos ? photos[0] ?? null : undefined;
 }
 
-export async function findPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string, excludedUrls: string[] = []): Promise<PlacePhoto | null> {
+/** What OpenStreetMap says the place's own photo is; a lookup tries these before searching by name. */
+export type PhotoHints = { wikidata?: string; commonsFile?: string };
+
+export async function findPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string, excludedUrls: string[] = [], hints: PhotoHints = {}): Promise<PlacePhoto | null> {
   // The app's own catalog places come with a photo chosen ahead of time; there is nothing to search for.
   const bundled = bundledPhoto(name, location);
   if (bundled && !excludedUrls.includes(bundled.url)) return bundled;
@@ -488,6 +530,13 @@ export async function findPlacePhoto(name: string, location: string, latitude?: 
         // A step that failed (offline, throttled) must not turn into a remembered "no photo".
         let failed = false;
         const attempt = <T,>(task: Promise<T>, fallback: T) => task.catch(() => { failed = true; return fallback; });
+        // The place's own Wikidata image or tagged Commons file, when the bulk check that normally finds them did not
+        // get to it (it gives up after a few seconds): without this the card fell back to a search by name.
+        if ((hints.wikidata || hints.commonsFile) && latitude !== undefined && longitude !== undefined) {
+          const [ok] = await attempt(bulkPhotos([{ name, location, latitude, longitude, sourceUrl, ...hints }]), [false]);
+          const photos = ok ? resolved.get(key) : undefined;
+          if (photos?.length) return photos;
+        }
         const verified = verifiedFiles[`${name}|${location}`.toLowerCase()];
         const [linked, verifiedResult] = await Promise.all([
           attempt(wikipediaPhoto(name, location, latitude, longitude, sourceUrl), null),

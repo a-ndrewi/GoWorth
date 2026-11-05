@@ -8,7 +8,8 @@ import { Shimmer, SkeletonRows } from "@/components/goworth/loading";
 import { usePalette } from "@/state/theme-context";
 import type { Palette } from "@/constants/design";
 import { citiesForCountry, citiesForUsState, cityForId, countryFlag, countryForCode, usStates } from "@/data/geography";
-import { loadCityPlaces, searchWikipediaPlaces, venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
+import { filterVenues, loadCityPlaces, loadNearbyVenues, searchWikipediaPlaces, venueFilters, venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
+import { venueFilterLabels } from "@/components/goworth/venue-art";
 import { insideBoundary, loadCityBoundary, type Boundary } from "@/data/city-boundary";
 import { externalPlaceFromSaved } from "@/data/external-places";
 import { useTravel } from "@/state/travel-context";
@@ -84,9 +85,10 @@ export function CityScreen() {
   const { country: code, city: id } = useLocalSearchParams<{ country?: string; city?: string }>();
   const country = countryForCode(code);
   const city = useMemo(() => cityForId(code ?? "", id ?? ""), [code, id]);
-  const [result, setResult] = useState<{ key: string; places: NearbyPlace[]; status: "loading" | "ready" | "error" } | null>(null);
+  const [result, setResult] = useState<{ key: string; places: NearbyPlace[]; status: "loading" | "preview" | "ready" | "error" } | null>(null);
   const places = result && city && result.key === city.id ? result.places : [];
   const status = result && city && result.key === city.id ? result.status : "loading";
+  const [venues, setVenues] = useState<{ key: string; places: NearbyPlace[]; status: "loading" | "ready" | "error" } | null>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [visibleCount, setVisibleCount] = useState(20);
@@ -95,14 +97,31 @@ export function CityScreen() {
   const [searchError, setSearchError] = useTimedMessage();
   const searchId = useRef(0);
   const [boundary, setBoundary] = useState<{ cityId: string; outline: Boundary | null } | null>(null);
+  const loadPlaces = (active: () => boolean) => {
+    if (!city || !country) return;
+    let done = false;
+    // The city's Wikipedia landmarks (which already have photos) show within a second or two; the full list, with
+    // OpenStreetMap's places and their photo checks, replaces them when it is ready.
+    loadCityPlaces(city, country.name, undefined, {
+      onPreview: (items) => { if (active() && !done) setResult({ key: city.id, places: items, status: "preview" }); },
+    }).then((items) => { done = true; if (active()) setResult({ key: city.id, places: items, status: "ready" }); })
+      .catch(() => {
+        done = true;
+        // A preview already on screen stays rather than being replaced by an error.
+        if (active()) setResult((current) => current?.key === city.id && current.places.length ? { ...current, status: "ready" } : { key: city.id, places: [], status: "error" });
+      });
+  };
   useEffect(() => {
     if (!city || !country) return;
     let active = true;
-    loadCityPlaces(city, country.name).then((items) => { if (active) setResult({ key: city.id, places: items, status: "ready" }); })
-      .catch(() => { if (active) setResult({ key: city.id, places: [], status: "error" }); });
+    loadPlaces(() => active);
     // Already fetched by the line above; kept here so searches can be limited to the same area.
     loadCityBoundary(city, country.name).then((outline) => { if (active) setBoundary({ cityId: city.id, outline }); }).catch(() => undefined);
+    // Restaurants, bars, cafés and clubs are a separate, quick search, started now so their chips open at once.
+    loadNearbyVenues(city, 3).then((items) => { if (active) setVenues({ key: city.id, places: items, status: "ready" }); })
+      .catch(() => { if (active) setVenues({ key: city.id, places: [], status: "error" }); });
     return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city, country]);
   const outline = boundary?.cityId === city?.id ? boundary?.outline ?? null : null;
   const inCity = (places: NearbyPlace[]) => outline ? places.filter((place) => insideBoundary(outline, place)) : places;
@@ -123,7 +142,12 @@ export function CityScreen() {
   }, [query, city, country, language, outline, setSearchError]);
   if (!country || !city) return <Screen><Header title={translate("City unavailable", language)} /><EmptyState title={translate("City not found", language)} detail={translate("Choose a city from a country.", language)} action={translate("Explore countries", language)} onPress={() => router.dismissTo("/home" as Href)} /></Screen>;
   const categories = ["All", ...new Set(places.map((place) => place.category))];
-  const filtered = places.filter((place) => (category === "All" || place.category === category) && normalizeSearchText(place.name).includes(normalizeSearchText(query)));
+  const venueFilter = venueFilters.find((filter) => `venue:${filter}` === category);
+  const venueState = venues?.key === city.id ? venues : null;
+  const venuePlaces = venueFilter && venueState ? filterVenues(venueState.places, [venueFilter]) : [];
+  const listed = venueFilter ? venuePlaces : places.filter((place) => category === "All" || place.category === category);
+  const filtered = listed.filter((place) => normalizeSearchText(place.name).includes(normalizeSearchText(query)));
+  const listStatus = venueFilter ? venueState?.status ?? "loading" : status;
   const searchCity = async () => {
     const searchedQuery = query.trim();
     if (searchedQuery.length < 3 || searching) return;
@@ -144,6 +168,8 @@ export function CityScreen() {
     name: place.name, latitude: String(place.latitude), longitude: String(place.longitude),
     category: place.category, detail: place.detail, sourceUrl: place.sourceUrl,
     ...(query.trim() ? { search: query.trim() } : {}),
+    ...(place.venue ? { terrace: place.venue.terrace ? "1" : "0", ...(place.venue.cuisine ? { cuisine: place.venue.cuisine } : {}),
+      ...(place.venue.openingHours ? { hours: place.venue.openingHours } : {}), ...(place.venue.address ? { address: place.venue.address } : {}) } : {}),
   } } as Href);
   return <Screen active="home" style={{ gap: 17 }}>
     <Header title={translate(city.name, language)} right={<WeatherBadge point={city} color={p.ink} size={15} />} subtitle={`${city.stateCode ? `${usStates.find((state) => state.code === city.stateCode)?.name ?? city.stateCode} · ` : ""}${countryFlag(country.code)}  ${translate(country.name, language)}`} />
@@ -155,14 +181,23 @@ export function CityScreen() {
         onSubmitEditing={() => void searchCity()} returnKeyType="search" style={{ flex: 1, minWidth: 0, height: 46, fontSize: 14, color: p.ink, outlineWidth: 0 }} />
       {searching && <ActivityIndicator size="small" color={p.blue} />}
     </Row>
-    <Row style={{ flexWrap: "wrap", gap: 6 }}>{categories.map((item) => <Chip key={item} selected={category === item} onPress={() => { setCategory(item); setVisibleCount(20); }}>{translate(item, language)}</Chip>)}</Row>
-    {status === "loading" && <SkeletonRows count={6} />}
-    {status === "error" && <EmptyState title={translate("Places unavailable", language)} detail={translate("Check your connection and try again.", language)} action={translate("Retry", language)} onPress={() => { setResult({ key: city.id, places: [], status: "loading" }); loadCityPlaces(city, country.name).then((items) => setResult({ key: city.id, places: items, status: "ready" })).catch(() => setResult({ key: city.id, places: [], status: "error" })); }} />}
-    {status === "ready" && !filtered.length && !searchResults.length && !searching && (!query.trim() || remote?.query === query.trim()) && <EmptyState title={translate(query ? "No matching places" : "No places found nearby", language)} detail={translate("Try another search.", language)} />}
+    <Row style={{ flexWrap: "wrap", gap: 6 }}>
+      {categories.map((item) => <Chip key={item} selected={category === item} onPress={() => { setCategory(item); setVisibleCount(20); }}>{translate(item, language)}</Chip>)}
+      {venueFilters.map((filter) => {
+        const selected = category === `venue:${filter}`;
+        return <Chip key={filter} selected={selected} onPress={() => { setCategory(selected ? "All" : `venue:${filter}`); setVisibleCount(20); }}>{translate(venueFilterLabels[filter], language)}</Chip>;
+      })}
+    </Row>
+    {listStatus === "preview" && !venueFilter && <Row style={{ gap: 8 }}><ActivityIndicator size="small" color={p.blue} /><Copy muted style={{ fontSize: 12 }}>{translate("Finding more places…", language)}</Copy></Row>}
+    {listStatus === "loading" && <SkeletonRows count={6} />}
+    {listStatus === "error" && (venueFilter
+      ? <EmptyState title={translate("Places unavailable", language)} detail={translate("Nearby places are unavailable right now.", language)} />
+      : <EmptyState title={translate("Places unavailable", language)} detail={translate("Check your connection and try again.", language)} action={translate("Retry", language)} onPress={() => { setResult({ key: city.id, places: [], status: "loading" }); loadPlaces(() => true); }} />)}
+    {listStatus === "ready" && !filtered.length && !searchResults.length && !searching && (!query.trim() || remote?.query === query.trim()) && <EmptyState title={translate(query ? "No matching places" : venueFilter ? "No venues of this kind in this city yet." : "No places found nearby", language)} detail={translate("Try another search.", language)} />}
     {!!filtered.length && <View style={listCard(p)}>
       {filtered.slice(0, visibleCount).map((place, index) => <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`Explore ${place.name}`} onPress={() => openPlace(place)} style={({ pressed }) => [{ minHeight: 70, paddingVertical: 9, flexDirection: "row", alignItems: "center", gap: 12 }, listRow(p, index), pressed && { backgroundColor: p.soft }]}>
-        <PlaceThumbnail name={place.name} location={`${city.name}, ${country.name}`} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} />
-        <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontSize: 14, fontWeight: "600" }}>{place.name}</Copy><Copy muted style={{ fontSize: 12 }}>{translate(place.category, language)}</Copy></View>
+        <PlaceThumbnail name={place.name} location={`${city.name}, ${country.name}`} latitude={place.latitude} longitude={place.longitude} sourceUrl={place.sourceUrl} venue={place.venue} />
+        <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontSize: 14, fontWeight: "600" }}>{place.name}</Copy><Copy muted style={{ fontSize: 12 }}>{[translate(place.category, language), place.venue?.cuisine, place.venue?.terrace ? translate("Terrace", language) : ""].filter(Boolean).join(" · ")}</Copy></View>
         <Icon name="right" color={p.muted} size={17} />
       </Pressable>)}
     </View>}
@@ -185,7 +220,7 @@ export function PlaceScreen() {
   const key = `${city?.id ?? ""}|${placeId ?? ""}`;
   const routePlace = useMemo(() => {
     const osm = /^osm:(?:node|way|relation):\d+$/.test(placeId ?? "") && /^https:\/\/www\.openstreetmap\.org\/(?:node|way|relation)\/\d+$/.test(sourceUrl ?? "");
-    const wiki = /^wiki:\d+$/.test(placeId ?? "") && /^https:\/\/en\.wikipedia\.org\/\?curid=\d+$/.test(sourceUrl ?? "");
+    const wiki = /^wiki:(?:[a-z]{2,3}:)?\d+$/.test(placeId ?? "") && /^https:\/\/[a-z]{2,3}\.wikipedia\.org\/\?curid=\d+$/.test(sourceUrl ?? "");
     if (!city || !country || !placeId || (!osm && !wiki)) return null;
     return externalPlaceFromSaved(placeId, { id: placeId, name, latitude: Number(latitude), longitude: Number(longitude), category, detail, source: wiki ? "Wikipedia" : "OpenStreetMap", sourceUrl, location: `${city.name}, ${country.name}` });
   }, [city, country, placeId, name, latitude, longitude, category, detail, sourceUrl]);

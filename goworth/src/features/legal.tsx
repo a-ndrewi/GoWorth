@@ -17,7 +17,7 @@ export function LegalScreen() {
   const language = useAppLanguage();
   const { user, deleteAccount } = useAuth();
   const {
-    profile, preferences, saved, savedPlaces, externalPlaces, trip, activities, expenses,
+    profile, preferences, saved, savedPlaces, externalPlaces, trip, trips, activities, expenses,
     journal, journalEntries, plan,
   } = useTravel();
   const [confirming, setConfirming] = useState(false);
@@ -32,9 +32,9 @@ export function LegalScreen() {
       exportedAt: new Date().toISOString(),
       account: { id: user.id, email: user.email, profile },
       preferences, savedDestinations: saved, savedPlaces, externalPlaces,
-      currentTrip: trip ? { trip, activities, expenses, note: journal } : null,
+      openTrip: trip ? { trip, activities, expenses, note: journal } : null,
+      plannedTrips: trips,
       pastTrips: journalEntries,
-      personalNote: trip ? null : journal,
     }, null, 2);
     try {
       await Share.share({ title: "GoWorth data export", message: data });

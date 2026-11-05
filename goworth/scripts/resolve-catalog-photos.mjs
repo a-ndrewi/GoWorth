@@ -17,7 +17,7 @@ setBundledPhotos(false);
 const mapSource = readFileSync(`${root}src/data/map.ts`, "utf8");
 const centers = Object.fromEntries([...mapSource.matchAll(/^\s+"?([a-z-]+)"?: \[(-?[\d.]+), (-?[\d.]+)\],$/gm)].map((m) => [m[1], { latitude: Number(m[2]), longitude: Number(m[3]) }]));
 const wide = { iceland: 350, alps: 220, bali: 150, "new-york": 85, "danube-delta": 160 };
-const headers = { "User-Agent": "GoWorth/1.0 (travel app)" };
+const headers = { "User-Agent": "GoWorth/1.0 (https://goworthapp.com; support@goworthapp.com)" };
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Files chosen by hand for places the search gets wrong or cannot find: place id → Commons file title. */

@@ -33,6 +33,7 @@ import { publicPlaceCategory } from "@/utils/public-activity";
 import { TripShortcut } from "@/components/goworth/trip-shortcut";
 import { WheelShortcut } from "@/components/goworth/wheel-shortcut";
 import { useAuth } from "@/state/auth-context";
+import { finishBootTask } from "@/state/boot";
 import { loadWheelStatus, type WheelStatus } from "@/lib/wheel";
 import { useTimedMessage } from "@/hooks/use-timed-message";
 
@@ -89,9 +90,11 @@ export function HomeScreen() {
   const [wheelStatus, setWheelStatus] = useState<WheelStatus | null>(null);
   // Checked each time Explore is shown, so the badge picks up a spin made on the wheel screen.
   useFocusEffect(useCallback(() => {
-    if (!user || plan === "lifetime") return;
+    if (!user || plan === "lifetime") { finishBootTask("wheel"); return; }
     let active = true;
-    loadWheelStatus().then((status) => { if (active) setWheelStatus(status); }).catch(() => undefined);
+    // The launch cover waits for the badge too, so the countdown is there when Explore appears.
+    loadWheelStatus().then((status) => { if (active) setWheelStatus(status); }).catch(() => undefined)
+      .finally(() => finishBootTask("wheel"));
     return () => { active = false; };
   }, [user, plan]));
   const [query, setQuery] = useState("");

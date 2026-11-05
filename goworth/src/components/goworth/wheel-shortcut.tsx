@@ -10,6 +10,7 @@ import { translate } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
 import type { WheelStatus } from "@/lib/wheel";
 import { wheelCountdown, wheelRemainingMs, wheelSlices } from "@/lib/wheel-odds";
+import { useBootDone } from "@/state/boot";
 
 const SIZE = 48;
 const START_DELAY = 500;
@@ -83,12 +84,15 @@ export function WheelShortcut({ label, status, onPress }: { label: string; statu
   const press = useSharedValue(1);
   // Focus events, not useIsFocused: the frozen Explore tab never re-renders as unfocused, so a returning focus looked
   // unchanged and the wheel stayed still.
+  // At launch Explore is focused behind the splash; the spin waits for the cover to lift so it is actually seen.
+  const bootDone = useBootDone();
   useFocusEffect(useCallback(() => {
+    if (!bootDone) return;
     cancelAnimation(turn);
     turn.set(0);
     turn.set(withDelay(START_DELAY, withTiming(1, { duration: 1800, easing: Easing.out(Easing.cubic) })));
     return () => { cancelAnimation(turn); turn.set(0); };
-  }, [turn]));
+  }, [turn, bootDone]));
   const turnStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value * 360}deg` }] }));
   const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press.value }] }));
   const center = SIZE / 2;

@@ -19,3 +19,7 @@ test("database setup and network failures have distinct messages", () => {
 test("unrecognized save failures retain the actual reason", () => {
   assert.match(describeSyncFailure(new Error("row-level security policy"), "en"), /row-level security policy/);
 });
+
+test("the one-active-trip rule on Free offers Premium like the monthly limits", () => {
+  assert.equal(isFreeLimitFailure(new Error("Free plan includes one active trip. Finish or delete a trip, or upgrade for unlimited trips")), true);
+});
