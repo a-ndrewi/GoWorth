@@ -1,4 +1,5 @@
 import { catalogPhotos } from "./catalog-photos.ts";
+import { appUserAgent } from "./user-agent.ts";
 
 export type PlacePhoto = {
   url: string;
@@ -35,7 +36,7 @@ export function sizedPhotoUrl(url: string, width: PhotoWidth) {
  * Headers for downloading Wikimedia images. Wikimedia refuses generic HTTP library User-Agents (Android's "okhttp" gets
  * HTTP 403 for every image), so the app names itself; browsers send their own and cannot change it.
  */
-export const wikimediaImageHeaders: Record<string, string> = { "User-Agent": "GoWorth/1.0 (travel app)" };
+export const wikimediaImageHeaders: Record<string, string> = { "User-Agent": appUserAgent };
 
 /** An image source for a Wikimedia photo at a standard width, with the headers Wikimedia requires. */
 export function photoSource(url: string, width: PhotoWidth) {
@@ -53,7 +54,8 @@ export function setBundledPhotos(enabled: boolean) { bundledEnabled = enabled; }
 /** Where finished lookups survive app restarts; the app plugs in device storage, tests leave it unset. */
 export type PhotoStore = { load: () => Promise<string | null>; save: (value: string) => Promise<void> };
 type StoredLookup = { expiresAt: number; photos: PlacePhoto[] };
-const storedLimit = 500;
+// Explore now lists a few hundred places a city, so a few cities' worth of answers are kept.
+const storedLimit = 1500;
 let stored: Record<string, StoredLookup> = {};
 let storeReady: Promise<void> = Promise.resolve();
 let photoStore: PhotoStore | null = null;
@@ -230,7 +232,7 @@ function photoFromPage(page: CommonsPage, name: string, location: string, { trus
 }
 
 // Wikimedia throttles anonymous clients without an identifying User-Agent; browsers keep their own and may not set it.
-const wikimediaHeaders: Record<string, string> = { "User-Agent": "GoWorth/1.0 (travel app)" };
+const wikimediaHeaders: Record<string, string> = { "User-Agent": appUserAgent };
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** How far from a place its photo may have been taken: far enough for a mountain seen from the valley, not for another town. */
 const trustedRadiusKm = 15;
@@ -474,6 +476,29 @@ async function bulkPhotos(places: PhotoRequest[]): Promise<boolean[]> {
   return found;
 }
 
+/** A photo that arrived with a saved or shared list: only a Wikimedia image with its credit is accepted. */
+export function listPhoto(value: unknown): PlacePhoto | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const photo = value as Partial<PlacePhoto>;
+  const text = (item: unknown, max: number) => typeof item === "string" && item.length <= max;
+  if (!safeUrl(photo.url, "wikimedia.org") || !safeUrl(photo.pageUrl, "wikimedia.org") || !text(photo.artist, 300) || !text(photo.license, 100)
+    || !(safeUrl(photo.licenseUrl, "creativecommons.org") || safeUrl(photo.licenseUrl, "wikimedia.org"))) return undefined;
+  return { url: photo.url!, pageUrl: photo.pageUrl!, artist: photo.artist!, license: photo.license!, licenseUrl: photo.licenseUrl! };
+}
+
+/**
+ * Takes the photos a saved or shared list of places carries, so their thumbnails draw at once instead of each one
+ * searching Wikimedia again. A place already looked up on this device keeps what it found.
+ */
+export function rememberListPhotos(places: { name: string; location?: string; latitude: number; longitude: number; sourceUrl?: string; photo?: unknown }[]) {
+  for (const place of places) {
+    const photo = listPhoto(place.photo);
+    if (!photo) continue;
+    const key = lookupKey(place.name, place.location ?? "", place.latitude, place.longitude, place.sourceUrl);
+    if (!resolved.get(key)?.length) settle(key, [photo]);
+  }
+}
+
 /** The photo if it was already looked up (this session or a previous one), so a list can draw it on its first frame. `undefined` means unknown yet. */
 export function peekPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string): PlacePhoto | null | undefined {
   const bundled = bundledPhoto(name, location);
@@ -483,7 +508,10 @@ export function peekPlacePhoto(name: string, location: string, latitude?: number
   return photos ? photos[0] ?? null : undefined;
 }
 
-export async function findPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string, excludedUrls: string[] = []): Promise<PlacePhoto | null> {
+/** What OpenStreetMap says the place's own photo is; a lookup tries these before searching by name. */
+export type PhotoHints = { wikidata?: string; commonsFile?: string };
+
+export async function findPlacePhoto(name: string, location: string, latitude?: number, longitude?: number, sourceUrl?: string, excludedUrls: string[] = [], hints: PhotoHints = {}): Promise<PlacePhoto | null> {
   // The app's own catalog places come with a photo chosen ahead of time; there is nothing to search for.
   const bundled = bundledPhoto(name, location);
   if (bundled && !excludedUrls.includes(bundled.url)) return bundled;
@@ -502,6 +530,13 @@ export async function findPlacePhoto(name: string, location: string, latitude?: 
         // A step that failed (offline, throttled) must not turn into a remembered "no photo".
         let failed = false;
         const attempt = <T,>(task: Promise<T>, fallback: T) => task.catch(() => { failed = true; return fallback; });
+        // The place's own Wikidata image or tagged Commons file, when the bulk check that normally finds them did not
+        // get to it (it gives up after a few seconds): without this the card fell back to a search by name.
+        if ((hints.wikidata || hints.commonsFile) && latitude !== undefined && longitude !== undefined) {
+          const [ok] = await attempt(bulkPhotos([{ name, location, latitude, longitude, sourceUrl, ...hints }]), [false]);
+          const photos = ok ? resolved.get(key) : undefined;
+          if (photos?.length) return photos;
+        }
         const verified = verifiedFiles[`${name}|${location}`.toLowerCase()];
         const [linked, verifiedResult] = await Promise.all([
           attempt(wikipediaPhoto(name, location, latitude, longitude, sourceUrl), null),

@@ -1,3 +1,6 @@
+import { persistedCache, type JsonStore } from "./persisted-cache.ts";
+import { appUserAgent } from "./user-agent.ts";
+
 /**
  * The administrative outline of a city or district, so its place list shows what is inside it rather than everything
  * within a fixed radius of its centre point (a radius around "Sector 6" covers half of Bucharest).
@@ -13,9 +16,12 @@ type Point = { latitude: number; longitude: number };
 type NominatimResult = { osm_type?: string; osm_id?: number; category?: string; geojson?: { type: string; coordinates: unknown } };
 
 const cache = new Map<string, Promise<Boundary | null>>();
+// Outlines barely change and each costs a rate-limited Nominatim request, so they are kept across launches.
+const stored = persistedCache<Boundary | null>(24, 30 * 24 * 60 * 60 * 1000);
+export function setBoundaryStore(store: JsonStore) { stored.attach(store); }
 let nextRequestAt = 0;
 // Nominatim asks for at most one request a second and an identifying User-Agent (browsers keep their own).
-const headers: Record<string, string> = { "User-Agent": "GoWorth/1.0 (travel app)" };
+const headers: Record<string, string> = { "User-Agent": appUserAgent };
 
 function polygonsOf(geojson: NominatimResult["geojson"]): Boundary["polygons"] {
   if (geojson?.type === "Polygon") return [geojson.coordinates as [number, number][][]];
@@ -68,6 +74,8 @@ export function loadCityBoundary(city: Point & { id: string; name: string }, cou
   const cached = cache.get(city.id);
   if (cached) return cached;
   const request = (async () => {
+    const saved = await stored.get(city.id);
+    if (saved) return saved.value;
     const wait = Math.max(0, nextRequestAt - Date.now());
     nextRequestAt = Date.now() + wait + 1100;
     if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
@@ -78,11 +86,13 @@ export function loadCityBoundary(city: Point & { id: string; name: string }, cou
       const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers, signal: controller.signal });
       if (!response.ok) throw new Error("City outline unavailable.");
       const results: NominatimResult[] = await response.json();
+      let found: Boundary | null = null;
       for (const result of results) {
         const boundary = boundaryFromGeoJson(`${result.osm_type}:${result.osm_id}`, result.geojson);
-        if (boundary && insideBoundary(boundary, city)) return boundary;
+        if (boundary && insideBoundary(boundary, city)) { found = boundary; break; }
       }
-      return null;
+      stored.set(city.id, found);
+      return found;
     } finally {
       clearTimeout(timeout);
     }

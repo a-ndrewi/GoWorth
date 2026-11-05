@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { commonsFileTag, filterVenues, venueFromCategory, isExplorePlace, mergeSourcePlaces, parseOsmPlaces, parseOsmVenues, parsePhotonPlaces, parseWikipediaPlaces, photonBoundingBoxes, withWikidata } from "../src/data/nearby-places.ts";
+import { commonsFileTag, filterVenues, hasTerrace, venueFromCategory, isExplorePlace, mergeSourcePlaces, parseOsmPlaces, parseOsmVenues, parsePhotonPlaces, parseWikipediaPlaces, photonBoundingBoxes, withWikidata } from "../src/data/nearby-places.ts";
 
 const center = { latitude: 44.4268, longitude: 26.1025 };
 
@@ -161,4 +161,37 @@ test("the same Wikidata item from OpenStreetMap and Wikipedia is listed once", (
   const osm = [{ id: "osm:way:1", name: "Peleș", latitude: 0, longitude: 0, kind: "place", category: "Landmarks", detail: "", source: "OpenStreetMap", sourceUrl: "https://www.openstreetmap.org/way/1", wikidata: "Q9" }];
   const wiki = [{ id: "wiki:5", name: "Peleș Castle", latitude: 0.02, longitude: 0, kind: "place", category: "Landmarks", detail: "", source: "Wikipedia", sourceUrl: "https://en.wikipedia.org/?curid=5", wikidata: "Q9" }];
   assert.equal(mergeSourcePlaces(osm, wiki, center).length, 1);
+});
+
+test("Outdoor seating counts as a terrace however it is tagged, and beer gardens are bars with a terrace", () => {
+  for (const value of ["yes", "terrace", "garden", "sidewalk", "roof", "pedestrian_zone"]) assert.equal(hasTerrace({ outdoor_seating: value }), true, value);
+  assert.equal(hasTerrace({ outdoor_seating: "no" }), false);
+  assert.equal(hasTerrace({}), false);
+  assert.equal(hasTerrace({ roof_terrace: "yes" }), true);
+  const [garden] = parseOsmVenues([{ type: "node", id: 9, lat: 44.427, lon: 26.103, tags: { amenity: "biergarten", name: "Grădina" } }], center, 3);
+  assert.equal(garden.venue.kind, "bar");
+  assert.equal(garden.venue.terrace, true);
+  assert.deepEqual(filterVenues([garden], ["terrace"]).map((place) => place.name), ["Grădina"]);
+});
+
+test("A venue keeps its own photo link, but a chain's brand item is not taken for the branch's photo", () => {
+  const venues = parseOsmVenues([
+    { type: "node", id: 1, lat: 44.427, lon: 26.103, tags: { amenity: "restaurant", name: "Caru' cu Bere", wikidata: "Q12345", image: "https://commons.wikimedia.org/wiki/File:Caru_cu_bere.jpg" } },
+    { type: "node", id: 2, lat: 44.428, lon: 26.104, tags: { amenity: "cafe", name: "Chain Coffee", brand: "Chain Coffee", wikidata: "Q999" } },
+  ], center, 3);
+  const own = venues.find((place) => place.name === "Caru' cu Bere");
+  const chain = venues.find((place) => place.name === "Chain Coffee");
+  assert.equal(own.wikidata, "Q12345");
+  assert.equal(own.commonsFile, "Caru cu bere.jpg");
+  assert.equal(chain.wikidata, undefined);
+});
+
+test("Squares, waterfalls on rivers, bridges and bays are places to see", () => {
+  assert.equal(isExplorePlace({ osm_key: "place", osm_value: "square" }), true);
+  assert.equal(isExplorePlace({ osm_key: "waterway", osm_value: "waterfall" }), true);
+  assert.equal(isExplorePlace({ osm_key: "man_made", osm_value: "bridge" }), true);
+  assert.equal(isExplorePlace({ osm_key: "natural", osm_value: "bay" }), true);
+  assert.equal(isExplorePlace({ osm_key: "place", osm_value: "city" }), false);
+  const [falls] = parseOsmPlaces([{ type: "node", id: 3, lat: 44.427, lon: 26.103, tags: { name: "Cascada", waterway: "waterfall" } }], center, 3);
+  assert.equal(falls.category, "Nature");
 });

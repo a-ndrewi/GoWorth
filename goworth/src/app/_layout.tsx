@@ -16,6 +16,9 @@ import { UsernameGate } from "@/features/username-gate";
 // Also defines the background task that wakes the app for nearby places, which must exist before the app renders.
 import { DeviceSync } from "@/state/device-sync";
 import { setPhotoStore } from "@/data/place-photo";
+import { setNearbyPlacesStore, setSharedPlaceLists } from "@/data/nearby-places";
+import { supabase } from "@/lib/supabase";
+import { setBoundaryStore } from "@/data/city-boundary";
 import { bootTimeoutMs, finishBoot, useBootDone, useSplashArtShown } from "@/state/boot";
 import { BootCover } from "@/features/onboarding";
 import { VisaAwardHost } from "@/features/passport";
@@ -32,6 +35,32 @@ void AsyncStorage.removeItem("place-photo-lookups").catch(() => undefined);
 setPhotoStore({
   load: () => AsyncStorage.getItem("place-photo-lookups-v2"),
   save: (value) => AsyncStorage.setItem("place-photo-lookups-v2", value),
+});
+// City outlines and finished place lists, so a city opened before shows its places at once on the next launch.
+setBoundaryStore({
+  load: () => AsyncStorage.getItem("city-boundaries-v1"),
+  save: (value) => AsyncStorage.setItem("city-boundaries-v1", value),
+});
+// v2: lists now include squares, bridges, bays and more; lists saved before that are fetched afresh.
+void AsyncStorage.removeItem("nearby-places-v1").catch(() => undefined);
+setNearbyPlacesStore({
+  load: () => AsyncStorage.getItem("nearby-places-v2"),
+  save: (value) => AsyncStorage.setItem("nearby-places-v2", value),
+});
+// Lists other travellers already loaded, so a city's places come from one request to our database. Anyone can read
+// them; a signed-in device shares the lists it finishes (the database checks every place before keeping it).
+const sharedDb = supabase;
+setSharedPlaceLists(sharedDb && {
+  get: async (key) => {
+    const { data, error } = await sharedDb.from("place_lists").select("places, updated_at").eq("key", key).maybeSingle();
+    if (error) throw error;
+    return data ? { places: data.places, savedAt: Date.parse(data.updated_at) } : null;
+  },
+  put: async (key, places) => {
+    if (!(await sharedDb.auth.getSession()).data.session) return;
+    const { error } = await sharedDb.rpc("save_place_list", { list_key: key, list: places });
+    if (error) throw error;
+  },
 });
 
 const tabByPath: Record<string, string> = {
