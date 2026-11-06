@@ -5,7 +5,8 @@ import { FlipBook } from "@/components/goworth/flip-book";
 import { VisaAward } from "@/components/goworth/visa-award";
 import { BadgesPage, CoverPage, EmptyPage, IdentityPage, VisaPage, pagePaper, passportWording } from "@/components/goworth/passport-pages";
 import { wheelColors } from "@/components/goworth/premium-wheel";
-import { Header, Icon, Row, Screen } from "@/components/goworth/ui";
+import { Header, Icon, IconButton, Row, Screen } from "@/components/goworth/ui";
+import { PassportShareSheet } from "@/components/goworth/passport-story-card";
 import { themedStyles } from "@/constants/design";
 import { formatMessage } from "@/data/i18n";
 import { useAppLanguage } from "@/data/formatting";
@@ -49,6 +50,9 @@ export function PassportScreen() {
   const width = Math.round(Math.min(460, screenWidth - 40, (screenHeight - 340) / 1.42));
   const height = Math.round(width * 1.42);
   const unlock = () => router.push({ pathname: "/membership", params: { reason: "passport" } } as Href);
+  // Sharing the passport is Premium, whose visas are open; Free is offered Premium instead of a card of veiled pages.
+  const [sharing, setSharing] = useState(false);
+  const share = () => locked ? router.push({ pathname: "/membership", params: { reason: "share" } } as Href) : setSharing(true);
 
   const pages = useMemo(() => [
     <CoverPage key="cover" t={pageText} />,
@@ -67,8 +71,11 @@ export function PassportScreen() {
   const paper = pagePaper(dark);
 
   return <Screen active="profile" scroll={false} style={{ gap: 14 }}>
-    <Header title={t.title} right={<View style={styles.count}><Text style={styles.countText}>
-      {visas.length === 1 ? t.visa : formatMessage(t.visas, { count: visas.length }, language)}</Text></View>} />
+    <Header title={t.title} right={<Row style={{ gap: 8 }}>
+      <View style={styles.count}><Text style={styles.countText}>
+        {visas.length === 1 ? t.visa : formatMessage(t.visas, { count: visas.length }, language)}</Text></View>
+      {visas.length > 0 && <IconButton name="share" label="Share your passport" onPress={share} />}
+    </Row>} />
     <View style={{ alignItems: "center", paddingTop: 6 }}>
       <FlipBook pages={pages} width={width} height={height} index={index} onIndexChange={setIndex}
         backColor={paper.line} edgeColor={dark ? "#24304A" : "#E9E1CC"} />
@@ -86,6 +93,7 @@ export function PassportScreen() {
       <Icon name="crown" size={16} color={wheelColors.goldInk} />
       <Text style={styles.unlockText}>{t.lockedTitle} · {t.unlock}</Text>
     </Pressable>}
+    <PassportShareSheet visible={sharing} onClose={() => setSharing(false)} visas={visas} holder={holder} member={member} language={language} />
   </Screen>;
 }
 

@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
-import { Pressable, Share, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Button, Copy, EmptyState, Field, Header, Heading, Icon, IconButton, Row, Screen, Sheet, sharedSheet } from "@/components/goworth/ui";
 import { themedStyles } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
@@ -10,13 +10,14 @@ import {
 } from "@/data/travel";
 import { useTravel } from "@/state/travel-context";
 import { TripHero } from "@/components/goworth/trip-hero";
-import { routeStopForDay, uniqueRouteStops } from "@/data/trip-route";
+import { routeStopForDay } from "@/data/trip-route";
 import { formatMessage, translate } from "@/data/i18n";
-import { getLanguage, useAppLanguage } from "@/data/formatting";
+import { useAppLanguage } from "@/data/formatting";
 import { publicActivityNote, publicPlaceCategory, translatedActivityNote } from "@/utils/public-activity";
 import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-preview";
 import { venueFromCategory } from "@/data/nearby-places";
 import { useTimedMessage } from "@/hooks/use-timed-message";
+import { TripStorySheet } from "@/components/goworth/trip-story-sheet";
 
 type TripRecord = {
   id: string;
@@ -29,14 +30,6 @@ type TripRecord = {
 };
 
 type PreviewPlace = { id: string; name: string; category: string; location: string; latitude?: number; longitude?: number; sourceUrl?: string };
-
-function dateRange(trip: Trip) {
-  const format = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDateString(getLanguage() === "ro" ? "ro-RO" : "en-US", {
-    day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
-  });
-  return `${format(trip.start)} - ${format(trip.end)}`;
-}
-
 
 export function JournalTripScreen() {
   const styles = useStyles(stylesSheet);
@@ -53,6 +46,7 @@ export function JournalTripScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useTimedMessage();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [placePreview, setPlacePreview] = useState<PreviewPlace | null>(null);
   const archived = journalEntries.find((entry) => entry.id === id);
   const record: TripRecord | null = id === "current" && trip ? {
@@ -61,7 +55,6 @@ export function JournalTripScreen() {
   } : archived ? { ...archived } : null;
   if (!record) return <Screen><Header title="Trip record" /><EmptyState title="Trip not found" detail="This trip is no longer in your journal." action="Back to trips" onPress={() => router.replace({ pathname: "/saved", params: { tab: "Trips" } } as Href)} /></Screen>;
 
-  const routeCities = uniqueRouteStops(record.trip);
   const spent = record.expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const days = [...new Set(record.activities.map((activity) => activity.day))].sort((a, b) => a - b);
   // The trip's places are the ones on its itinerary. An archived trip also stores every place saved on the account
@@ -95,19 +88,6 @@ export function JournalTripScreen() {
       setError(caught instanceof Error ? caught.message : "Could not save this note.");
     } finally { setBusy(false); }
   };
-  const share = () => {
-    const lines = [
-      routeCities.map((city) => `${city.name}, ${city.country}`).join(" → "), dateRange(record.trip),
-      formatMessage("Budget: {budget}. Recorded expenses: {spent}.", { budget: money(record.trip.budget), spent: money(spent) }, language),
-      ...record.activities.map((activity) => {
-        const note = publicActivityNote(activity.note);
-        return formatMessage("Day {day}, {time}: {name}{note}", { day: activity.day, time: activity.time, name: activity.name, note: note ? ` - ${note}` : "" }, language);
-      }),
-      ...record.expenses.map((expense) => `${expense.category}: ${expense.label} - ${money(expense.amount)}`),
-      ...(record.reflection ? [formatMessage("Note: {note}", { note: record.reflection }, language)] : []),
-    ];
-    void Share.share({ message: lines.join("\n") });
-  };
 
   const byCategory = [...new Set(record.expenses.map((expense) => expense.category))]
     .map((category) => ({ category, total: record.expenses.filter((expense) => expense.category === category).reduce((sum, expense) => sum + expense.amount, 0) }))
@@ -122,7 +102,7 @@ export function JournalTripScreen() {
     <Row style={{ justifyContent: "space-between" }}>
       <IconButton name="back" label="Go back" onPress={() => router.canGoBack() ? router.back() : router.navigate({ pathname: "/saved", params: { tab: "Trips" } } as Href)} />
       <Copy style={{ fontWeight: "700" }}>{record.status === "current" ? "Current trip" : "Trip record"}</Copy>
-      <IconButton name="share" label="Share trip record" onPress={share} />
+      <IconButton name="share" label="Share trip record" onPress={() => setSharing(true)} />
     </Row>
     <TripHero trip={record.trip} archived={record.status !== "current"}
       label={record.status === "current" ? undefined : translate(record.status === "completed" ? "Completed" : "Unfinished plan", language)} />
@@ -205,6 +185,8 @@ export function JournalTripScreen() {
       }}>Delete trip</Button>
       <Button secondary onPress={() => setConfirmDelete(false)}>Keep trip</Button>
     </Sheet>
+    <TripStorySheet visible={sharing} onClose={() => setSharing(false)} trip={record.trip} activities={record.activities}
+      spent={money(spent)} />
   </Screen>;
 }
 

@@ -47,8 +47,10 @@ export function UsernameField({ value, onChangeText, status, label = "Username" 
     : status === "taken" ? ["close", p.danger, "Username is already taken."] as const
     : status === "invalid" ? ["info", p.danger, "Use 3-24 letters, numbers or underscores."] as const
     : ["info", p.muted, "Friends find you by it to invite you on trips."] as const;
+  // The field keeps its own height: with Field's flex: 1 inside this wrapper it collapsed on a full-height screen
+  // and the hint below was drawn over the next button.
   return <View style={{ gap: 6 }}>
-    <Field label={label} placeholder="username" value={value} onChangeText={onChangeText} autoCapitalize="none" autoCorrect={false}
+    <Field containerStyle={{ flex: 0 }} label={label} placeholder="username" value={value} onChangeText={onChangeText} autoCapitalize="none" autoCorrect={false}
       autoComplete="username" textContentType="username" maxLength={25} />
     <Row style={{ gap: 6 }}>
       {status === "checking" ? <ActivityIndicator size="small" color={p.muted} /> : <Icon name={line[0]} size={13} color={line[1]} />}

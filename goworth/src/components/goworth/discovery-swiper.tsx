@@ -20,7 +20,7 @@ import { destinationPins } from "@/data/map";
 import { cityForGlobalId, countryForCode, nearestCity, worldDiscoveryCities, type City } from "@/data/geography";
 import { filterVenues, loadNearbyPlaces, loadNearbyVenues, type NearbyPlace } from "@/data/nearby-places";
 import { VenueArt, venueFilterIcons } from "@/components/goworth/venue-art";
-import { findPlacePhoto, sizedPhotoUrl, wikimediaImageHeaders } from "@/data/place-photo";
+import { findPlacePhoto, peekPlacePhoto, prefetchPlacePhotos, sizedPhotoUrl, wikimediaImageHeaders, type PlacePhoto } from "@/data/place-photo";
 import { loadRecentDiscoveries, type RecentDiscovery } from "@/lib/travel-repository";
 import { useTravel } from "@/state/travel-context";
 import { formatMessage, translate, translateAccessibility, translateLocation } from "@/data/i18n";
@@ -73,15 +73,24 @@ const photoCache = new Map<string, string | null>();
 const photoRequests = new Map<string, Promise<string | null>>();
 
 function resolveCardPhoto(item: SwipeItem): Promise<string | null> {
-  // Venues almost never have a free photo; their card draws its own art instead of searching.
-  if (item.kind === "nearby" && item.place.venue) photoCache.set(item.key, null);
+  // Venues rarely have a free photo; their card draws its own art instead of searching by name. Only a venue that
+  // OpenStreetMap links to its own photo (a historic café, a famous beer hall) gets that photo.
+  if (item.kind === "nearby" && item.place.venue && !item.place.wikidata && !item.place.commonsFile) photoCache.set(item.key, null);
   if (photoCache.has(item.key)) return Promise.resolve(photoCache.get(item.key) ?? null);
   let request = photoRequests.get(item.key);
   if (!request) {
     const name = item.kind === "nearby" ? item.place.name : item.place?.name;
     const location = item.kind === "nearby" ? item.location : `${item.destination.name}, ${item.destination.country}`;
     const pin = item.kind === "nearby" ? item.place : destinationPins.find((value) => value.id === item.destination.id);
-    request = (name ? findPlacePhoto(name, location, pin?.latitude, pin?.longitude, item.kind === "nearby" ? item.place.sourceUrl : undefined) : Promise.resolve(null))
+    const hints = item.kind === "nearby" ? { wikidata: item.place.wikidata, commonsFile: item.place.commonsFile } : {};
+    const lookup = (): Promise<PlacePhoto | null> => {
+      if (!name) return Promise.resolve(null);
+      // A venue is looked up by its own photo only: a search by name would find any "Bistro" or "The Pub".
+      if (item.kind === "nearby" && item.place.venue) return prefetchPlacePhotos([{ name, location, latitude: pin?.latitude, longitude: pin?.longitude, sourceUrl: item.place.sourceUrl, ...hints }])
+        .then(([found]) => found ? peekPlacePhoto(name, location, pin?.latitude, pin?.longitude, item.place.sourceUrl) ?? null : null);
+      return findPlacePhoto(name, location, pin?.latitude, pin?.longitude, item.kind === "nearby" ? item.place.sourceUrl : undefined, [], hints);
+    };
+    request = lookup()
       .then(async (photo) => {
         // Download before revealing, so the card shows the final photo in one step.
         const url = photo?.url ? sizedPhotoUrl(photo.url, 960) : null;
@@ -394,7 +403,7 @@ export function DiscoverySwiper() {
     worldRequest.current = worldCursor;
     // Each city also deals a few of the venues picked in the filters, so worldwide shows cafés and terraces too.
     const venues = discoverySettings.venues.length
-      ? loadNearbyVenues(city, 1.5).then((places) => filterVenues(places, discoverySettings.venues).slice(0, 6)).catch(() => [] as NearbyPlace[])
+      ? loadNearbyVenues(city, 2).then((places) => filterVenues(places, discoverySettings.venues).slice(0, 10)).catch(() => [] as NearbyPlace[])
       : Promise.resolve([] as NearbyPlace[]);
     Promise.all([loadNearbyPlaces(city, 25).catch(() => [] as NearbyPlace[]), venues])
       .then(([sights, cityVenues]) => [...sights, ...cityVenues])

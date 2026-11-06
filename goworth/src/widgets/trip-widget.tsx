@@ -95,7 +95,7 @@ const TripWidget = (props: TripWidgetProps, environment: WidgetEnvironment) => {
         frame({ maxWidth: Infinity, alignment: "leading" })]}>
         <HStack spacing={4}>
           <Image systemName={props.locked ? "crown.fill" : "airplane"} size={10} />
-          <Text modifiers={[font({ size: 11, weight: "heavy" }), lineLimit(1)]}>{props.locked ? "GOWORTH PREMIUM" : props.label}</Text>
+          <Text modifiers={[font({ size: 11, weight: "heavy" }), lineLimit(1)]}>{props.locked ? "GoWorth Premium" : props.label}</Text>
         </HStack>
         <Text modifiers={[font({ size: 15, weight: "bold" }), lineLimit(1), minimumScaleFactor(0.7)]}>{props.locked ? props.lockedText : props.route}</Text>
         {!props.locked && <Text modifiers={[font({ size: 12 }), lineLimit(1)]}>{`${props.first} · ${props.second}`}</Text>}
@@ -147,6 +147,6 @@ const TripWidget = (props: TripWidgetProps, environment: WidgetEnvironment) => {
 };
 
 export default createWidget<TripWidgetProps>("TripWidget", TripWidget, {
-  active: false, locked: true, lockedText: "Lock Screen trips come with Premium", short: "GO", inline: "Plan your next trip", label: "GOWORTH", code: "GO", route: "Plan your next trip", firstLabel: "NEXT", first: "Pick a city",
+  active: false, locked: true, lockedText: "Lock Screen trips come with Premium", short: "GO", inline: "Plan your next trip", label: "GoWorth", code: "GO", route: "Plan your next trip", firstLabel: "NEXT", first: "Pick a city",
   secondLabel: "CLASS", second: "Explorer", passengerLabel: "NEXT", passenger: "Pick a city", plansHeading: "", plans: [], progress: -1, url: "goworth://planner",
 });

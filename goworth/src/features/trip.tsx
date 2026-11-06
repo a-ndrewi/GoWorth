@@ -1,5 +1,5 @@
 import { router, useFocusEffect, useLocalSearchParams, type Href } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { TimeDropdown } from "@/components/goworth/date-time-controls";
 import { Button, Chip, Copy, EmptyState, Field, Header, Heading, Icon, IconButton, Row, Screen, Sheet, sharedSheet, type IconName } from "@/components/goworth/ui";
@@ -14,6 +14,7 @@ import {
   type ExpenseCategory,
 } from "@/data/travel";
 import { routeStop, routeTitle } from "@/data/trip-route";
+import { loadCityPlaces } from "@/data/nearby-places";
 import { formatMessage, translate, translateAccessibility } from "@/data/i18n";
 import { countryFlag } from "@/data/geography";
 import { currencySymbol, useAppLanguage } from "@/data/formatting";
@@ -26,6 +27,27 @@ import { dayRoutePoints, MAX_ROUTE_STOPS, mapsRouteUrl, placeFitsTripDay, useTri
 import { publicActivityNote, translatedActivityNote } from "@/utils/public-activity";
 import { useTimedMessage } from "@/hooks/use-timed-message";
 import { CompanionsPanel, CompanionStrip, TripInvites, TripSwitcher } from "@/components/goworth/companions";
+import { expenseSplitLabel, SplitBalances, SplitPicker, useTripSplit } from "@/components/goworth/expense-split";
+
+type DayStop = ReturnType<typeof routeStop>;
+
+/**
+ * Starts loading the shown day's place ideas in the background, a moment after the itinerary appears, so "Find places"
+ * opens with them ready. The requests are shared and cached, so the Places screen picks up the same work.
+ */
+function PrewarmDayPlaces({ stops }: { stops: DayStop[] }) {
+  const key = stops.map((stop) => stop.id).join("|");
+  useEffect(() => {
+    if (!stops.length) return;
+    const timer = setTimeout(() => {
+      for (const stop of stops) if (stop.country) void loadCityPlaces(stop, stop.country, 8).catch(() => undefined);
+    }, 1200);
+    return () => clearTimeout(timer);
+    // `key` stands for `stops`, which is rebuilt on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return null;
+}
 
 const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
@@ -140,6 +162,7 @@ export function ItineraryScreen() {
   const findPlaces = () => router.navigate({ pathname: "/itinerary-places", params: { day: String(day) } } as Href);
   return (
     <Screen active="itinerary" style={{ gap: 18 }}>
+      <PrewarmDayPlaces stops={dayStops} />
       <Row style={{ justifyContent: "space-between" }}>
         <IconButton name="back" label="Go back" onPress={() => router.dismissTo("/home" as Href)} />
         <Copy style={{ fontWeight: "700" }}>My trip</Copy>
@@ -304,8 +327,14 @@ export function BudgetScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [budgetEditor, setBudgetEditor] = useState(false);
   const [budgetDraft, setBudgetDraft] = useState(BUDGET_MIN);
+  const split = useTripSplit();
+  const [paidBy, setPaidBy] = useState("");
+  const [splitWith, setSplitWith] = useState<string[]>([]);
   const openEditor = (expense?: Expense) => {
     setEditing(expense || null);
+    // A new expense is paid by whoever adds it and shared by everyone; older expenses were paid by the owner.
+    setPaidBy(expense ? expense.paidBy || split.ownerId : split.me);
+    setSplitWith(expense?.splitWith?.length ? expense.splitWith : split.everyone);
     setLabel(expense?.label || "");
     setAmount(expense ? String(expense.amount) : "");
     setCategory(expense?.category || "Food & Drinks");
@@ -323,7 +352,11 @@ export function BudgetScreen() {
     setError("");
     try {
       // The name is optional; the category is a clear default.
-      const expense = { label: label.trim() || translate(category, language), category, amount: Math.round(value * 100) / 100 };
+      const expense = {
+        label: label.trim() || translate(category, language), category, amount: Math.round(value * 100) / 100,
+        // On a trip alone the split is left as it was, so it comes back if companions join again.
+        ...(split.split ? { paidBy, splitWith } : { paidBy: editing?.paidBy, splitWith: editing?.splitWith }),
+      };
       if (editing) await updateExpense({ ...expense, id: editing.id });
       else await addExpense(expense);
       setEditor(false);
@@ -415,12 +448,14 @@ export function BudgetScreen() {
         </Row>)}
       </View>}
 
+      <SplitBalances />
+
       <View style={{ gap: 4 }}>
         <Heading style={{ fontSize: 18, lineHeight: 24 }}>{formatMessage("Expenses ({count})", { count: expenses.length }, language)}</Heading>
         {[...expenses].reverse().map((expense) => <Pressable key={expense.id} accessibilityRole="button" accessibilityLabel={translateAccessibility(`Edit ${expense.label}`, language)} onPress={() => openEditor(expense)}
           style={({ pressed }) => [styles.expenseRow, pressed && { backgroundColor: p.soft }]}>
           <View style={[styles.categoryIcon, { backgroundColor: `${expenseColors[categoryIndex(expense.category)]}18` }]}><Icon name={expenseIcons[expense.category]} size={19} color={expenseColors[categoryIndex(expense.category)]} /></View>
-          <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "600" }}>{expense.label}</Copy><Copy muted style={{ fontSize: 12 }}>{expense.category}</Copy></View>
+          <View style={{ flex: 1, minWidth: 0 }}><Copy style={{ fontWeight: "600" }}>{expense.label}</Copy><Copy muted style={{ fontSize: 12 }}>{split.split ? expenseSplitLabel(expense, split, language) : expense.category}</Copy></View>
           <Copy style={{ fontWeight: "700" }}>{money(expense.amount)}</Copy>
         </Pressable>)}
         {!expenses.length && <View style={styles.emptyDay}>
@@ -446,6 +481,7 @@ export function BudgetScreen() {
           })}
         </View>
         <Field label="Name (optional)" placeholder="e.g. Lunch by the sea" value={label} onChangeText={setLabel} maxLength={80} />
+        <SplitPicker amount={Number(amount.replace(",", ".")) || 0} paidBy={paidBy} splitWith={splitWith} onPaidBy={setPaidBy} onSplitWith={setSplitWith} />
         {!!error && <Copy style={s.error}>{error}</Copy>}
         <Button busy={saving} onPress={save}>{editing ? "Save changes" : "Add expense"}</Button>
         {editing && (confirmDelete

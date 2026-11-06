@@ -31,6 +31,9 @@ function UsernameForm() {
   const { profile, setProfile } = useTravel();
   const chosen = typeof user?.user_metadata?.goworth_username === "string" ? cleanUsername(user.user_metadata.goworth_username) : "";
   const [name, setName] = useState(profile.name);
+  // Name is asked only when the account has none that passes the rule. Decided once, so the field does not vanish
+  // while it is being typed into.
+  const [askName] = useState(() => !namePattern.test(profile.name.trim()));
   const [username, setUsername] = useState(chosen);
   const status = useUsernameStatus(username);
   const [saving, setSaving] = useState(false);
@@ -71,7 +74,7 @@ function UsernameForm() {
           <Heading>Choose your username</Heading>
           <Copy muted>Friends find you by it to invite you on their trips. It is unique, and you can change it later in Profile.</Copy>
         </View>
-        <Field label="Name" placeholder="Your name" value={name} onChangeText={setName} maxLength={50} autoComplete="name" textContentType="name" />
+        {askName && <Field label="Name" placeholder="Your name" value={name} onChangeText={setName} maxLength={50} autoComplete="name" textContentType="name" containerStyle={{ flex: 0 }} />}
         <UsernameField value={username} onChangeText={setUsername} status={status} />
         {!!error && <Copy style={{ color: p.danger, fontSize: 13 }}>{error}</Copy>}
         <Button busy={saving} disabled={status === "taken" || status === "invalid" || status === "empty"} onPress={() => void save()}>Continue</Button>

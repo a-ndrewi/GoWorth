@@ -115,6 +115,10 @@ export type Expense = {
   label: string;
   category: ExpenseCategory;
   amount: number;
+  /** Who paid; empty on expenses saved before splitting, which the trip owner paid. */
+  paidBy?: string;
+  /** Whom it is shared between; empty means everyone on the trip. */
+  splitWith?: string[];
 };
 
 export type Trip = {

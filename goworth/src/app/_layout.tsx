@@ -13,6 +13,7 @@ import { BottomNav, Button, Copy } from "@/components/goworth/ui";
 import { ItineraryNav } from "@/components/goworth/itinerary-nav";
 import { OfflineBanner } from "@/components/goworth/offline-banner";
 import { UsernameGate } from "@/features/username-gate";
+import { ReferralAutoRedeem } from "@/features/referral-auto-redeem";
 // Also defines the background task that wakes the app for nearby places, which must exist before the app renders.
 import { DeviceSync } from "@/state/device-sync";
 import { setPhotoStore } from "@/data/place-photo";
@@ -75,6 +76,7 @@ const tabByPath: Record<string, string> = {
   "/membership": "profile",
   "/passport": "profile",
   "/support": "profile",
+  "/referral": "profile",
 };
 
 function AppNavigator() {
@@ -177,6 +179,7 @@ function AppNavigator() {
               <Stack.Screen name="passport" />
               <Stack.Screen name="preferences" />
               <Stack.Screen name="support" />
+              <Stack.Screen name="referral" />
             </Stack.Protected>
           </Stack>
           {!!user && !!offlineSince && <OfflineBanner since={offlineSince} onRetry={retryLoad} />}
@@ -186,6 +189,7 @@ function AppNavigator() {
           <BootCover visible={warmingUp} />
           <VisaAwardHost ready={!!user && cloudReady && bootDone && !!activeTab && !!profileUsername} />
           {!isSplash && <UsernameGate />}
+          {!isSplash && <ReferralAutoRedeem />}
           </>}
         </View>
       </View>

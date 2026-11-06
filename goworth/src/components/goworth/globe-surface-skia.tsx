@@ -36,6 +36,8 @@ const LABEL_HEIGHT = 18;
 /** Each flag's square in the flag atlas, in points. */
 const FLAG_CELL = 30;
 const FLAG_COLUMNS = 16;
+/** How far outside the frame a bubble's centre may sit and still be drawn: its radius plus a wide label. */
+const CULL_MARGIN = 90;
 
 /**
  * Every flag drawn once into one image. A flag is two letters that only become a flag through text shaping, which
@@ -108,14 +110,16 @@ export default function GlobeSurface({ width, height, radius, lam, phi, zoom, se
   const shineRadius = useDerivedValue(() => r.value * 0.7);
   const labelFont = useMemo(() => matchFont({ fontFamily: Platform.select({ ios: "Helvetica Neue", default: "sans-serif" }), fontSize: 11, fontWeight: "bold" }), []);
   // Names are measured and flags drawn once here, so each frame only places them.
-  const labelWidths = useMemo(() => bubbles?.names.map((name) => labelFont.measureText(name).width) ?? [], [bubbles, labelFont]);
+  const names = bubbles?.names;
+  const labelWidths = useMemo(() => names?.map((name) => labelFont.measureText(name).width) ?? [], [names, labelFont]);
   const flags = bubbles?.flags;
   const atlas = useMemo(() => flags ? flagAtlas(flags) : null, [flags]);
   const paint = useMemo(() => { const value = Skia.Paint(); value.setAntiAlias(true); return value; }, []);
+  const sourceColors = bubbles?.colors;
   const colors = useMemo(() => {
-    const c = bubbles?.colors;
+    const c = sourceColors;
     return c ? { white: Skia.Color(c.white), ring: Skia.Color(c.ring), here: Skia.Color(c.here), ink: Skia.Color(c.ink), line: Skia.Color(c.line), shadow: Skia.Color("#1E3A8A") } : null;
-  }, [bubbles]);
+  }, [sourceColors]);
   const pressedIndex = useDerivedValue(() => pressed?.value ?? -1);
   // Every bubble is drawn into one picture each frame: a few hundred circles and glyphs cost far less than moving a
   // view per country, and nothing has to mount when the globe appears.
@@ -128,12 +132,15 @@ export default function GlobeSurface({ width, height, radius, lam, phi, zoom, se
         const view = projectPoint(bubbles.lons[i], bubbles.lats[i], l, f, r);
         const reveal = revealFor(z, bubbles.minZooms[i]);
         if (view.facing < -0.02 || reveal <= 0) return;
+        // Zoomed in, most of the facing side is outside the frame; those bubbles (and their labels) are skipped.
+        const sx = cx + view.x, sy = cy + view.y;
+        if (sx < -CULL_MARGIN || sx > width + CULL_MARGIN || sy < -CULL_MARGIN || sy > height + CULL_MARGIN) return;
         const dimmed = bubbles.dimmed[i], emphasized = bubbles.emphasized[i], here = bubbles.here === i;
         const opacity = interpolate(view.facing, [-0.02, 0.16], [0, dimmed ? 0.32 : 1], Extrapolation.CLAMP) * reveal;
         if (opacity < 0.01) return;
         const scale = bubbleScale(view.facing, z, dimmed) * (0.55 + 0.45 * reveal) * (down === i ? 0.84 : 1);
         c.save();
-        c.translate(cx + view.x, cy + view.y);
+        c.translate(sx, sy);
         c.scale(scale, scale);
         paint.setStyle(PaintStyle.Fill);
         paint.setColor(colors.shadow); paint.setAlphaf(0.3 * opacity);

@@ -78,11 +78,13 @@ function PassCard({ plan, name, memberId, validUntil, locale, used, t }: {
 }) {
   const styles = useStyles(stylesSheet);
   const p = usePalette();
-  const dark = usePremiumTone() === premiumTones.dark;
+  const tone = usePremiumTone();
+  const dark = tone === premiumTones.dark;
   const paid = plan !== "free";
-  // Free is cream card stock in the light theme and a slate card in the dark one.
+  // Paid is night-blue and gold in the dark theme, warm gold card stock in the light one; Free is cream or slate.
   const c = paid
-    ? { ink: wheelColors.goldLight, muted: "rgba(255,231,163,0.62)", accent: wheelColors.gold, track: "rgba(245,196,81,0.22)", chip: wheelColors.gold }
+    ? dark ? { ink: wheelColors.goldLight, muted: "rgba(255,231,163,0.62)", accent: wheelColors.gold, track: "rgba(245,196,81,0.22)", chip: wheelColors.gold }
+      : { ink: tone.title, muted: tone.body, accent: tone.accentText, track: tone.chipBg, chip: wheelColors.gold }
     : dark ? { ink: p.ink, muted: p.muted, accent: p.blue, track: p.line, chip: "#3A4660" }
     : { ink: "#132238", muted: "#5B6B85", accent: "#2457E6", track: "#E4EAF6", chip: "#C9D3E8" };
   const className = plan === "free" ? t.explorer : plan === "premium" ? t.premium : t.lifetime;
@@ -92,7 +94,7 @@ function PassCard({ plan, name, memberId, validUntil, locale, used, t }: {
     {fill !== undefined && <View style={[styles.track, { backgroundColor: c.track }]}><View style={[styles.fill, { backgroundColor: c.accent, width: `${Math.min(fill, 1) * 100}%` }]} /></View>}
   </View>;
   return <View style={[styles.pass, paid ? styles.passPaid : styles.passFree]}>
-    {paid && <LinearGradient colors={["#1A2C5C", wheelColors.night, "#070C1E"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />}
+    {paid && <LinearGradient colors={tone.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />}
     <Row style={{ justifyContent: "space-between" }}>
       <Row style={{ gap: 6 }}>
         <Icon name="plane" size={15} color={c.accent} />
@@ -226,7 +228,7 @@ export function MembershipScreen() {
         </View>
       </Row>
       {[visas.length ? t.keepVisas.replace("{count}", String(visas.length)) : t.keepPassport, t.keepCompanions, t.keepTrips].map((line) =>
-        <Row key={line} style={{ gap: 8 }}><Icon name="check" size={13} color={wheelColors.gold} /><Text style={styles.endingLine}>{line}</Text></Row>)}
+        <Row key={line} style={{ gap: 8 }}><Icon name="check" size={13} color={tone.accent} /><Text style={styles.endingLine}>{line}</Text></Row>)}
     </View>}
 
     {plan !== "lifetime" && <PremiumPlans signedIn={!!user} storeProduct={membership?.storeProduct} willRenew={membership?.willRenew}
@@ -283,15 +285,15 @@ export function MembershipScreen() {
 const stylesSheet = themedStyles((p) => {
   const c = premiumTone(p);
   return {
-  endingCard: { gap: 9, padding: 16, borderRadius: 22, backgroundColor: "#13213F", borderWidth: 1, borderColor: wheelColors.gold },
+  endingCard: { gap: 9, padding: 16, borderRadius: 22, backgroundColor: p === palettes.dark ? "#13213F" : c.offer, borderWidth: 1, borderColor: p === palettes.dark ? wheelColors.gold : c.offerBorder },
   endingIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: wheelColors.gold, alignItems: "center", justifyContent: "center" },
-  endingTitle: { color: wheelColors.goldLight, fontSize: 16, fontWeight: "800" },
-  endingBody: { color: "rgba(255,255,255,0.75)", fontSize: 12.5, lineHeight: 18, marginTop: 2 },
-  endingLine: { color: "#FFFFFF", fontSize: 13.5, fontWeight: "600", flex: 1 },
+  endingTitle: { color: c.accentText, fontSize: 16, fontWeight: "800" },
+  endingBody: { color: c.body, fontSize: 12.5, lineHeight: 18, marginTop: 2 },
+  endingLine: { color: c.strong, fontSize: 13.5, fontWeight: "600", flex: 1 },
   // Loyalty-card proportions.
   pass: { aspectRatio: 1.62, padding: 18, borderRadius: 22, overflow: "hidden", justifyContent: "space-between", borderWidth: 1 },
   passFree: { backgroundColor: p === palettes.dark ? "#161E2D" : "#FFFBF0", borderColor: p.line },
-  passPaid: { backgroundColor: wheelColors.night, borderColor: "rgba(245,196,81,0.45)" },
+  passPaid: { backgroundColor: c.gradient[1], borderColor: c.border },
   chip: { width: 36, height: 26, borderRadius: 6, marginBottom: 8, overflow: "hidden", opacity: 0.9 },
   chipLine: { position: "absolute", left: 0, right: 0, height: 1, backgroundColor: "rgba(0,0,0,0.25)" },
   chipMiddle: { position: "absolute", top: 0, bottom: 0, left: 13, width: 10, borderLeftWidth: 1, borderRightWidth: 1, borderColor: "rgba(0,0,0,0.25)" },
