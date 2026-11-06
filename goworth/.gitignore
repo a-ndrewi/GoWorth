@@ -42,3 +42,6 @@ example
 # generated native folders
 /ios
 /android
+
+# internal notes (audits, roadmap), kept local only
+docs-private/
