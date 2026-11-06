@@ -44,7 +44,7 @@ const shortDate = (value: string, language: AppLanguage) =>
   new Date(`${value}T12:00:00`).toLocaleDateString(locale(language), { day: "2-digit", month: "short", year: "numeric" });
 
 /** Fine interlaced waves across the top of a page, the security print of a real visa. */
-function Guilloche({ width, color, wave, rows = 10 }: { width: number; color: string; wave: number; rows?: number }) {
+export function Guilloche({ width, color, wave, rows = 10 }: { width: number; color: string; wave: number; rows?: number }) {
   const paths = useMemo(() => Array.from({ length: rows }, (_, row) => {
     let d = `M 0 ${14 + row * 9}`;
     for (let x = 0; x <= width; x += 6) {
@@ -71,7 +71,7 @@ export function CoverPage({ t }: { t: Wording }) {
     <View style={{ width: 86, height: 86, borderRadius: 43, borderWidth: 2, borderColor: wheelColors.gold, alignItems: "center", justifyContent: "center" }}>
       <Icon name="plane" size={36} color={wheelColors.gold} />
     </View>
-    <Text style={{ color: wheelColors.gold, fontSize: 16, fontWeight: "800", letterSpacing: 6 }}>GOWORTH</Text>
+    <Text style={{ color: wheelColors.gold, fontSize: 22, fontWeight: "800", letterSpacing: 0.5 }}>GoWorth</Text>
     <Text style={{ color: wheelColors.goldLight, fontSize: 12, fontWeight: "600", letterSpacing: 4 }}>{t.passport.toUpperCase()}</Text>
   </View>;
 }

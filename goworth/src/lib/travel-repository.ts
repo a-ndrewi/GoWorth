@@ -1,4 +1,5 @@
 import type { Activity, Expense, Trip, TripJournalEntry } from "@/data/travel";
+import type { Settlement } from "@/utils/expense-split";
 import type { NearbyPlace } from "@/data/nearby-places";
 import { supabase } from "@/lib/supabase";
 import type { AppCurrency, AppLanguage } from "@/data/formatting";
@@ -295,11 +296,43 @@ export async function deleteActivity(tripId: string, id: string) {
 }
 
 export async function saveExpense(tripId: string, expense: Expense, position: number) {
+  const { paidBy, splitWith, ...rest } = expense;
+  // The split columns are sent only when an expense is split, so trips on their own keep saving before the
+  // split-expenses migration is deployed.
   requireData(await client().from("trip_expenses").upsert({
     trip_id: tripId,
-    ...expense,
+    ...rest,
+    ...(paidBy || splitWith?.length ? { paid_by: paidBy ?? null, split_with: splitWith?.length ? splitWith : null } : {}),
     position,
   }, { onConflict: "trip_id,id" }));
+}
+
+export async function saveSettlement(tripId: string, settlement: Settlement) {
+  requireData(await client().from("trip_settlements").insert({
+    trip_id: tripId, id: settlement.id, from_member: settlement.from, to_member: settlement.to, amount: settlement.amount,
+  }));
+}
+
+export async function deleteSettlement(tripId: string, id: string) {
+  requireData(await client().from("trip_settlements").delete().eq("trip_id", tripId).eq("id", id));
+}
+
+/** Empty when the split-expenses migration is not deployed yet. */
+async function loadSettlements(tripId: string): Promise<Settlement[]> {
+  const result = await client().from("trip_settlements").select("id,from_member,to_member,amount,created_at").eq("trip_id", tripId).order("created_at");
+  if (result.error) return [];
+  return (result.data ?? []).map((row) => ({ id: row.id, from: row.from_member, to: row.to_member, amount: Number(row.amount), createdAt: row.created_at }));
+}
+
+/** Expenses with who paid and whom they are shared between, or without them before the migration is deployed. */
+async function loadExpenses(tripId: string): Promise<Expense[]> {
+  const db = client();
+  let result = await db.from("trip_expenses").select("id,label,category,amount,paid_by,split_with").eq("trip_id", tripId).order("position");
+  if (result.error) result = await db.from("trip_expenses").select("id,label,category,amount").eq("trip_id", tripId).order("position") as typeof result;
+  return (requireData(result) ?? []).map((item) => ({
+    id: item.id, label: item.label, category: item.category, amount: Number(item.amount),
+    ...(item.paid_by ? { paidBy: item.paid_by } : {}), ...(item.split_with?.length ? { splitWith: item.split_with } : {}),
+  })) as Expense[];
 }
 
 export async function deleteExpense(tripId: string, id: string) {
@@ -347,10 +380,11 @@ export type SharedTrip = { tripId: string; owner: Traveler; status: "pending" | 
 /** The trip itself, its note, owner, itinerary and expenses; null once it is gone or no longer shared. */
 export async function loadTripData(tripId: string) {
   const db = client();
-  const [trip, activities, expenses] = await Promise.all([
+  const [trip, activities, expenses, settlements] = await Promise.all([
     db.from("trips").select(tripColumns).eq("id", tripId).maybeSingle(),
     db.from("trip_activities").select("id,day,period,activity_time,name,note,place_id,latitude,longitude").eq("trip_id", tripId).order("position"),
-    db.from("trip_expenses").select("id,label,category,amount").eq("trip_id", tripId).order("position"),
+    loadExpenses(tripId),
+    loadSettlements(tripId),
   ]);
   const row = requireData(trip) as TripRow | null;
   if (!row) return null;
@@ -360,7 +394,8 @@ export async function loadTripData(tripId: string) {
       id: item.id, day: item.day, period: item.period, time: item.activity_time, name: item.name, note: item.note,
       placeId: item.place_id || undefined, latitude: item.latitude ?? undefined, longitude: item.longitude ?? undefined,
     })) as Activity[],
-    expenses: (requireData(expenses) ?? []).map((item) => ({ id: item.id, label: item.label, category: item.category, amount: Number(item.amount) })) as Expense[],
+    expenses,
+    settlements,
   };
 }
 

@@ -4,7 +4,7 @@ import { useFocusEffect } from "expo-router";
 import { GestureDetector, useExclusiveGestures, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from "react-native-gesture-handler";
 import Animated, {
   Easing, cancelAnimation, useAnimatedReaction, useAnimatedStyle, useSharedValue,
-  withDecay, withDelay, withRepeat, withSpring, withTiming,
+  withDecay, withDelay, withRepeat, withTiming,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { countryAnchor, countryFlag, type Country } from "@/data/geography";
@@ -66,14 +66,17 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
   const dimmedFlags = useMemo(() => codes.map((code) => !!highlightSet && !highlightSet.has(code)), [codes, highlightSet]);
   // The bubbles are drawn by the globe's Skia surface rather than as a view each: two hundred views moved on every frame
   // of a turn or a zoom were what made the globe lag, and mounting them stalled the screen.
+  // Flags, names and colours keep their identity when the device's country or a highlight changes: the surface draws
+  // the flag atlas and measures every name from them, which stalled the screen just as the globe flew to the country.
+  const flags = useMemo(() => codes.map(countryFlag), [codes]);
+  const names = useMemo(() => anchored.map((item) => translate(item.country.name, language)), [anchored, language]);
+  const bubbleColors = useMemo(() => ({ white: p.white, ring: p.orange, here: p.blue, ink: p.ink, line: p.line }), [p]);
   const bubbles = useMemo<GlobeBubbles>(() => ({
     lons, lats, minZooms, dimmed: dimmedFlags,
     emphasized: codes.map((code) => !!highlightSet && highlightSet.has(code) && highlightSet.size <= 12),
     here: hereCode ? codes.indexOf(hereCode) : -1,
-    flags: codes.map(countryFlag),
-    names: anchored.map((item) => translate(item.country.name, language)),
-    colors: { white: p.white, ring: p.orange, here: p.blue, ink: p.ink, line: p.line },
-  }), [lons, lats, minZooms, dimmedFlags, codes, highlightSet, hereCode, anchored, language, p]);
+    flags, names, colors: bubbleColors,
+  }), [lons, lats, minZooms, dimmedFlags, codes, highlightSet, hereCode, flags, names, bubbleColors]);
   const dotCoordinates = useMemo(() => dots.flatMap((dot) => [dot.longitude, dot.latitude]), [dots]);
   const cx = width / 2, cy = HEIGHT / 2;
   const radius = Math.max(60, Math.min(width, HEIGHT) / 2 - 18);
@@ -222,14 +225,17 @@ export const CountryGlobe = memo(function CountryGlobe({ countries, highlighted,
   const turnAndZoom = useSimultaneousGestures(pan, pinch);
   const gesture = useExclusiveGestures(turnAndZoom, tap);
 
+  // Short timed eases rather than springs: a spring kept nudging the zoom by fractions of a point for over a second,
+  // and every one of those frames rebuilt the whole surface while the page around it tried to scroll.
+  const ease = { duration: 380, easing: Easing.out(Easing.cubic) };
   const zoomBy = (factor: number) => {
     cancelAnimation(zoom);
-    zoom.set(withSpring(Math.max(1, Math.min(MAX_ZOOM, zoom.get() * factor)), { damping: 16, stiffness: 160 }));
+    zoom.set(withTiming(Math.max(1, Math.min(MAX_ZOOM, zoom.get() * factor)), ease));
   };
   const reset = () => {
     cancelAnimation(lam);
-    zoom.set(withSpring(1, { damping: 16, stiffness: 140 }));
-    phi.set(withSpring(28, { damping: 16, stiffness: 140 }));
+    zoom.set(withTiming(1, { ...ease, duration: 520 }));
+    phi.set(withTiming(28, { ...ease, duration: 520 }));
   };
 
   return <View style={styles.frame} onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}>

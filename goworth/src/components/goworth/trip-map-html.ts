@@ -20,7 +20,8 @@ export function tripMapHtml(language: "en" | "ro") {
     : { loading: "Loading map…", unavailable: "Map unavailable right now" };
   return `<!doctype html>
 <html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.css" />
+<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.css" />
 <style>
   html,body{height:100%;width:100%;margin:0;background:#F3F6FB;overflow:hidden;overscroll-behavior:none;touch-action:none;font-family:system-ui,-apple-system,sans-serif}
   #map{position:fixed;inset:0}
@@ -36,7 +37,7 @@ export function tripMapHtml(language: "en" | "ro") {
   .label{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);padding:5px 9px;border-radius:9px;background:#fff;color:#132238;font:700 12px system-ui;white-space:nowrap;box-shadow:0 3px 12px rgba(19,34,56,.2);pointer-events:none;max-width:200px;overflow:hidden;text-overflow:ellipsis}
 </style></head>
 <body><div id="map"></div><div id="loading">${copy.loading}</div>
-<script src="https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.js"></script>
 <script>
 const loading=document.getElementById('loading');
 let map=null,ready=false,pending=null,markers=[],lastFrame='';
@@ -61,7 +62,7 @@ function paint(){
 }
 function node(cls,html){const el=document.createElement('button');el.type='button';el.className='pin '+cls;el.innerHTML=html||'';return el;}
 function update(data){
-  if(!ready){pending=data;return;}
+  if(!ready){pending=data;if(!map)start(data);return;}
   markers.forEach(m=>m.remove());markers=[];
   const bounds=new maplibregl.LngLatBounds();
   data.cities.forEach(c=>{const el=document.createElement('div');el.className='city';el.textContent=c.name;markers.push(new maplibregl.Marker({element:el,offset:[0,-2]}).setLngLat([c.longitude,c.latitude]).addTo(map));bounds.extend([c.longitude,c.latitude]);});
@@ -83,11 +84,22 @@ function update(data){
 }
 window.goworthUpdate=update;
 window.addEventListener('message',e=>{try{const m=typeof e.data==='string'?JSON.parse(e.data):e.data;if(m&&m.type==='update')update(m.data);}catch(err){}});
-try{
+// The map is created with the first pins, framed on them, so it never loads a whole continent's tiles before flying in.
+function start(data){
+  if(map)return;
+  try{
   // MapLibre 5 no longer ships maplibregl.supported(), so check for WebGL directly.
   const canvas=document.createElement('canvas');
   if(!window.maplibregl||!(canvas.getContext('webgl2')||canvas.getContext('webgl')))throw new Error('WebGL unavailable');
-  map=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/positron',center:[12,42],zoom:4,attributionControl:false,dragRotate:false,pitchWithRotate:false});
+  const points=data?[...data.cities,...data.planned,...data.suggestions]:[];
+  const view={center:[12,42],zoom:4};
+  if(points.length){
+    const b=new maplibregl.LngLatBounds();points.forEach(p=>b.extend([p.longitude,p.latitude]));
+    if(points.length===1){view.center=b.getCenter();view.zoom=12;}
+    else{delete view.center;delete view.zoom;view.bounds=b;view.fitBoundsOptions={padding:{top:46,bottom:30,left:30,right:30},maxZoom:14};}
+    lastFrame=data.frameKey;
+  }
+  map=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/positron',...view,attributionControl:false,dragRotate:false,pitchWithRotate:false});
   map.touchZoomRotate.disableRotation();
   // Credit stays reachable behind the compact "i" but starts folded; MapLibre unfolds it once the style's attribution arrives.
   map.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-left');
@@ -109,6 +121,9 @@ try{
     if(pending){update(pending);pending=null;}
   });
   new ResizeObserver(()=>map.resize()).observe(document.getElementById('map'));
-}catch(error){loading.textContent=${JSON.stringify(copy.unavailable)};}
+  }catch(error){map=map||{};loading.textContent=${JSON.stringify(copy.unavailable)};}
+}
+// Should no pins arrive (a page with nothing to show), the map still opens on its own.
+setTimeout(()=>start(pending),1500);
 </script></body></html>`;
 }

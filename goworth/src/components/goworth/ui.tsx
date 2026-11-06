@@ -271,13 +271,14 @@ export function Chip({
 export function Field({
   label,
   style,
+  containerStyle,
   ...props
-}: TextInputProps & { label?: string }) {
+}: TextInputProps & { label?: string; containerStyle?: StyleProp<ViewStyle> }) {
   const s = useStyles(sharedSheet);
   const p = usePalette();
   const language = useAppLanguage();
   return (
-    <View style={{ gap: 7, flex: 1 }}>
+    <View style={[{ gap: 7, flex: 1 }, containerStyle]}>
       {label && <Copy style={s.label}>{label}</Copy>}
       <TextInput
         {...props}

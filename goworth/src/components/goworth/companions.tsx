@@ -28,7 +28,7 @@ function useAvatar(path: string | null) {
 }
 
 /** The name others see: the profile name, else the @username, else a neutral word. */
-const shownName = (traveler: Pick<Traveler, "name" | "username">, language: "en" | "ro") =>
+export const shownName = (traveler: Pick<Traveler, "name" | "username">, language: "en" | "ro") =>
   traveler.name.trim() || (traveler.username ? `@${traveler.username}` : translate("Traveller", language));
 
 const initials = (traveler: Pick<Traveler, "name" | "username">) =>
@@ -54,15 +54,15 @@ export function CompanionStrip() {
   const p = usePalette();
   const language = useAppLanguage();
   const { user } = useAuth();
-  const { trip, tripId, tripOwner, profile, avatarUrl } = useTravel();
+  const { trip, tripId, tripOwner, profile, avatarUrl, syncTripPeople } = useTravel();
   const [open, setOpen] = useState(false);
   const [people, setPeople] = useState<TripCompanion[] | null>(null);
   useEffect(() => {
     if (!tripId || !trip || open) return;
     let current = true;
-    loadTripCompanions(tripId).then((value) => { if (current) setPeople(value); }).catch(() => { if (current) setPeople(null); });
+    loadTripCompanions(tripId).then((value) => { if (current) { setPeople(value); syncTripPeople(trip, value); } }).catch(() => { if (current) setPeople(null); });
     return () => { current = false; };
-  }, [tripId, trip, open]);
+  }, [tripId, trip, open, syncTripPeople]);
   if (!trip || !user) return null;
   const others = (people ?? []).filter((person) => person.id !== user.id && person.status !== "pending");
   const pending = (people ?? []).filter((person) => person.status === "pending").length;
@@ -105,7 +105,7 @@ export function CompanionsPanel({ onClose }: { onClose: () => void }) {
   const p = usePalette();
   const language = useAppLanguage();
   const { user } = useAuth();
-  const { trip, tripId, tripOwner, tripPeople, plan, profile, setProfile, inviteCompanion, removeCompanion } = useTravel();
+  const { trip, tripId, tripOwner, tripPeople, plan, profile, setProfile, inviteCompanion, removeCompanion, syncTripPeople } = useTravel();
   const isOwner = !tripOwner;
   // The list the trip already loaded shows straight away, so the sheet does not wait on a spinner or grow
   // mid-animation; a fresh copy replaces it once it arrives.
@@ -120,7 +120,7 @@ export function CompanionsPanel({ onClose }: { onClose: () => void }) {
   const [limitHit, setLimitHit] = useState(false);
   const searchId = useRef(0);
 
-  const reload = () => tripId ? loadTripCompanions(tripId).then(setPeople) : Promise.resolve();
+  const reload = () => tripId ? loadTripCompanions(tripId).then((value) => { setPeople(value); if (trip) syncTripPeople(trip, value); }) : Promise.resolve();
   useEffect(() => {
     reload().catch(() => setError("Could not load companions. Try again.")).finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps

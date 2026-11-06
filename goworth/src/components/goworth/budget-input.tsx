@@ -49,5 +49,7 @@ export function BudgetInput({ value, onChange, label = "Trip budget" }: { value:
 const stylesSheet = themedStyles((p) => ({
   field: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: p.line, backgroundColor: p.soft },
   symbol: { color: p.muted, fontSize: 24, fontWeight: "700" },
-  input: { minWidth: 90, color: p.ink, fontSize: 30, fontWeight: "800", textAlign: "center", paddingVertical: 4, outlineWidth: 0 },
+  // A fixed width that fits the widest budget (five digits): iOS keeps the width the field first measured, so a
+  // field opened at "2500" cut "10000" to "1000" once it lost focus.
+  input: { width: 124, color: p.ink, fontSize: 30, fontWeight: "800", textAlign: "center", paddingVertical: 4, outlineWidth: 0 },
 }));

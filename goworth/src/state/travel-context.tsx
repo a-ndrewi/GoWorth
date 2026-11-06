@@ -9,12 +9,14 @@ import { dayCityNames, placeFitsTripDayChecked } from "@/utils/trip-place";
 import { formatMessage } from "@/data/i18n";
 import { describeSyncFailure, isFreeLimitFailure, SyncFailure } from "@/utils/sync-error";
 import { tripDays, validateTrip } from "@/utils/trip";
+import type { Settlement } from "@/utils/expense-split";
 import { emptyExploreHistory, parseExploreHistory, rememberCountry, rememberPlace, type ExploreHistory } from "@/utils/explore-history";
 import { setDisplaySettings, type AppCurrency, type AppLanguage } from "@/data/formatting";
 import {
   archiveTrip,
   deleteActivity,
   deleteExpense,
+  deleteSettlement,
   deleteTrip,
   deleteTripJournalEntry,
   loadTravelData,
@@ -26,6 +28,7 @@ import {
   recordDiscoveryFavorite,
   saveActivity,
   saveExpense,
+  saveSettlement,
   saveTripReflection,
   savePreferences,
   saveProfile,
@@ -64,7 +67,7 @@ const offlineKey = (userId: string) => `offline-snapshot:${userId}`;
 /** The account as last seen online, kept on the phone for Premium so trips open without a connection. */
 type OfflineSnapshot = {
   savedAt: string; plan: "premium" | "lifetime"; profile: TravelProfile; preferences: TravelPreferences; hasPreferences: boolean;
-  trip: Trip | null; tripId: string | null; tripOwner: string | null; ownTrips?: PlannedTrip[]; activities: Activity[]; expenses: Expense[];
+  trip: Trip | null; tripId: string | null; tripOwner: string | null; ownTrips?: PlannedTrip[]; activities: Activity[]; expenses: Expense[]; settlements?: Settlement[];
   saved: string[]; savedPlaces: string[]; externalPlaces: NearbyPlace[]; journal: string; journalEntries: TripJournalEntry[];
   sharedTrips: SharedTrip[]; monthlyUsage: { trip: number; place: number; destination: number };
 };
@@ -94,7 +97,7 @@ async function ensurePlaceFitsDay(trip: Trip, activity: Pick<Activity, "day" | "
   throw new Error(formatMessage("Day {day} is planned for {city}. Only places in {city} can be added to it.", { day: activity.day, city: dayCityNames(trip, activity.day).join(", ") }));
 }
 
-type OpenedTrip = PlannedTrip & { activities: Activity[]; expenses: Expense[] };
+type OpenedTrip = PlannedTrip & { activities: Activity[]; expenses: Expense[]; settlements?: Settlement[] };
 const byStart = (a: PlannedTrip, b: PlannedTrip) => a.trip.start.localeCompare(b.trip.start);
 
 /** The trip to open when none is chosen: the next one still ahead, or the latest when all have ended. */
@@ -127,6 +130,7 @@ function useTravelState() {
   useEffect(() => { partyRef.current = party; }, [party]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [preferences, setPreferencesState] = useState<TravelPreferences>(blankPreferences);
   const [discoverySettings, setDiscoverySettingsState] = useState<DiscoverySettings>(defaultDiscoverySettings);
   const [hasPreferences, setHasPreferences] = useState(false);
@@ -274,6 +278,7 @@ function useTravelState() {
         setTrip(snapshot.trip);
         setActivities(snapshot.activities);
         setExpenses(snapshot.expenses);
+        setSettlements(snapshot.settlements ?? []);
         setSaved(snapshot.saved);
         setSavedPlaces(snapshot.savedPlaces);
         setExternalPlaces(snapshot.externalPlaces);
@@ -295,12 +300,12 @@ function useTravelState() {
     if (!userId || !cloudReady || offlineSince) return;
     if (plan === "free") { void AsyncStorage.removeItem(offlineKey(userId)).catch(() => undefined); return; }
     const snapshot: OfflineSnapshot = {
-      savedAt: new Date().toISOString(), plan, profile, preferences, hasPreferences, trip, tripId, tripOwner, ownTrips, activities, expenses,
+      savedAt: new Date().toISOString(), plan, profile, preferences, hasPreferences, trip, tripId, tripOwner, ownTrips, activities, expenses, settlements,
       saved, savedPlaces, externalPlaces, journal, journalEntries, sharedTrips, monthlyUsage,
     };
     const timer = setTimeout(() => void AsyncStorage.setItem(offlineKey(userId), JSON.stringify(snapshot)).catch(() => undefined), 800);
     return () => clearTimeout(timer);
-  }, [userId, cloudReady, offlineSince, plan, profile, preferences, hasPreferences, trip, tripId, tripOwner, ownTrips, activities, expenses,
+  }, [userId, cloudReady, offlineSince, plan, profile, preferences, hasPreferences, trip, tripId, tripOwner, ownTrips, activities, expenses, settlements,
     saved, savedPlaces, externalPlaces, journal, journalEntries, sharedTrips, monthlyUsage]);
 
   /** Puts a loaded trip (or none) on screen and remembers it as the one to reopen. */
@@ -311,6 +316,7 @@ function useTravelState() {
     setTrip(data?.trip ?? null);
     setActivities(data?.activities ?? []);
     setExpenses(data?.expenses ?? []);
+    setSettlements(data?.settlements ?? []);
     setJournalState(data?.note ?? "");
     if (account) void (id ? AsyncStorage.setItem(openTripKey(account), id) : AsyncStorage.removeItem(openTripKey(account))).catch(() => undefined);
   }
@@ -491,6 +497,20 @@ function useTravelState() {
     setExpenses((current) => current.filter((item) => item.id !== id));
   };
 
+  /** Records one traveller paying another back; it settles balances and never counts towards the budget. */
+  const addSettlement = async (settlement: Omit<Settlement, "id" | "createdAt">) => {
+    if (!user || !trip || !tripId || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    const next = { ...settlement, id: `settlement-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, createdAt: new Date().toISOString() };
+    await persist(() => saveSettlement(tripId!, next));
+    setSettlements((current) => [...current, next]);
+  };
+
+  const removeSettlement = async (id: string) => {
+    if (!user || !trip || !tripId || !cloudReady) throw new Error("Your trip is not ready. Try again.");
+    await persist(() => deleteSettlement(tripId!, id));
+    setSettlements((current) => current.filter((item) => item.id !== id));
+  };
+
   /** Opens the traveller's own trip (null) or a trip they joined; edits then go to that trip. */
   const openTrip = async (id: string | null) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
@@ -534,6 +554,11 @@ function useTravelState() {
     loadTripCompanions(tripId).then((people) => { if (current) setParty({ trip, people }); }).catch(() => undefined);
     return () => { current = false; };
   }, [user, cloudReady, offlineSince, tripId, trip]);
+
+  /** The companion strip and sheet load the people afresh; the trip's party (Solo, Duo, Group) follows what they found. */
+  const syncTripPeople = useCallback((forTrip: Trip, people: TripCompanion[]) => {
+    setParty((current) => current?.trip === forTrip && JSON.stringify(current.people) === JSON.stringify(people) ? current : { trip: forTrip, people });
+  }, []);
 
   const answerInvite = async (id: string, accept: boolean) => {
     if (!user || !cloudReady) throw new Error("Your account is not ready. Try again.");
@@ -626,9 +651,9 @@ function useTravelState() {
     trip, tripId, hasTrip: !!trip, trips: ownTrips, hasOwnTrip: ownTrips.length > 0, tripOwner, sharedTrips, pendingInvites: sharedTrips.filter((item) => item.status === "pending"),
     // The open trip's people as last loaded, and how many have joined (owner included; pending invitations do not count).
     tripPeople: trip && party?.trip === trip ? party.people : null,
-    travellers: trip && party?.trip === trip ? Math.max(1, party.people.filter((person) => person.status !== "pending").length) : 1, openTrip, refreshTrip, answerInvite, inviteCompanion, removeCompanion, generateTrip, updateTrip, clearTrip, finishTrip,
+    travellers: trip && party?.trip === trip ? Math.max(1, party.people.filter((person) => person.status !== "pending").length) : 1, openTrip, refreshTrip, answerInvite, inviteCompanion, removeCompanion, syncTripPeople, generateTrip, updateTrip, clearTrip, finishTrip,
     activities, addActivity, updateActivity, removeActivity,
-    expenses, addExpense, updateExpense, removeExpense,
+    expenses, addExpense, updateExpense, removeExpense, settlements, addSettlement, removeSettlement,
     preferences, setPreferences, hasPreferences, completePreferences,
     discoverySettings, setDiscoverySettings,
     profile, setProfile, avatarUrl, uploadAvatar, removeAvatar, plan, monthlyUsage, refreshMembership, journal, setJournal, journalEntries, journalAvailable, setArchivedReflection, deleteJournalEntry,

@@ -7,6 +7,7 @@ import { PlacePreviewPhoto, PlaceThumbnail } from "@/components/goworth/place-pr
 import { venueFilterIcons, venueFilterLabels } from "@/components/goworth/venue-art";
 import { SkeletonRows } from "@/components/goworth/loading";
 import { TripMap } from "@/components/goworth/trip-map";
+import { localToday, tripStatus } from "@/components/goworth/trip-hero";
 import { themedStyles, type Palette } from "@/constants/design";
 import { usePalette, useStyles } from "@/state/theme-context";
 import { tripDays } from "@/data/travel";
@@ -50,11 +51,12 @@ export function TripPlacesScreen() {
   const { day: dayParam, activity: activityParam, focus: focusParam } = useLocalSearchParams<{ day?: string; activity?: string; focus?: string }>();
   const { trip, activities, addActivity, removeActivity, externalPlaces, toggleExternalPlace } = useTravel();
   const days = trip ? tripDays(trip.start, trip.end) : 1;
-  const day = Math.min(Math.max(1, Math.trunc(Number(dayParam)) || 1), days);
+  // Without a day (opened from the tab bar) an active trip opens on today, like the itinerary does.
+  const status = trip ? tripStatus(trip.start, trip.end, localToday()) : null;
+  const day = Math.min(Math.max(1, Math.trunc(Number(dayParam)) || (status?.kind === "active" ? status.days : 1)), days);
   const dayStops = useMemo(() => trip ? citiesForDay(trip, day).map((id) => routeStop(trip, id)) : [], [trip, day]);
   const stopsKey = dayStops.map((stop) => stop.id).join("|");
-  const tripAreas = useTripAreas(trip);
-  const [ideas, setIdeas] = useState<{ key: string; status: "loading" | "ready" | "error"; places: Idea[] }>({ key: "", status: "loading", places: [] });
+  const [ideas, setIdeas] = useState<{ key: string; status: "loading" | "preview" | "ready" | "error"; places: Idea[] }>({ key: "", status: "loading", places: [] });
   const [venues, setVenues] = useState<{ key: string; status: "loading" | "ready" | "error"; places: Idea[] }>({ key: "", status: "loading", places: [] });
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Idea[] | null>(null);
@@ -76,17 +78,31 @@ export function TripPlacesScreen() {
   useEffect(() => {
     if (!dayStops.length) return;
     let active = true;
+    let done = false;
+    const merge = (lists: Idea[][]) => {
+      const seen = new Set<string>();
+      return lists.flat().filter((place) => !seen.has(place.id) && !!seen.add(place.id));
+    };
+    // The first landmarks of each stop are shown as soon as they arrive; the full list replaces them when ready.
+    const early: Idea[][] = dayStops.map(() => []);
+    const withCity = (stop: (typeof dayStops)[number]) => (places: NearbyPlace[]) => places.map((place) => ({ ...place, city: stop.name }));
     // Each stop's places come from inside its own outline; stops without one keep the earlier 8 km radius.
-    Promise.all(dayStops.map((stop) => loadCityPlaces(stop, stop.country, 8).then((places) => places.map((place) => ({ ...place, city: stop.name })))))
+    Promise.all(dayStops.map((stop, index) => loadCityPlaces(stop, stop.country, 8, {
+      onPreview: (places) => {
+        if (!active || done) return;
+        early[index] = withCity(stop)(places);
+        setIdeas({ key: stopsKey, status: "preview", places: merge(early) });
+      },
+    }).then(withCity(stop))))
       .then((lists) => {
-        if (!active) return;
-        const seen = new Set<string>();
-        const merged = lists.flat().filter((place) => !seen.has(place.id) && !!seen.add(place.id));
-        setIdeas({ key: stopsKey, status: "ready", places: merged });
+        done = true;
+        if (active) setIdeas({ key: stopsKey, status: "ready", places: merge(lists) });
       })
-      .catch(() => { if (active) setIdeas({ key: stopsKey, status: "error", places: [] }); });
+      .catch(() => { done = true; if (active) setIdeas({ key: stopsKey, status: "error", places: [] }); });
     return () => { active = false; };
   }, [dayStops, stopsKey]);
+  // Declared after the day's places so this day's city outline is asked for first: Nominatim takes one request a second.
+  const tripAreas = useTripAreas(trip);
 
   const venueFilter = chipVenue(category);
   // Venues load the first time a venue category is chosen for these cities; they stay for the other venue chips.
@@ -115,6 +131,7 @@ export function TripPlacesScreen() {
   const planned = dayActivities.filter((activity) => Number.isFinite(activity.latitude) && Number.isFinite(activity.longitude));
   const plannedIds = new Set(dayActivities.map((activity) => activity.placeId).filter(Boolean));
   const loading = venueFilter ? venues.key !== stopsKey || venues.status === "loading" : ideas.key !== stopsKey || ideas.status === "loading";
+  const refining = !venueFilter && !searchResults && ideas.key === stopsKey && ideas.status === "preview";
   const source = useMemo(() => searchResults ?? (venueFilter
     ? venues.key === stopsKey ? (filterVenues(venues.places, [venueFilter]) as Idea[]).filter((place) => !trip || placeFitsTripDay(trip, day, place, tripAreas)) : []
     : ideas.key === stopsKey ? ideas.places : []), [searchResults, venueFilter, venues, ideas, stopsKey, trip, day, tripAreas]);
@@ -254,7 +271,10 @@ export function TripPlacesScreen() {
       })}
     </ScrollView>
 
-    <Heading style={{ fontSize: 17, lineHeight: 23 }}>{searchResults ? formatMessage("Results for “{query}”", { query: query.trim() }, language) : venueFilter ? formatMessage("{venues} near your stops", { venues: translate(venueFilterLabels[venueFilter], language) }, language) : translate("Ideas for this day", language)}</Heading>
+    <Row style={{ gap: 8 }}>
+    <Heading style={{ flex: 1, fontSize: 17, lineHeight: 23 }}>{searchResults ? formatMessage("Results for “{query}”", { query: query.trim() }, language) : venueFilter ? formatMessage("{venues} near your stops", { venues: translate(venueFilterLabels[venueFilter], language) }, language) : translate("Ideas for this day", language)}</Heading>
+      {refining && <ActivityIndicator size="small" color={p.blue} accessibilityLabel={translate("Finding more places…", language)} />}
+    </Row>
     {loading && !searchResults ? <SkeletonRows count={3} thumbSize={64} card />
       : visible.length ? visible.map((place) => {
         const tone = colorFor(publicPlaceCategory(place.category) || place.category, p, place);

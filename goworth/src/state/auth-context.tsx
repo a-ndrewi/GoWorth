@@ -96,7 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // still deleted if that fails.
     await removeProfileAvatar().catch(() => undefined);
     const { error } = await supabase.rpc("delete_my_account");
-    if (error) throw error;
+    // Supabase hands back a plain object, not an Error; wrapping it keeps the server's reason visible on screen.
+    if (error) throw new Error(error.message || "Could not delete your account.");
     await AsyncStorage.multiRemove([`external-places:${user.id}`, `discovery-settings:${user.id}`, `offline-snapshot:${user.id}`, `visas:${user.id}`, `trip-owner:${user.id}`]).catch(() => undefined);
     await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
     setUser(null);

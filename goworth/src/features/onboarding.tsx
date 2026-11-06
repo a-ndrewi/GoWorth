@@ -29,6 +29,7 @@ import { supabase } from "@/lib/supabase";
 import { translate } from "@/data/i18n";
 import { useAppLanguage, type AppLanguage } from "@/data/formatting";
 import { useTimedMessage } from "@/hooks/use-timed-message";
+import { cleanReferralCode, referralCodePattern, referralMetadataKey } from "@/lib/referral";
 import { splashArtShown, whenSplashArtShown } from "@/state/boot";
 
 // Email links land on a small page of the presentation site, which opens the app with the link's one-time code.
@@ -245,6 +246,7 @@ export function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const usernameStatus = useUsernameStatus(username);
   const [show, setShow] = useState(false);
   const [error, setError] = useTimedMessage();
@@ -298,6 +300,7 @@ export function AuthScreen() {
     if (signUp && !resetMode && !passwordRecovery) {
       if (!usernamePattern.test(chosenUsername)) { setError("Use 3-24 letters, numbers or underscores."); return; }
       if (usernameStatus === "taken" || await usernameAvailable(chosenUsername) === false) { setError("Username is already taken."); return; }
+      if (inviteCode && !referralCodePattern.test(inviteCode)) { setError("Enter the 6-character code your friend shared."); return; }
     }
     if (!supabase) {
       setError("Account sign-in is not configured on this build.");
@@ -326,7 +329,7 @@ export function AuthScreen() {
             email: address,
             password,
             // Kept with the account until the first sign-in, when it is saved to the profile.
-            options: { emailRedirectTo: authRedirectUrl("signup", language), data: { goworth_username: chosenUsername } },
+            options: { emailRedirectTo: authRedirectUrl("signup", language), data: { goworth_username: chosenUsername, ...(inviteCode ? { [referralMetadataKey]: inviteCode } : {}) } },
           })
         : await supabase.auth.signInWithPassword({ email: address, password });
       if (result.error) throw result.error;
@@ -404,6 +407,8 @@ export function AuthScreen() {
           onChangeText={setEmail}
         />}
         {signUp && !resetMode && !passwordRecovery && <UsernameField value={username} onChangeText={setUsername} status={usernameStatus} />}
+        {signUp && !resetMode && !passwordRecovery && <Field label="Friend's invite code (optional)" placeholder="ABC234" autoCapitalize="characters" autoCorrect={false}
+          maxLength={8} value={inviteCode} onChangeText={(value) => setInviteCode(cleanReferralCode(value))} />}
         {!resetMode && <View style={{ gap: 7 }}>
           <Copy style={s.label}>Password</Copy>
           <Row style={[s.input, { paddingVertical: 0, paddingRight: 4 }]}>

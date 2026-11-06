@@ -303,8 +303,8 @@ export function ProfileScreen() {
   const [avatarError, setAvatarError] = useTimedMessage();
   const [avatarBusy, setAvatarBusy] = useState(false);
   const save = async () => {
-    if (!name.trim() || name.trim().length > 50 || (username && !/^[A-Za-z0-9_]{3,24}$/.test(username))) {
-      setError("Enter a name and, if used, a username of 3-24 letters, numbers, or underscores.");
+    if (!name.trim() || name.trim().length > 50 || !/^[A-Za-z0-9_]{3,24}$/.test(username.trim())) {
+      setError("Enter a name and a username of 3-24 letters, numbers, or underscores.");
       return;
     }
     setBusy(true);
@@ -438,6 +438,17 @@ export function ProfileScreen() {
         </View>
       </Pressable>
 
+      <Pressable accessibilityRole="button" onPress={() => pushOnce("/referral" as Href)} style={({ pressed }) => [styles.planCard, pressed && { transform: [{ scale: 0.99 }] }]}>
+        <LinearGradient colors={["#FFE3A3", "#F5B83D"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planBadge}>
+          <Icon name="people" size={24} color="#5A3B00" />
+        </LinearGradient>
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text style={styles.planTitle}>{translate("Invite friends", language)}</Text>
+          <Text numberOfLines={2} style={styles.planDetail}>{translate("Win 1 month of Premium, together", language)}</Text>
+        </View>
+        <Icon name="right" size={18} color={p.muted} />
+      </Pressable>
+
       <ListGroup title="Social media">
         <ListRow icon="instagram" label="Instagram" accessibilityRole="link" onPress={() => void openLink(socialLinks.instagram)} />
         <ListRow icon="tiktok" label="TikTok" accessibilityRole="link" onPress={() => void openLink(socialLinks.tiktok)} />
@@ -476,7 +487,7 @@ export function ProfileScreen() {
       <Sheet visible={!!dialog} title={dialog} onClose={() => setDialog("")}>
         {dialog === "Edit profile" && <>
           <Field label="Name" value={name} onChangeText={setName} maxLength={50} />
-          <Field label="Username (optional)" value={username} onChangeText={setUsername} autoCapitalize="none" maxLength={24} />
+          <Field label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" maxLength={24} />
           <Copy muted style={{ fontSize: 12 }}>Use your own name and photo. Profile content is checked before it is published.</Copy>
           <Button secondary icon="camera" busy={avatarBusy} onPress={() => void changeAvatar()}>Change photo</Button>
           {!!profile.avatarPath && <Button secondary icon="trash" busy={avatarBusy} onPress={() => void deleteAvatar()}>Remove photo</Button>}
