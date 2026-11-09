@@ -28,6 +28,7 @@ import { venueFromCategory, type NearbyPlace } from "@/data/nearby-places";
 import { useTimedMessage } from "@/hooks/use-timed-message";
 import { pushOnce } from "@/utils/navigation-guard";
 import { normalizeSearchText } from "@/utils/search";
+import { wrappedYear } from "@/utils/travel-wrapped";
 import { uniqueRouteStops } from "@/data/trip-route";
 import {
   requestNotificationPermission, sendTestNotifications, syncNearbyWatch, updateNotificationPrefs, useNotificationPrefs, type NotificationKind,
@@ -296,6 +297,7 @@ export function ProfileScreen() {
   const [dialog, setDialog] = useState("");
   const appVersion = Constants.expoConfig?.version || "1.0.0";
   const currentYear = new Date().getFullYear();
+  const recapYear = wrappedYear(new Date());
   const [name, setName] = useState(profile.name);
   const [username, setUsername] = useState(profile.username);
   const [error, setError] = useTimedMessage();
@@ -438,6 +440,18 @@ export function ProfileScreen() {
         </View>
       </Pressable>
 
+      {!!recapYear && <Pressable accessibilityRole="button" onPress={() => pushOnce("/wrapped" as Href)} style={({ pressed }) => [styles.planCard, pressed && { transform: [{ scale: 0.99 }] }]}>
+        {/* A year as four months of bars, the chart the recap opens with. */}
+        <View style={[styles.planBadge, styles.recapBadge]}>
+          {[11, 20, 14, 26].map((height, bar) => <View key={bar} style={[styles.recapBar, { height, backgroundColor: bar === 3 ? p.blue : p.blueLine }]} />)}
+        </View>
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text style={styles.planTitle}>{formatMessage("Your {year} in travel", { year: recapYear }, language)}</Text>
+          <Text numberOfLines={2} style={styles.planDetail}>{translate("Trips, countries and kilometres, ready to share.", language)}</Text>
+        </View>
+        <Icon name="right" size={18} color={p.muted} />
+      </Pressable>}
+
       <Pressable accessibilityRole="button" onPress={() => pushOnce("/referral" as Href)} style={({ pressed }) => [styles.planCard, pressed && { transform: [{ scale: 0.99 }] }]}>
         <LinearGradient colors={["#FFE3A3", "#F5B83D"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planBadge}>
           <Icon name="people" size={24} color="#5A3B00" />
@@ -549,6 +563,8 @@ const stylesSheet = themedStyles((p) => ({
   profileEdit: { color: p.blue, fontSize: 13, fontWeight: "700", marginTop: 3 },
   planCard: { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 24, borderWidth: 1, borderColor: p.line, backgroundColor: p.white },
   planBadge: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  recapBadge: { flexDirection: "row", alignItems: "flex-end", gap: 4, paddingBottom: 13, backgroundColor: p.blueSoft },
+  recapBar: { width: 6, borderRadius: 3 },
   planTitle: { color: p.ink, fontSize: 17, lineHeight: 22, fontWeight: "800", letterSpacing: -0.2 },
   planDetail: { color: p.muted, fontSize: 13, lineHeight: 18 },
   planPill: { paddingHorizontal: 13, paddingVertical: 7, borderRadius: 14, backgroundColor: p.soft },

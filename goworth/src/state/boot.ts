@@ -53,6 +53,24 @@ export function useSplashArtShown() {
   return useSyncExternalStore(subscribe, getArtShown, getArtShown);
 }
 
+/**
+ * The launch cover's own logo and name are on screen. A signed-in launch leaves the splash for the tabs under the
+ * cover; leaving before the cover had drawn its images showed the screen without them for a frame.
+ */
+let coverArtShown = false;
+
+export function launchCoverArtShown() {
+  if (coverArtShown) return;
+  coverArtShown = true;
+  emit();
+}
+
+const getCoverArtShown = () => coverArtShown;
+
+export function useLaunchCoverArtShown() {
+  return useSyncExternalStore(subscribe, getCoverArtShown, getCoverArtShown);
+}
+
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 const getDone = () => done;
 

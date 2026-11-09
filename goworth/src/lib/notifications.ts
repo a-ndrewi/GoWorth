@@ -26,6 +26,7 @@ const wheelIds = ["wheel-soon", "wheel-ready"];
 const tripIds = ["trip-nudge-0", "trip-nudge-1"];
 const trialId = "trial-ending";
 const premiumEndingIds = ["premium-ending-3", "premium-ending-1"];
+const wrappedId = "wrapped-ready";
 
 // Shown while the app is open as well; GoWorth only sends what the traveller asked for.
 Notifications.setNotificationHandler({
@@ -100,8 +101,8 @@ export async function syncWheelReminders(status: WheelStatus | null, language: A
   if (!status || !prefs.wheel || !(await notificationsAllowed())) return;
   const { soon, ready } = wheelReminderDates(wheelRemainingMs(status.nextSpinAt, status.clockOffsetMs));
   const copy = wheelCopy(language);
-  if (soon) await scheduleAt(wheelIds[0], soon, copy.soon[0], copy.soon[1], "/membership");
-  if (ready) await scheduleAt(wheelIds[1], ready, copy.ready[0], copy.ready[1], "/membership");
+  if (soon) await scheduleAt(wheelIds[0], soon, copy.soon[0], copy.soon[1], "/wheel");
+  if (ready) await scheduleAt(wheelIds[1], ready, copy.ready[0], copy.ready[1], "/wheel");
 }
 
 /** Suggests planning a trip after some days away from the app with none planned; a planned trip clears them. */
@@ -112,6 +113,18 @@ export async function syncTripNudges(hasTrip: boolean | null, language: AppLangu
   const dates = tripNudgeDates();
   const copy = tripCopy(language);
   for (const [index, date] of dates.entries()) await scheduleAt(tripIds[index], date, copy[index][0], copy[index][1], "/planner");
+}
+
+/** December 1 at 10:00, when the year's travel recap is worth opening. Only for travellers with trip reminders on. */
+export async function syncWrappedReady(language: AppLanguage) {
+  await cancel([wrappedId]);
+  await prefsReady;
+  if (!prefs.trip || !(await notificationsAllowed())) return;
+  const year = new Date().getFullYear();
+  const date = new Date(year, 11, 1, 10, 0, 0);
+  if (date.getTime() <= Date.now() + 60_000) return;
+  await scheduleAt(wrappedId, date, formatMessage("Your {year} in travel is ready", { year }, language),
+    translate("Every trip, country and kilometre of your year, in one story.", language), "/wrapped");
 }
 
 /** Two days before a free trial ends, so the traveller decides before they are charged. */
@@ -229,7 +242,7 @@ export async function sendTestNotifications(language: AppLanguage) {
   const wheel = wheelCopy(language);
   const [trip] = tripCopy(language);
   const tests: [string, string, Href][] = [
-    [wheel.soon[0], wheel.soon[1], "/membership"], [wheel.ready[0], wheel.ready[1], "/membership"], [trip[0], trip[1], "/planner"],
+    [wheel.soon[0], wheel.soon[1], "/wheel"], [wheel.ready[0], wheel.ready[1], "/wheel"], [trip[0], trip[1], "/planner"],
   ];
   for (const [index, [title, body, route]] of tests.entries()) {
     await Notifications.scheduleNotificationAsync({ identifier: `test-${index}`, content: { title, body, data: { route } }, trigger: inSeconds(5 + index * 5) });
@@ -247,7 +260,7 @@ export async function sendTestNotifications(language: AppLanguage) {
 /** Signing out: nothing scheduled for this account should arrive later. */
 export async function clearAccountNotifications() {
   // Trial and Premium reminders belong to the account too; left behind, they reached whoever signed in next.
-  await cancel([...wheelIds, ...tripIds, trialId, ...premiumEndingIds]);
+  await cancel([...wheelIds, ...tripIds, trialId, ...premiumEndingIds, wrappedId]);
   await syncNearbyWatch(false, "en");
 }
 
