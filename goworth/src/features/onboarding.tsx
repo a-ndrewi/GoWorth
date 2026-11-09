@@ -30,7 +30,7 @@ import { translate } from "@/data/i18n";
 import { useAppLanguage, type AppLanguage } from "@/data/formatting";
 import { useTimedMessage } from "@/hooks/use-timed-message";
 import { cleanReferralCode, referralCodePattern, referralMetadataKey } from "@/lib/referral";
-import { splashArtShown, whenSplashArtShown } from "@/state/boot";
+import { launchCoverArtShown, splashArtShown, useLaunchCoverArtShown, whenSplashArtShown } from "@/state/boot";
 
 // Email links land on a small page of the presentation site, which opens the app with the link's one-time code.
 // Mail apps follow an https link reliably; many refuse to follow a redirect straight to goworth://.
@@ -47,6 +47,11 @@ export function SplashScreen() {
   const [actionReveal] = useState(() => new Animated.Value(0));
   const [actionsEnabled, setActionsEnabled] = useState(false);
   const [introDone, setIntroDone] = useState(false);
+  // A signed-in launch goes to the tabs under the launch cover, laid over this screen with the same picture. Leaving
+  // waits until the cover's images are drawn: swapping straight away showed neither for a frame, a blink of the logo.
+  const coverDrawn = useLaunchCoverArtShown();
+  const [coverWaitOver, setCoverWaitOver] = useState(false);
+  const signedIn = !!user;
 
   useEffect(() => {
     const timer = setTimeout(() => setIntroDone(true), 1100);
@@ -54,8 +59,15 @@ export function SplashScreen() {
   }, []);
 
   useEffect(() => {
+    if (!signedIn || coverDrawn) return;
+    const timer = setTimeout(() => setCoverWaitOver(true), 1500);
+    return () => clearTimeout(timer);
+  }, [signedIn, coverDrawn]);
+
+  useEffect(() => {
     if (hold || !ready || (user && !cloudReady) || actionsEnabled) return;
     if (user) {
+      if (!coverDrawn && !coverWaitOver) return;
       router.replace((hasPreferences ? "/home" : "/preferences") as Href);
       return;
     }
@@ -72,7 +84,7 @@ export function SplashScreen() {
       if (finished) setActionsEnabled(true);
     });
     return () => animation.stop();
-  }, [hold, introDone, ready, user, cloudReady, hasPreferences, actionsEnabled, actionReveal]);
+  }, [hold, introDone, ready, user, cloudReady, hasPreferences, actionsEnabled, actionReveal, coverDrawn, coverWaitOver]);
 
   return <WelcomeContent actionReveal={actionReveal} actionsEnabled={actionsEnabled} animated />;
 }
@@ -155,34 +167,42 @@ function useMarkAnimation(enabled: boolean) {
   return enabled ? sharedMarkStyle : undefined;
 }
 
-function WelcomeContent({ actionReveal, actionsEnabled = true, animated = false }: { actionReveal?: Animated.Value; actionsEnabled?: boolean; animated?: boolean }) {
+/** The native splash image's side in points; equals app.json's imageWidth and `side` in scripts/build-splash.mjs. */
+const splashSide = 285;
+
+function WelcomeContent({ actionReveal, actionsEnabled = true, animated = false, onArtShown }: { actionReveal?: Animated.Value; actionsEnabled?: boolean; animated?: boolean; onArtShown?: (name: "mark" | "name") => void }) {
   const p = usePalette();
   const { scheme } = useThemePreference();
   const markStyle = useMarkAnimation(animated);
   return (
     <View style={{ flex: 1, backgroundColor: p.white }}>
       <StatusBar style="dark" />
-      <SafeAreaView style={{ flex: 1 }}>
-        <View style={{ flex: 1, paddingHorizontal: 24 }}>
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 15 }}>
-            <Animated.View style={markStyle}>
-              <Image
-                source={photos.brandMark}
-                style={{ width: 132, height: 104 }}
-                contentFit="contain"
-                accessibilityLabel="GoWorth logo"
-                onDisplay={() => splashArtShown("mark")}
-              />
-            </Animated.View>
+      {/* Laid out exactly like the native splash image (scripts/build-splash.mjs): a square centred on the whole
+          screen with the mark at its top. Centring it in the space left by the safe area and the buttons put it a few
+          points off on most phones, and off by the insets for the frame before they apply, so the logo snapped. */}
+      <View pointerEvents="none" style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, alignItems: "center", justifyContent: "center" }}>
+        <View style={{ width: splashSide, height: splashSide, alignItems: "center", gap: 15 }}>
+          <Animated.View style={markStyle}>
             <Image
-              source={photos.brandName}
-              style={{ width: 218, height: 54 }}
-              tintColor={scheme === "dark" ? p.ink : undefined}
+              source={photos.brandMark}
+              style={{ width: 132, height: 104 }}
               contentFit="contain"
-              accessibilityLabel="GoWorth"
-              onDisplay={() => splashArtShown("name")}
+              accessibilityLabel="GoWorth logo"
+              onDisplay={() => (onArtShown ?? splashArtShown)("mark")}
             />
-          </View>
+          </Animated.View>
+          <Image
+            source={photos.brandName}
+            style={{ width: 218, height: 54 }}
+            tintColor={scheme === "dark" ? p.ink : undefined}
+            contentFit="contain"
+            accessibilityLabel="GoWorth"
+            onDisplay={() => (onArtShown ?? splashArtShown)("name")}
+          />
+        </View>
+      </View>
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={{ flex: 1, paddingHorizontal: 24, justifyContent: "flex-end" }}>
           <Animated.View
             pointerEvents={actionsEnabled ? "auto" : "none"}
             accessibilityElementsHidden={!actionsEnabled}
@@ -212,10 +232,24 @@ export function WelcomeScreen() {
   return <WelcomeContent />;
 }
 
-/** The splash look laid over the tabs while they warm up at launch; it fades out once they are ready. */
-export function BootCover({ visible }: { visible: boolean }) {
+/**
+ * The splash look laid over the tabs while they warm up at launch; it fades out once they are ready. A signed-in launch
+ * lays it over the splash first, so the splash can leave for the tabs underneath it without the logo blinking.
+ */
+export function BootCover({ visible, overSplash }: { visible: boolean; overSplash: boolean }) {
   const [opacity] = useState(() => new Animated.Value(1));
   const [shown, setShown] = useState(visible);
+  // Over the splash it stays hidden until its own logo and name are drawn: coming up empty showed a frame without them.
+  const [drawn] = useState(() => new Set<string>());
+  const [artReady, setArtReady] = useState(false);
+  const onArtShown = (name: "mark" | "name") => {
+    // Over the splash, the native splash waits for the splash's own images, which are the ones it uncovers.
+    if (!overSplash) splashArtShown(name);
+    drawn.add(name);
+    if (drawn.size < 2 || artReady) return;
+    setArtReady(true);
+    launchCoverArtShown();
+  };
   if (visible && !shown) { opacity.setValue(1); setShown(true); }
   useEffect(() => {
     // Only a cover that was on screen fades. Fading one that was never shown (the app mounts on the splash route)
@@ -228,8 +262,8 @@ export function BootCover({ visible }: { visible: boolean }) {
   }, [visible, shown, opacity]);
   if (!shown) return null;
   // Above the bottom bar as well, so the logo sits exactly where the splash left it until the tabs are ready.
-  return <Animated.View pointerEvents={visible ? "auto" : "none"} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, elevation: 100, opacity }}>
-    <WelcomeContent actionsEnabled={false} actionReveal={hiddenActions} animated />
+  return <Animated.View pointerEvents={visible ? "auto" : "none"} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, elevation: 100, opacity: artReady || !overSplash ? opacity : 0 }}>
+    <WelcomeContent actionsEnabled={false} actionReveal={hiddenActions} animated onArtShown={onArtShown} />
   </Animated.View>;
 }
 const hiddenActions = new Animated.Value(0);

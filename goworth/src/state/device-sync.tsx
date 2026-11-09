@@ -6,6 +6,7 @@ import { useTravel } from "@/state/travel-context";
 import { loadWheelStatus } from "@/lib/wheel";
 import {
   clearAccountNotifications, forgetNotificationRoute, syncNearbyWatch, syncTripNudges, syncWheelReminders, useNotificationPrefs, useNotificationRoute,
+  syncWrappedReady,
 } from "@/lib/notifications";
 import { updateTripWidget } from "@/lib/trip-widget";
 import { tripParty } from "@/utils/trip-party";
@@ -39,6 +40,7 @@ export function DeviceSync() {
     if (!user) { void clearAccountNotifications(); return; }
     if (!cloudReady) return;
     void syncTripNudges(!!trip, language);
+    void syncWrappedReady(language);
     void syncNearbyWatch(prefs.nearby, language);
   }, [loaded, user, cloudReady, trip, language, prefs.nearby, prefs.trip, grants, foreground]);
 

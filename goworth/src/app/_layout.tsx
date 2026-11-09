@@ -77,6 +77,7 @@ const tabByPath: Record<string, string> = {
   "/passport": "profile",
   "/support": "profile",
   "/referral": "profile",
+  "/wheel": "profile",
 };
 
 function AppNavigator() {
@@ -105,6 +106,7 @@ function AppNavigator() {
     if (signedInId) warmDeviceLocation();
   }, [signedInId]);
   const warmingUp = !!user && !bootDone && !!activeTab;
+  const coverOverSplash = !!user && !bootDone && isSplash;
   // The warm-up is only for a launch that lands on the tabs, and never holds the app for long.
   useEffect(() => {
     if (user && !isSplash && !activeTab) finishBoot();
@@ -180,13 +182,16 @@ function AppNavigator() {
               <Stack.Screen name="preferences" />
               <Stack.Screen name="support" />
               <Stack.Screen name="referral" />
+              <Stack.Screen name="wheel" />
+              <Stack.Screen name="wrapped" options={{ animation: "fade_from_bottom" }} />
             </Stack.Protected>
           </Stack>
           {!!user && !!offlineSince && <OfflineBanner since={offlineSince} onRetry={retryLoad} />}
           {/* Kept in the layout but invisible under the launch cover: its native glass draws above the cover otherwise. */}
           {!!user && activeTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.canvas, opacity: warmingUp ? 0 : 1 }}><BottomNav active={activeTab} /></SafeAreaView>}
           {!!user && !!trip && itineraryTab && <SafeAreaView edges={["bottom"]} style={{ backgroundColor: palette.canvas }}><ItineraryNav active={itineraryTab} day={itineraryDay} /></SafeAreaView>}
-          <BootCover visible={warmingUp} />
+          {/* A signed-in launch puts the cover up over the splash already, so the splash leaves for the tabs under it. */}
+          <BootCover visible={warmingUp || coverOverSplash} overSplash={coverOverSplash} />
           <VisaAwardHost ready={!!user && cloudReady && bootDone && !!activeTab && !!profileUsername} />
           {!isSplash && <UsernameGate />}
           {!isSplash && <ReferralAutoRedeem />}

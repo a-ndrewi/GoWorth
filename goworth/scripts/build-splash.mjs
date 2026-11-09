@@ -10,8 +10,8 @@ const width = 218;
 const mark = { width: 132, height: 104 };
 const name = { width: 218, height: 54 };
 const gap = 15;
-// The in-app logo sits above the screen's centre: the hidden sign-in buttons below it take 140 pt, and the safe
-// area's top inset is larger than its bottom one. Empty space under the logo puts it at the same height.
+// Empty space under the logo lifts it above the screen's centre, clear of the sign-in buttons. The in-app splash
+// draws the same square centred on the screen with the mark at its top, so changing this moves both together.
 const bottomSpace = 112;
 const height = mark.height + gap + name.height + bottomSpace;
 const side = Math.max(width, height);

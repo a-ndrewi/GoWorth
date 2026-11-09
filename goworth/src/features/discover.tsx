@@ -210,7 +210,7 @@ export function HomeScreen() {
           </Row>
           {trip && <TripShortcut label={translateAccessibility("My itinerary", language)} onPress={() => router.push("/itinerary" as Href)} />}
           {plan !== "lifetime" && <WheelShortcut label={translateAccessibility("Daily Premium wheel", language)} status={user ? wheelStatus : null}
-            onPress={() => router.push("/membership" as Href)} />}
+            onPress={() => router.push("/wheel" as Href)} />}
         </Row>
       </View>
       <TripInvites />

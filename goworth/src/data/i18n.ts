@@ -917,6 +917,9 @@ Object.assign(ro, {
   "Each traveller can be in a split only once": "Fiecare persoană poate apărea o singură dată în împărțire.",
   "Both travellers must be on this trip": "Ambele persoane trebuie să facă parte din această călătorie.",
   "How it works": "Cum funcționează", "Invite friends": "Invită prieteni", "Win 1 month of Premium, together": "Câștigați Premium pentru o lună, împreună",
+  "Your {year} in travel": "Anul tău {year} în călătorii", "Your {year} in travel is ready": "Anul tău {year} în călătorii e gata",
+  "Every trip, country and kilometre of your year, in one story.": "Fiecare călătorie, țară și kilometru din anul tău, într-o singură poveste.",
+  "Trips, countries and kilometres, ready to share.": "Călătorii, țări și kilometri, gata de distribuit.",
   "Share your code. When a friend signs up with it, you both get a month of Premium. It adds to any Premium you already have, bought or won on the wheel.":
     "Trimite-ți codul. Când un prieten își face cont cu el, primiți amândoi o lună de Premium. Se adaugă la orice Premium ai deja, cumpărat sau câștigat la roată.",
   "Your code: {code}": "Codul tău: {code}", "Your code": "Codul tău", "Share your code": "Trimite codul", "Could not load your invite code right now.": "Codul de invitație nu poate fi încărcat acum.",

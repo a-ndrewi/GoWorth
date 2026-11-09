@@ -30,7 +30,8 @@
 - **Plan.** Build a trip with dates, cities and a day-by-day itinerary. Places show photos of the place itself, with source and license.
 - **Budget.** Log expenses in your own currency and split them with the people you travel with.
 - **Journal.** Write about each day and share a finished trip as a story card.
-- **Passport.** Every completed trip issues a visa for each country it passed through; repeat visits add entry stamps.
+- **Passport.** Every completed trip issues a visa for each country it passed through; repeat visits add entry stamps. Share it as a story card on light or dark paper.
+- **Your year in travel.** From November, a recap of the year's trips, days, countries, kilometres, country of the year and travel style, ending in a shareable card.
 - **Widget.** The home screen widget shows the current trip at a glance.
 - **Two languages.** English and Romanian, with light and dark themes.
 
@@ -38,7 +39,7 @@ Every account is private: trips, expenses, saved places and journal entries belo
 
 ## Plans
 
-The Free plan covers one new trip, five new places and five new destinations per calendar month. Premium removes the limits and unlocks the passport. It is sold as a monthly or yearly subscription or a one-time Lifetime purchase through the App Store and Google Play.
+The Free plan covers one new trip, five new places and five new destinations per calendar month. Premium removes the limits, unlocks the passport and the full yearly recap. It is sold as a monthly or yearly subscription or a one-time Lifetime purchase through the App Store and Google Play, using RevenueCat. It can also be won: one free spin of the daily wheel every 24 hours, and a month for both people when a friend signs up with an invite code.
 
 ## Built with
 
